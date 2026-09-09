@@ -13,32 +13,7 @@ const STORAGE_KEYS = {
 };
 
 // Initial Seed Dataset for Glorious Public School
-const SEED_TEACHERS = [
-  {
-    id: 'T-101',
-    name: 'Mrs. Ananya Sharma',
-    mobile: '9876543210',
-    password: 'password123',
-    subjects: ['Mathematics', 'Science'],
-    classrooms: [
-      { classNumber: '8', sections: ['A'] },
-      { classNumber: '9', sections: ['A', 'B'] },
-      { classNumber: '10', sections: ['A'] }
-    ]
-  },
-  {
-    id: 'T-102',
-    name: 'Mr. Rajesh Verma',
-    mobile: '9822334455',
-    password: 'password123',
-    subjects: ['English', 'Social Science'],
-    classrooms: [
-      { classNumber: '8', sections: ['A'] },
-      { classNumber: '9', sections: ['A', 'B'] },
-      { classNumber: '10', sections: ['A'] }
-    ]
-  }
-];
+const SEED_TEACHERS = [];
 
 const SEED_STUDENTS = [
   // Class 8 Students
@@ -673,11 +648,34 @@ function getMarksForStudent(roll, std = null) {
   });
 }
 
+function resetTestDataOnly() {
+  DB.marks = [];
+  try {
+    localStorage.removeItem(STORAGE_KEYS.MARKS);
+    localStorage.setItem(STORAGE_KEYS.MARKS, JSON.stringify([]));
+  } catch (e) {}
+
+  saveDatabase();
+
+  if (typeof CloudDB !== 'undefined' && typeof CloudDB.syncToCloud === 'function') {
+    CloudDB.syncToCloud();
+  }
+
+  if (typeof refreshAllModulesUI === 'function') refreshAllModulesUI();
+  if (typeof updateDashboard === 'function') updateDashboard();
+  if (typeof updateManagementDashboard === 'function') updateManagementDashboard();
+
+  if (window.showToast) {
+    window.showToast('All examination marks have been reset. Enrolled students and faculty accounts remain intact.', 'info');
+  }
+}
+
 // Export global symbols
 window.DB = DB;
 window.initDatabase = initDatabase;
 window.saveDatabase = saveDatabase;
 window.resetDatabase = resetDatabase;
+window.resetTestDataOnly = resetTestDataOnly;
 window.factoryResetData = factoryResetData;
 window.refreshAllModulesUI = refreshAllModulesUI;
 window.getGrade = getGrade;

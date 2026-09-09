@@ -938,7 +938,25 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
       const grNo = grIdx !== -1 && row[grIdx] ? toEngDigits(row[grIdx].toString().trim()) : '';
       const name = nameIdx !== -1 && row[nameIdx] ? row[nameIdx].toString().trim() : '';
       const roll = rollIdx !== -1 && row[rollIdx] ? parseInt(toEngDigits(row[rollIdx])) : null;
-      let rowStd = (stdIdx !== -1 && row[stdIdx] && row[stdIdx].toString().trim()) ? toEngDigits(row[stdIdx].toString().trim()) : defaultStd;
+      let rowStd = (stdIdx !== -1 && row[stdIdx] && row[stdIdx].toString().trim()) ? toEngDigits(row[stdIdx].toString().trim()) : null;
+      if (!rowStd) {
+        let matchedStu = null;
+        if (grNo) {
+          matchedStu = DB.students.find(s => s.grNo && s.grNo.toString().trim().toLowerCase() === grNo.toLowerCase());
+        }
+        if (!matchedStu && roll) {
+          const rollMatches = DB.students.filter(s => s.roll === roll);
+          if (rollMatches.length === 1) {
+            matchedStu = rollMatches[0];
+          } else if (rollMatches.length > 1) {
+            matchedStu = rollMatches.find(s => String(s.std) === String(defaultStd)) || rollMatches[0];
+          }
+        }
+        if (!matchedStu && name) {
+          matchedStu = DB.students.find(s => s.name && s.name.trim().toLowerCase() === name.toLowerCase());
+        }
+        rowStd = (matchedStu && matchedStu.std) ? matchedStu.std.toString() : defaultStd;
+      }
       const assignedClasses = (typeof getTeacherAssignedClasses === 'function') ? getTeacherAssignedClasses() : [];
       if (assignedClasses.length > 0 && !assignedClasses.includes(rowStd)) {
         rowStd = defaultStd;
@@ -1019,7 +1037,25 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
       const grNo = grIdx !== -1 && row[grIdx] ? toEngDigits(row[grIdx].toString().trim()) : '';
       const name = nameIdx !== -1 && row[nameIdx] ? row[nameIdx].toString().trim() : '';
       const roll = rollIdx !== -1 && row[rollIdx] ? parseInt(toEngDigits(row[rollIdx])) : null;
-      let rowStd = (stdIdx !== -1 && row[stdIdx] && row[stdIdx].toString().trim()) ? toEngDigits(row[stdIdx].toString().trim()) : defaultStd;
+      let rowStd = (stdIdx !== -1 && row[stdIdx] && row[stdIdx].toString().trim()) ? toEngDigits(row[stdIdx].toString().trim()) : null;
+      if (!rowStd) {
+        let matchedStu = null;
+        if (grNo) {
+          matchedStu = DB.students.find(s => s.grNo && s.grNo.toString().trim().toLowerCase() === grNo.toLowerCase());
+        }
+        if (!matchedStu && roll) {
+          const rollMatches = DB.students.filter(s => s.roll === roll);
+          if (rollMatches.length === 1) {
+            matchedStu = rollMatches[0];
+          } else if (rollMatches.length > 1) {
+            matchedStu = rollMatches.find(s => String(s.std) === String(defaultStd)) || rollMatches[0];
+          }
+        }
+        if (!matchedStu && name) {
+          matchedStu = DB.students.find(s => s.name && s.name.trim().toLowerCase() === name.toLowerCase());
+        }
+        rowStd = (matchedStu && matchedStu.std) ? matchedStu.std.toString() : defaultStd;
+      }
       let subject = subjIdx !== -1 && row[subjIdx] ? row[subjIdx].toString().trim() : defaultSubject;
       const topic = topIdx !== -1 && row[topIdx] ? row[topIdx].toString().trim() : defaultTopic;
       let date = dateIdx !== -1 && row[dateIdx] ? row[dateIdx].toString().trim() : defaultDate;

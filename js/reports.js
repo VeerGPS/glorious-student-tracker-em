@@ -244,8 +244,173 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
   doc.text(`${overallPct.toFixed(1)}%`, 80, y + 16);
   doc.text(rankDisplay, 140, y + 16);
 
+  y += 24;
+
+  // --- Student-Wise Performance Bar Chart ---
+  const subjectMap = {};
+  marks.forEach(m => {
+    const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+    if (!subjectMap[cleanSub]) {
+      subjectMap[cleanSub] = { subject: cleanSub, obt: 0, max: 0, isAbsent: true };
+    }
+    const sMax = m.total || 50;
+    const sObt = m.isAbsent ? 0 : (m.marks || 0);
+    subjectMap[cleanSub].max += sMax;
+    subjectMap[cleanSub].obt += sObt;
+    if (!m.isAbsent) subjectMap[cleanSub].isAbsent = false;
+  });
+  const studentSubs = Object.values(subjectMap);
+
+  if (studentSubs.length > 0) {
+    if (y > 185) {
+      doc.addPage();
+      doc.setLineWidth(1); doc.setDrawColor(220, 38, 38); doc.rect(5, 5, 200, 287);
+      doc.setLineWidth(0.5); doc.setDrawColor(37, 99, 235); doc.rect(7, 7, 196, 283);
+      doc.setLineWidth(0.2); doc.setDrawColor(16, 185, 129); doc.rect(9, 9, 192, 279);
+      y = 18;
+    }
+
+    const chartBoxY = y;
+    const chartBoxH = 43;
+
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.3);
+    if (typeof doc.roundedRect === 'function') {
+      doc.roundedRect(15, chartBoxY, 180, chartBoxH, 2, 2, 'FD');
+    } else {
+      doc.rect(15, chartBoxY, 180, chartBoxH, 'FD');
+    }
+
+    // Header strip
+    doc.setFillColor(248, 250, 252);
+    doc.rect(15.2, chartBoxY + 0.2, 179.6, 6.5, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.line(15, chartBoxY + 6.8, 195, chartBoxY + 6.8);
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 58, 138);
+    doc.text("STUDENT SUBJECT-WISE PERFORMANCE BAR CHART (%)", 18, chartBoxY + 4.8);
+
+    // Legend
+    doc.setFontSize(6);
+    doc.setFont("helvetica", "bold");
+    doc.setFillColor(16, 185, 129); doc.rect(106, chartBoxY + 2, 3, 3, 'F');
+    doc.setTextColor(71, 85, 105); doc.text(">=75% Exc", 110, chartBoxY + 4.5);
+
+    doc.setFillColor(59, 130, 246); doc.rect(128, chartBoxY + 2, 3, 3, 'F');
+    doc.text("50-74% Good", 132, chartBoxY + 4.5);
+
+    doc.setFillColor(245, 158, 11); doc.rect(152, chartBoxY + 2, 3, 3, 'F');
+    doc.text("33-49% Avg", 156, chartBoxY + 4.5);
+
+    doc.setFillColor(239, 68, 68); doc.rect(174, chartBoxY + 2, 3, 3, 'F');
+    doc.text("<33% Alert", 178, chartBoxY + 4.5);
+
+    // Graph Area
+    const graphLeft = 32;
+    const graphRight = 188;
+    const graphWidth = graphRight - graphLeft;
+    const graphTop = chartBoxY + 11;
+    const graphBottom = chartBoxY + 34;
+    const graphHeight = graphBottom - graphTop;
+
+    // Gridlines
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.2);
+    doc.line(graphLeft, graphTop, graphRight, graphTop);
+    doc.setFontSize(6);
+    doc.setTextColor(148, 163, 184);
+    doc.text("100%", graphLeft - 2, graphTop + 1.5, { align: "right" });
+
+    const y50 = graphBottom - 0.5 * graphHeight;
+    doc.line(graphLeft, y50, graphRight, y50);
+    doc.text("50%", graphLeft - 2, y50 + 1.5, { align: "right" });
+
+    // 33% Pass benchmark in Rose
+    const y33 = graphBottom - 0.33 * graphHeight;
+    doc.setDrawColor(225, 29, 72);
+    if (typeof doc.setLineDash === 'function') {
+      doc.setLineDash([1.5, 1.5], 0);
+    } else if (typeof doc.setLineDashPattern === 'function') {
+      doc.setLineDashPattern([1.5, 1.5], 0);
+    }
+    doc.line(graphLeft, y33, graphRight, y33);
+    if (typeof doc.setLineDash === 'function') {
+      doc.setLineDash([], 0);
+    } else if (typeof doc.setLineDashPattern === 'function') {
+      doc.setLineDashPattern([], 0);
+    }
+    doc.setFontSize(5.5);
+    doc.setTextColor(225, 29, 72);
+    doc.text("33% Pass", graphRight + 1, y33 + 1, { align: "left" });
+
+    // 0% Baseline
+    doc.setDrawColor(148, 163, 184);
+    doc.line(graphLeft, graphBottom, graphRight, graphBottom);
+    doc.setFontSize(6);
+    doc.setTextColor(148, 163, 184);
+    doc.text("0%", graphLeft - 2, graphBottom + 1.5, { align: "right" });
+
+    // Bars
+    const N = studentSubs.length;
+    const slotW = graphWidth / N;
+    const barW = Math.min(12, Math.max(7, slotW * 0.55));
+
+    studentSubs.forEach((sub, i) => {
+      const pct = sub.max > 0 ? Math.min(100, Math.max(0, (sub.obt / sub.max) * 100)) : 0;
+      const bH = Math.max(1, (pct / 100) * graphHeight);
+      const bX = graphLeft + i * slotW + (slotW - barW) / 2;
+      const bY = graphBottom - bH;
+      const cX = bX + barW / 2;
+
+      // Track
+      doc.setFillColor(241, 245, 249);
+      doc.rect(bX, graphTop, barW, graphHeight, 'F');
+
+      // Bar Fill
+      if (sub.isAbsent) {
+        doc.setFillColor(239, 68, 68);
+      } else if (pct >= 75) {
+        doc.setFillColor(16, 185, 129);
+      } else if (pct >= 50) {
+        doc.setFillColor(59, 130, 246);
+      } else if (pct >= 33) {
+        doc.setFillColor(245, 158, 11);
+      } else {
+        doc.setFillColor(239, 68, 68);
+      }
+      doc.rect(bX, bY, barW, bH, 'F');
+
+      // Score
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      if (sub.isAbsent) {
+        doc.setTextColor(220, 38, 38);
+        doc.text("AB", cX, bY - 1, { align: "center" });
+      } else {
+        doc.setTextColor(15, 23, 42);
+        doc.text(`${Math.round(pct)}%`, cX, bY - 1, { align: "center" });
+      }
+
+      // Subject label
+      doc.setFontSize(6.5);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(30, 41, 59);
+      const subLabel = (sub.subject || '').substring(0, 8);
+      doc.text(subLabel, cX, graphBottom + 3.8, { align: "center" });
+
+      doc.setFontSize(5.5);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(`${sub.obt}/${sub.max}`, cX, graphBottom + 6.8, { align: "center" });
+    });
+
+    y = chartBoxY + chartBoxH + 4;
+  }
+
   // Notes & Legend
-  y += 28;
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
   doc.setFont("helvetica", "normal");
@@ -286,6 +451,156 @@ function formatGujaratiSection(sec) {
   return formatEnglishSection(sec);
 }
 
+// -------------------------------------------------------------
+// STUDENT-WISE VECTOR BAR CHART GENERATOR FOR OFFICIAL REPORT CARDS
+// -------------------------------------------------------------
+function renderReportCardBarChartHTML(subjectList) {
+  if (!subjectList || subjectList.length === 0) return '';
+
+  const chartW = 660;
+  const chartH = 135;
+  const padLeft = 45;
+  const padRight = 25;
+  const yTop = 20;
+  const yBottom = 98;
+  const usableW = chartW - padLeft - padRight;
+  const usableH = yBottom - yTop; // 78px
+
+  const N = subjectList.length;
+  const slotW = usableW / N;
+  const barW = Math.min(44, Math.max(22, slotW * 0.52));
+
+  // Passing line at 33%
+  const passY = (yBottom - (0.33 * usableH)).toFixed(1);
+
+  const defs = `
+    <defs>
+      <linearGradient id="rptGradEmerald" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#10b981"/>
+        <stop offset="100%" stop-color="#047857"/>
+      </linearGradient>
+      <linearGradient id="rptGradBlue" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3b82f6"/>
+        <stop offset="100%" stop-color="#1d4ed8"/>
+      </linearGradient>
+      <linearGradient id="rptGradAmber" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#f59e0b"/>
+        <stop offset="100%" stop-color="#b45309"/>
+      </linearGradient>
+      <linearGradient id="rptGradRed" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ef4444"/>
+        <stop offset="100%" stop-color="#b91c1c"/>
+      </linearGradient>
+    </defs>
+  `;
+
+  const gridLines = `
+    <!-- 100% -->
+    <line x1="${padLeft}" y1="${yTop}" x2="${chartW - padRight}" y2="${yTop}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
+    <text x="${padLeft - 7}" y="${yTop + 3}" font-size="8.5" font-weight="700" fill="#94a3b8" text-anchor="end">100%</text>
+
+    <!-- 75% -->
+    <line x1="${padLeft}" y1="${(yBottom - 0.75 * usableH).toFixed(1)}" x2="${chartW - padRight}" y2="${(yBottom - 0.75 * usableH).toFixed(1)}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
+    <text x="${padLeft - 7}" y="${(yBottom - 0.75 * usableH + 3).toFixed(1)}" font-size="8.5" font-weight="700" fill="#94a3b8" text-anchor="end">75%</text>
+
+    <!-- 50% -->
+    <line x1="${padLeft}" y1="${(yBottom - 0.50 * usableH).toFixed(1)}" x2="${chartW - padRight}" y2="${(yBottom - 0.50 * usableH).toFixed(1)}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="3,3" />
+    <text x="${padLeft - 7}" y="${(yBottom - 0.50 * usableH + 3).toFixed(1)}" font-size="8.5" font-weight="700" fill="#94a3b8" text-anchor="end">50%</text>
+
+    <!-- 33% Pass Benchmark in Red -->
+    <line x1="${padLeft}" y1="${passY}" x2="${chartW - padRight}" y2="${passY}" stroke="#e11d48" stroke-width="1.2" stroke-dasharray="4,3" />
+    <text x="${chartW - padRight + 3}" y="${parseFloat(passY) + 3}" font-size="7.5" font-weight="800" fill="#e11d48" text-anchor="start">33% Pass</text>
+
+    <!-- 0% Baseline -->
+    <line x1="${padLeft}" y1="${yBottom}" x2="${chartW - padRight}" y2="${yBottom}" stroke="#cbd5e1" stroke-width="1.5" />
+    <text x="${padLeft - 7}" y="${yBottom + 3}" font-size="8.5" font-weight="700" fill="#94a3b8" text-anchor="end">0%</text>
+  `;
+
+  let barsHTML = '';
+  subjectList.forEach((sub, i) => {
+    const pct = sub.max > 0 ? Math.min(100, Math.max(0, (sub.obt / sub.max) * 100)) : 0;
+    const barH = Math.max(3, (pct / 100) * usableH);
+    const barX = padLeft + i * slotW + (slotW - barW) / 2;
+    const barY = yBottom - barH;
+    const centerX = barX + barW / 2;
+
+    let gradId = 'rptGradBlue';
+    let textColor = '#2563eb';
+    let tier = 'Good';
+
+    if (sub.isAbsent) {
+      gradId = 'rptGradRed';
+      textColor = '#dc2626';
+      tier = 'Absent';
+    } else if (pct >= 75) {
+      gradId = 'rptGradEmerald';
+      textColor = '#059669';
+      tier = 'Excellent';
+    } else if (pct >= 50) {
+      gradId = 'rptGradBlue';
+      textColor = '#2563eb';
+      tier = 'Good';
+    } else if (pct >= 33) {
+      gradId = 'rptGradAmber';
+      textColor = '#d97706';
+      tier = 'Average';
+    } else {
+      gradId = 'rptGradRed';
+      textColor = '#dc2626';
+      tier = 'Needs Help';
+    }
+
+    // Translucent background track
+    barsHTML += `<rect x="${barX}" y="${yTop}" width="${barW}" height="${usableH}" rx="4" ry="4" fill="#f1f5f9" opacity="0.6"/>`;
+
+    // Filled score bar with crisp rounded top and border outline
+    barsHTML += `<rect x="${barX}" y="${barY}" width="${barW}" height="${barH}" rx="4" ry="4" fill="url(#${gradId})" stroke="rgba(0,0,0,0.12)" stroke-width="0.5"/>`;
+
+    // Floating score badge
+    const badgeY = Math.max(yTop - 3, barY - 4);
+    barsHTML += `
+      <text x="${centerX}" y="${badgeY}" font-size="8.5" font-weight="900" fill="${textColor}" text-anchor="middle">
+        ${sub.isAbsent ? 'Ab' : Math.round(pct) + '%'}
+      </text>
+      <text x="${centerX}" y="${badgeY - 9}" font-size="7" font-weight="700" fill="#64748b" text-anchor="middle">
+        ${sub.obt}/${sub.max}
+      </text>
+    `;
+
+    // Subject label & status underneath baseline
+    barsHTML += `
+      <text x="${centerX}" y="${yBottom + 13}" font-size="9.5" font-weight="800" fill="#1e293b" text-anchor="middle">
+        ${sub.subject}
+      </text>
+      <text x="${centerX}" y="${yBottom + 23}" font-size="7" font-weight="700" fill="${textColor}" text-anchor="middle">
+        ${tier}
+      </text>
+    `;
+  });
+
+  return `
+    <div style="margin-top: 10px; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 8px 12px 6px 12px; background: #ffffff;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #e2e8f0;">
+        <div style="font-size: 10.5px; font-weight: 800; color: #1e3a8a; display: flex; align-items: center; gap: 5px;">
+          <span style="display: inline-block; width: 8px; height: 8px; background: #2563eb; border-radius: 2px;"></span>
+          Subject-Wise Performance Bar Chart (%)
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 8px; font-weight: 700; color: #64748b;">
+          <span style="display: flex; align-items: center; gap: 3px;"><span style="width: 7px; height: 7px; background: #10b981; border-radius: 2px;"></span> Excellent (&ge;75%)</span>
+          <span style="display: flex; align-items: center; gap: 3px;"><span style="width: 7px; height: 7px; background: #3b82f6; border-radius: 2px;"></span> Good (50-74%)</span>
+          <span style="display: flex; align-items: center; gap: 3px;"><span style="width: 7px; height: 7px; background: #f59e0b; border-radius: 2px;"></span> Average (33-49%)</span>
+          <span style="display: flex; align-items: center; gap: 3px;"><span style="width: 7px; height: 7px; background: #ef4444; border-radius: 2px;"></span> Needs Attention (&lt;33%)</span>
+        </div>
+      </div>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${chartW} ${chartH}" width="100%" height="${chartH}" style="width: 100%; height: auto; max-height: 135px; display: block; overflow: visible; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;">
+        ${defs}
+        ${gridLines}
+        ${barsHTML}
+      </svg>
+    </div>
+  `;
+}
+
 function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST TERM ASSESSMENT", passedMarks = null) {
   const student = DB.students.find(s => s.roll === roll && (targetStd ? s.std.toString() === targetStd.toString() : true)) || DB.students.find(s => s.roll === roll);
   if (!student) return '';
@@ -297,6 +612,21 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
 
   let totalMax = 0;
   let totalObt = 0;
+
+  // Group by Subject for student-wise bar chart
+  const subjectMap = {};
+  marks.forEach(m => {
+    const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+    if (!subjectMap[cleanSub]) {
+      subjectMap[cleanSub] = { subject: cleanSub, obt: 0, max: 0, isAbsent: true };
+    }
+    const sMax = m.total || 50;
+    const sObt = m.isAbsent ? 0 : (m.marks || 0);
+    subjectMap[cleanSub].max += sMax;
+    subjectMap[cleanSub].obt += sObt;
+    if (!m.isAbsent) subjectMap[cleanSub].isAbsent = false;
+  });
+  const studentSubjects = Object.values(subjectMap);
 
   // Calculate peer ranks for each mark row
   const tableRowsHTML = marks.map((m, idx) => {
@@ -427,6 +757,9 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
                   </tbody>
                 </table>
               </div>
+
+              <!-- Student-Wise Performance Bar Chart -->
+              ${studentSubjects && studentSubjects.length > 0 ? renderReportCardBarChartHTML(studentSubjects) : ''}
 
               <!-- 3-Column Summary Box -->
               <div style="margin-top: 14px; background: #f1f5f9; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr 1fr; text-align: center; gap: 8px;">
@@ -925,10 +1258,14 @@ function sendNextWhatsApp() {
 
 // Global symbols
 window.addStudentScorecardToDoc = addStudentScorecardToDoc;
-window.formatGujaratiSection = formatGujaratiSection;
+window.renderReportCardBarChartHTML = renderReportCardBarChartHTML;
+window.generateEnglishReportCardHTML = generateEnglishReportCardHTML;
 window.generateGujaratiReportCardHTML = generateGujaratiReportCardHTML;
 window.printBulkReportCards = printBulkReportCards;
+window.printSingleStudent = printSingleStudent;
+window.printSingleStudentEnglish = printSingleStudent;
 window.printSingleStudentGujarati = printSingleStudentGujarati;
+window.downloadEnglishPDF = downloadEnglishPDF;
 window.downloadGujaratiPDF = downloadGujaratiPDF;
 window.generateBulkPDF = generateBulkPDF;
 window.generateBulkExcel = generateBulkExcel;

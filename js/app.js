@@ -1518,11 +1518,14 @@ function renderStudentsTable() {
       <td class="p-4 text-xs font-semibold text-slate-600">
         ${s.mobile ? `<i class="fa-brands fa-whatsapp text-emerald-500 mr-1"></i>${s.mobile}` : '<span class="opacity-40 italic">None</span>'}
       </td>
-      <td class="p-4 text-center space-x-2">
-        <button onclick="openParentLink(${s.roll}, '${s.std || ''}')" class="bg-white text-emerald-600 hover:bg-emerald-500 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-sm">
-          <i class="fa-solid fa-eye mr-1"></i> View Portal
+      <td class="p-4 text-center space-x-1.5 whitespace-nowrap">
+        <button onclick="printSingleStudent(${s.roll}, '${s.std || ''}', 'STUDENT PROGRESS REPORT')" class="bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-indigo-200 shadow-sm cursor-pointer" title="Print/Save English Report Card">
+          <i class="fa-solid fa-print mr-1"></i> Report Card
         </button>
-        <button onclick="copyParentLink(${s.roll}, '${s.std || ''}')" class="bg-white text-blue-600 hover:bg-blue-500 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all border border-blue-200 shadow-sm">
+        <button onclick="openParentLink(${s.roll}, '${s.std || ''}')" class="bg-white text-emerald-600 hover:bg-emerald-500 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-sm cursor-pointer" title="Open Parent Portal">
+          <i class="fa-solid fa-eye mr-1"></i> Portal
+        </button>
+        <button onclick="copyParentLink(${s.roll}, '${s.std || ''}')" class="bg-white text-blue-600 hover:bg-blue-500 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-blue-200 shadow-sm cursor-pointer" title="Copy Student Portal Link">
           <i class="fa-solid fa-copy mr-1"></i> Link
         </button>
       </td>
@@ -2426,6 +2429,12 @@ function updateManagementDashboard() {
 
   // Render Faculty Directory
   renderManagementFacultyRoster();
+
+  // Render Top Performers Leaderboard
+  renderManagementTopPerformers();
+
+  // Render Student Directory
+  renderManagementStudentDirectory();
 }
 
 function renderManagementCharts(fMarks, fStudents, sStats) {
@@ -2780,15 +2789,388 @@ function renderManagementFacultyRoster() {
         </div>
         <div class="pt-3 border-t border-slate-200/60 flex items-center justify-between">
           <span class="text-[11px] text-slate-400 font-medium">Teacher ID: ${t.id}</span>
-          ${t.mobile ? `
-            <a href="https://wa.me/${t.mobile}" target="_blank" class="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold transition-all flex items-center gap-1">
-              <i class="fa-brands fa-whatsapp"></i> Chat
-            </a>
-          ` : ''}
+          <div class="flex items-center gap-2">
+            ${t.mobile ? `
+              <a href="https://wa.me/${t.mobile}" target="_blank" class="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold transition-all flex items-center gap-1">
+                <i class="fa-brands fa-whatsapp"></i> Chat
+              </a>
+            ` : ''}
+            <button type="button" onclick="confirmRemoveTeacher('${t.id}', '${encodeURIComponent(t.name)}')" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer">
+              <i class="fa-solid fa-trash-can"></i> Remove
+            </button>
+          </div>
         </div>
       </div>
     `;
   }).join('');
+}
+
+// -------------------------------------------------------------
+// MANAGEMENT FACULTY CONTROLS (ADD & REMOVE TEACHERS)
+// -------------------------------------------------------------
+
+function openAddTeacherModal() {
+  const modal = document.getElementById('add-teacher-modal');
+  if (!modal) return;
+  const form = document.getElementById('add-teacher-form');
+  if (form) form.reset();
+  modal.classList.remove('hidden');
+}
+
+function closeAddTeacherModal() {
+  const modal = document.getElementById('add-teacher-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function handleAddTeacherSubmit(e) {
+  e.preventDefault();
+  const nameInput = document.getElementById('add-teacher-name');
+  const mobileInput = document.getElementById('add-teacher-mobile');
+  const passInput = document.getElementById('add-teacher-pass');
+
+  const name = nameInput ? nameInput.value.trim() : '';
+  const mobile = mobileInput ? mobileInput.value.trim() : '';
+  const password = passInput ? passInput.value.trim() : '';
+
+  if (!name) {
+    showToast('Teacher name is required.', 'error');
+    return;
+  }
+  if (!mobile || !/^\d{10}$/.test(mobile)) {
+    showToast('Please enter a valid 10-digit mobile number.', 'error');
+    return;
+  }
+  if (!password) {
+    showToast('Please provide a password.', 'error');
+    return;
+  }
+
+  // Check mobile uniqueness
+  if (DB.teachers && DB.teachers.some(t => t.mobile === mobile)) {
+    showToast('A teacher with this mobile number already exists.', 'error');
+    return;
+  }
+
+  // Collect subjects
+  const subjCheckboxes = document.querySelectorAll('input[name="add-teacher-subj"]:checked');
+  const subjects = Array.from(subjCheckboxes).map(cb => cb.value);
+  if (subjects.length === 0) {
+    subjects.push('Mathematics', 'Science', 'English', 'Social Science');
+  }
+
+  // Collect classrooms
+  const clsCheckboxes = document.querySelectorAll('input[name="add-teacher-cls"]:checked');
+  const classrooms = Array.from(clsCheckboxes).map(cb => ({
+    classNumber: cb.value,
+    sections: ['A']
+  }));
+  if (classrooms.length === 0) {
+    classrooms.push({ classNumber: '4', sections: ['A'] });
+  }
+
+  const newTeacher = {
+    id: 'T-' + Date.now(),
+    name: name,
+    mobile: mobile,
+    password: password,
+    subjects: subjects,
+    classrooms: classrooms
+  };
+
+  if (!Array.isArray(DB.teachers)) DB.teachers = [];
+  DB.teachers.push(newTeacher);
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(DB.teachers));
+  } catch (err) {}
+
+  saveDatabase();
+  if (typeof CloudDB !== 'undefined' && typeof CloudDB.syncToCloud === 'function') {
+    CloudDB.syncToCloud();
+  }
+
+  closeAddTeacherModal();
+  renderManagementFacultyRoster();
+  showToast(`Faculty teacher ${newTeacher.name} successfully created & synced to cloud!`);
+}
+
+function confirmRemoveTeacher(teacherId, teacherName) {
+  const decodedName = decodeURIComponent(teacherName || 'this teacher');
+  const ok = confirm(`Are you sure you want to remove teacher "${decodedName}" from the faculty roster?\n\nThis will remove their faculty login and assignments from the school tracker.`);
+  if (!ok) return;
+
+  DB.teachers = (DB.teachers || []).filter(t => t.id !== teacherId);
+  try {
+    localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(DB.teachers));
+  } catch (err) {}
+
+  saveDatabase();
+  if (typeof CloudDB !== 'undefined' && typeof CloudDB.syncToCloud === 'function') {
+    CloudDB.syncToCloud();
+  }
+
+  renderManagementFacultyRoster();
+  showToast(`Teacher "${decodedName}" removed from faculty records.`, 'info');
+}
+
+// -------------------------------------------------------------
+// RESET TEST DATA ONLY (LEAVES STUDENTS & TEACHERS INTACT)
+// -------------------------------------------------------------
+
+function confirmResetTestData() {
+  const confirmed = confirm("⚠️ Are you sure you want to reset and clear all test marks?\n\nThis will ONLY wipe examination marks data. Enrolled students, classroom rosters, and faculty teacher accounts will NOT be deleted.");
+  if (confirmed) {
+    if (typeof resetTestDataOnly === 'function') {
+      resetTestDataOnly();
+    } else {
+      DB.marks = [];
+      saveDatabase();
+      if (typeof CloudDB !== 'undefined' && typeof CloudDB.syncToCloud === 'function') {
+        CloudDB.syncToCloud();
+      }
+      if (typeof refreshAllModulesUI === 'function') refreshAllModulesUI();
+      if (typeof updateDashboard === 'function') updateDashboard();
+      if (typeof updateManagementDashboard === 'function') updateManagementDashboard();
+      showToast('All examination marks have been reset. Enrolled students are intact.', 'info');
+    }
+  }
+}
+
+// -------------------------------------------------------------
+// CLASS-WISE TOP PERFORMERS (HONOR ROLL LEADERBOARD)
+// -------------------------------------------------------------
+
+function renderManagementTopPerformers(scopeStd) {
+  const grid = document.getElementById('mgmt-top-performers-grid');
+  if (!grid) return;
+
+  const scopePill = document.getElementById('mgmt-top-scope-pill');
+  const targetStd = scopeStd || (typeof activeMgmtClass !== 'undefined' ? activeMgmtClass : 'all');
+  if (scopePill) {
+    scopePill.innerText = targetStd === 'all' ? 'Whole School' : `Class ${targetStd} Scope`;
+  }
+
+  const classGroups = {};
+  const validStudents = DB.students || [];
+
+  if (targetStd === 'all') {
+    for (let c = 1; c <= 10; c++) {
+      const sArr = validStudents.filter(s => String(s.std) === String(c));
+      if (sArr.length > 0) {
+        classGroups[String(c)] = sArr;
+      }
+    }
+  } else {
+    const sArr = validStudents.filter(s => String(s.std) === String(targetStd));
+    if (sArr.length > 0) {
+      classGroups[String(targetStd)] = sArr;
+    }
+  }
+
+  const classKeys = Object.keys(classGroups);
+  if (classKeys.length === 0) {
+    grid.innerHTML = '<div class="col-span-3 text-center py-8 text-slate-400 font-bold">No students enrolled to rank top performers.</div>';
+    return;
+  }
+
+  let html = '';
+  classKeys.forEach(cls => {
+    const students = classGroups[cls];
+    const scoredStudents = students.map(s => {
+      const sMarks = (DB.marks || []).filter(m => String(m.std) === String(s.std) && (m.roll === s.roll || (m.grNo && s.grNo && String(m.grNo) === String(s.grNo))));
+      const tObt = sMarks.reduce((acc, m) => acc + (m.isAbsent ? 0 : m.marks), 0);
+      const tMax = sMarks.reduce((acc, m) => acc + (m.isAbsent ? 0 : m.total), 0);
+      const pct = tMax > 0 ? ((tObt / tMax) * 100) : 0;
+      return {
+        ...s,
+        testCount: sMarks.length,
+        totalObtained: tObt,
+        totalMax: tMax,
+        pct: pct
+      };
+    });
+
+    // Sort by percentage descending, then total obtained descending
+    scoredStudents.sort((a, b) => b.pct - a.pct || b.totalObtained - a.totalObtained);
+
+    const topRankers = scoredStudents.slice(0, targetStd === 'all' ? 3 : 5);
+    const topper = topRankers[0] || null;
+
+    const rankBadges = [
+      { emoji: '🥇', color: 'from-amber-400 to-yellow-500 text-amber-950' },
+      { emoji: '🥈', color: 'from-slate-300 to-slate-400 text-slate-900' },
+      { emoji: '🥉', color: 'from-amber-600 to-orange-700 text-white' },
+      { emoji: '4th', color: 'from-teal-600 to-teal-700 text-white' },
+      { emoji: '5th', color: 'from-indigo-600 to-indigo-700 text-white' }
+    ];
+
+    html += `
+      <div class="glass-card rounded-3xl p-5 border border-slate-200/80 bg-slate-50/60 shadow-sm flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xs shadow-sm">
+                ${cls}
+              </div>
+              <div>
+                <h4 class="font-black text-slate-800 text-sm">Class ${cls} Honor Roll</h4>
+                <p class="text-[10px] text-slate-400 font-bold">${students.length} Enrolled</p>
+              </div>
+            </div>
+            ${topper && topper.pct > 0 ? `
+              <span class="text-[11px] font-black text-amber-700 bg-amber-100/70 border border-amber-200 px-2.5 py-0.5 rounded-full">
+                Top: ${topper.pct.toFixed(1)}%
+              </span>
+            ` : '<span class="text-[10px] text-slate-400 font-semibold">Unranked</span>'}
+          </div>
+
+          <div class="space-y-2">
+            ${topRankers.map((s, idx) => {
+              const badge = rankBadges[idx] || rankBadges[0];
+              return `
+                <div class="p-2.5 rounded-2xl bg-white border border-slate-100 flex items-center justify-between hover:border-amber-300 transition-all shadow-2xs">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-7 h-7 rounded-xl bg-gradient-to-tr ${badge.color} flex items-center justify-center text-xs font-black shrink-0 shadow-2xs">
+                      ${badge.emoji}
+                    </span>
+                    <div class="min-w-0">
+                      <div class="text-xs font-black text-slate-800 truncate">${s.name}</div>
+                      <div class="text-[10px] text-slate-400 font-semibold">Roll ${s.roll} • GR ${s.grNo || '-'}</div>
+                    </div>
+                  </div>
+                  <div class="text-right shrink-0 ml-2">
+                    <div class="text-xs font-black ${s.pct >= 75 ? 'text-emerald-700' : (s.pct >= 50 ? 'text-teal-700' : 'text-slate-600')}">
+                      ${s.pct > 0 ? s.pct.toFixed(1) + '%' : '-'}
+                    </div>
+                    <button type="button" onclick="openManagementParentPortal('${s.roll}', '${s.std}')" class="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer">
+                      Portal &rarr;
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between">
+          <span class="text-[10px] text-slate-400 font-medium">${topper && topper.testCount > 0 ? topper.testCount + ' tests recorded' : 'Awaiting marks'}</span>
+          <button type="button" onclick="setManagementClassFilter('${cls}')" class="text-xs font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1 cursor-pointer">
+            Class ${cls} Analytics &rarr;
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  grid.innerHTML = html;
+}
+
+// -------------------------------------------------------------
+// STUDENT DIRECTORY & PARENT PORTAL GATEWAY
+// -------------------------------------------------------------
+
+function renderManagementStudentDirectory(scopeStd) {
+  const tbody = document.getElementById('mgmt-student-directory-tbody');
+  if (!tbody) return;
+
+  const dirSelect = document.getElementById('mgmt-dir-filter-std');
+  const searchInput = document.getElementById('mgmt-stu-search');
+  const countBadge = document.getElementById('mgmt-directory-count-badge');
+
+  let std = scopeStd !== undefined ? scopeStd : (dirSelect ? dirSelect.value : ((typeof activeMgmtClass !== 'undefined' ? activeMgmtClass : 'all')));
+  if (dirSelect && dirSelect.value !== std) {
+    dirSelect.value = std;
+  }
+
+  const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  let filtered = DB.students || [];
+  if (std !== 'all') {
+    filtered = filtered.filter(s => String(s.std) === String(std));
+  }
+  if (query) {
+    filtered = filtered.filter(s => {
+      const nameMatch = (s.name || '').toLowerCase().includes(query);
+      const rollMatch = String(s.roll || '') === query;
+      const grMatch = (s.grNo || '').toLowerCase().includes(query);
+      return nameMatch || rollMatch || grMatch;
+    });
+  }
+
+  // Sort by class asc, then roll asc
+  filtered.sort((a, b) => {
+    if (parseInt(a.std) !== parseInt(b.std)) return parseInt(a.std) - parseInt(b.std);
+    return (a.roll || 0) - (b.roll || 0);
+  });
+
+  if (countBadge) {
+    countBadge.innerText = `${filtered.length} Students ${std !== 'all' ? `(Class ${std})` : ''}`;
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="p-6 text-center text-slate-400 font-bold">No students found matching current filters.</td></tr>';
+    return;
+  }
+
+  let html = '';
+  filtered.forEach(s => {
+    const sMarks = (DB.marks || []).filter(m => String(m.std) === String(s.std) && (m.roll === s.roll || (m.grNo && s.grNo && String(m.grNo) === String(s.grNo))));
+    const tObt = sMarks.reduce((acc, m) => acc + (m.isAbsent ? 0 : m.marks), 0);
+    const tMax = sMarks.reduce((acc, m) => acc + (m.isAbsent ? 0 : m.total), 0);
+    const pct = tMax > 0 ? ((tObt / tMax) * 100).toFixed(1) : '-';
+
+    html += `
+      <tr class="hover:bg-indigo-50/30 transition-colors">
+        <td class="p-3 text-center font-black text-slate-700">${s.roll || '-'}</td>
+        <td class="p-3 text-slate-500 font-mono text-xs">${s.grNo || '-'}</td>
+        <td class="p-3">
+          <div class="font-black text-slate-800 text-xs">${s.name}</div>
+        </td>
+        <td class="p-3 text-center">
+          <span class="px-2 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-100">
+            Std ${s.std}-${s.section || 'A'}
+          </span>
+        </td>
+        <td class="p-3 text-center text-slate-600">${sMarks.length}</td>
+        <td class="p-3 text-center font-black ${pct !== '-' ? (parseFloat(pct) >= 75 ? 'text-emerald-600' : 'text-teal-600') : 'text-slate-400'}">
+          ${pct !== '-' ? pct + '%' : '-'}
+        </td>
+        <td class="p-3 text-slate-600 text-xs">
+          ${s.mobile ? `
+            <div class="flex items-center gap-1.5">
+              <span>${s.mobile}</span>
+              <a href="https://wa.me/${s.mobile}" target="_blank" class="text-emerald-600 hover:text-emerald-700">
+                <i class="fa-brands fa-whatsapp"></i>
+              </a>
+            </div>
+          ` : '<span class="text-slate-400">-</span>'}
+        </td>
+        <td class="p-3 text-right">
+          <div class="flex items-center justify-end gap-1.5">
+            <button type="button" onclick="printSingleStudent('${s.roll}', '${s.std}', 'STUDENT PROGRESS REPORT CARD')"
+              class="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[11px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Print / Download English Report Card">
+              <i class="fa-solid fa-print"></i> Report Card
+            </button>
+            <button type="button" onclick="openManagementParentPortal('${s.roll}', '${s.std}')"
+              class="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-[11px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Portal
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+}
+
+function openManagementParentPortal(roll, std) {
+  showParentPortalView(roll, std);
+  const returnBtn = document.getElementById('pp-return-btn');
+  if (returnBtn) {
+    returnBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Return to Management Dashboard';
+    returnBtn.onclick = () => showManagementDashboard();
+  }
 }
 
 // -------------------------------------------------------------
@@ -2978,6 +3360,134 @@ function renderParentPortalTable(roll, peerRolls, std) {
       </td>
     </tr>
   `;
+
+  // Render or refresh Student Performance Bar Chart
+  renderParentPortalStudentChart(roll, std);
+}
+
+let ppStudentChartInst = null;
+
+function renderParentPortalStudentChart(roll, std) {
+  const canvas = document.getElementById('ppStudentBarChart');
+  if (!canvas || typeof canvas.getContext !== 'function') return;
+
+  const marks = DB.marks.filter(m => {
+    const rollMatch = m.roll === roll;
+    const stdMatch = !std || !m.std || String(m.std) === String(std);
+    return rollMatch && stdMatch;
+  });
+
+  // Group by Subject to aggregate scores and percentage per subject
+  const subMap = {};
+  marks.forEach(m => {
+    const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+    if (!subMap[cleanSub]) {
+      subMap[cleanSub] = { subject: cleanSub, obt: 0, max: 0, isAbsent: true };
+    }
+    const sMax = m.total || 50;
+    const sObt = m.isAbsent ? 0 : (m.marks || 0);
+    subMap[cleanSub].max += sMax;
+    subMap[cleanSub].obt += sObt;
+    if (!m.isAbsent) subMap[cleanSub].isAbsent = false;
+  });
+
+  const subjects = Object.values(subMap);
+  if (subjects.length === 0) {
+    if (ppStudentChartInst) {
+      ppStudentChartInst.destroy();
+      ppStudentChartInst = null;
+    }
+    return;
+  }
+
+  const labels = subjects.map(s => s.subject);
+  const dataValues = subjects.map(s => s.max > 0 ? Number(((s.obt / s.max) * 100).toFixed(1)) : 0);
+  const bgColors = subjects.map(s => {
+    if (s.isAbsent) return 'rgba(239, 68, 68, 0.85)';
+    const pct = s.max > 0 ? (s.obt / s.max) * 100 : 0;
+    if (pct >= 75) return 'rgba(16, 185, 129, 0.85)';
+    if (pct >= 50) return 'rgba(59, 130, 246, 0.85)';
+    if (pct >= 33) return 'rgba(245, 158, 11, 0.85)';
+    return 'rgba(239, 68, 68, 0.85)';
+  });
+  const borderColors = subjects.map(s => {
+    if (s.isAbsent) return '#dc2626';
+    const pct = s.max > 0 ? (s.obt / s.max) * 100 : 0;
+    if (pct >= 75) return '#059669';
+    if (pct >= 50) return '#2563eb';
+    if (pct >= 33) return '#d97706';
+    return '#dc2626';
+  });
+
+  const ctx = canvas.getContext('2d');
+  if (ppStudentChartInst) {
+    ppStudentChartInst.destroy();
+  }
+
+  if (typeof Chart === 'undefined') return;
+
+  ppStudentChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Percentage (%)',
+        data: dataValues,
+        backgroundColor: bgColors,
+        borderColor: borderColors,
+        borderWidth: 2,
+        borderRadius: 8,
+        barPercentage: 0.52
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          titleFont: { family: "'Plus Jakarta Sans', system-ui, sans-serif", weight: 'bold', size: 12 },
+          bodyFont: { family: "system-ui, sans-serif", weight: 'bold', size: 11 },
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: function(context) {
+              const idx = context.dataIndex;
+              const s = subjects[idx];
+              if (s && s.isAbsent) return ' ⚠️ Absent (0%)';
+              return ` ${context.parsed.y}% (Score: ${s ? s.obt + '/' + s.max : ''})`;
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          min: 0,
+          max: 100,
+          ticks: {
+            stepSize: 25,
+            callback: value => value + '%',
+            font: { weight: 'bold', size: 10 }
+          },
+          grid: {
+            color: 'rgba(226, 232, 240, 0.6)'
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: {
+              family: "'Plus Jakarta Sans', system-ui, sans-serif",
+              weight: 'bold',
+              size: 11
+            },
+            color: '#1e293b'
+          }
+        }
+      }
+    }
+  });
 }
 
 // -------------------------------------------------------------
@@ -3387,3 +3897,14 @@ window.saveCustomBackendUrl = saveCustomBackendUrl;
 window.resetCustomBackendUrl = resetCustomBackendUrl;
 window.handleParentLoginFormSubmit = handleParentLoginFormSubmit;
 window.populateParentClassDropdown = populateParentClassDropdown;
+
+// Management Faculty Controls & Honor Roll
+window.openAddTeacherModal = openAddTeacherModal;
+window.closeAddTeacherModal = closeAddTeacherModal;
+window.handleAddTeacherSubmit = handleAddTeacherSubmit;
+window.confirmRemoveTeacher = confirmRemoveTeacher;
+window.confirmResetTestData = confirmResetTestData;
+window.renderManagementTopPerformers = renderManagementTopPerformers;
+window.renderManagementStudentDirectory = renderManagementStudentDirectory;
+window.openManagementParentPortal = openManagementParentPortal;
+window.renderParentPortalStudentChart = renderParentPortalStudentChart;
