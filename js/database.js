@@ -90,11 +90,18 @@ const CloudDB = {
         if (res.data.networkUrl) this.networkUrl = res.data.networkUrl;
         if (res.data.localIp) this.localIp = res.data.localIp;
         console.log(`✔ [CloudDB-EM] Backend API connected at: "${this.apiBaseUrl || 'relative host'}"`);
+        // Remember verified backend URL in localStorage for instantaneous boot on future reloads
+        if (typeof localStorage !== 'undefined' && res.base) {
+          try {
+            localStorage.setItem(BACKEND_API_KEY, res.base);
+          } catch (e) {}
+        }
         return res;
       }
     }
 
-    // If no server responded, default to localhost:5001
+    // If no server responded, default safely without throwing ReferenceError
+    const isPort5001 = typeof window !== 'undefined' && window.location && (window.location.port === '5001' || window.location.protocol.startsWith('http'));
     this.apiBaseUrl = isPort5001 ? '' : 'http://localhost:5001';
     this.apiAvailable = false;
     return null;
