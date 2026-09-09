@@ -28,10 +28,10 @@ let confirmAction = null;
 let toastTimeout = null;
 
 // Language State & Translation Engine
-let currentAppLanguage = localStorage.getItem('gps_app_language') || 'gu';
+let currentAppLanguage = 'en';
 
 function getAppLanguage() {
-  return currentAppLanguage || 'gu';
+  return 'en';
 }
 
 function setAppLanguage(lang) {
@@ -446,11 +446,13 @@ function handleTeacherSigninSubmit(e) {
 }
 
 function fillDemoTeacher() {
-  const demo = DB.teachers[0];
+  const demo = DB.teachers && DB.teachers.length > 0 ? DB.teachers[0] : null;
   if (demo) {
     document.getElementById('teacher-login-mobile').value = demo.mobile;
     document.getElementById('teacher-login-pass').value = demo.password;
-    showToast('Demo teacher credentials filled!');
+    showToast(`Faculty credentials filled for ${demo.name}!`);
+  } else {
+    showToast('No faculty teachers registered yet. Please create an account.', 'info');
   }
 }
 

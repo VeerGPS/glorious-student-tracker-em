@@ -269,10 +269,10 @@ app.post('/api/db/reset', async (req, res) => {
         }
       });
     } else if (mode === 'seed' || mode === 'demo') {
-      if (Array.isArray(seedStudents)) updateDoc.$set.students = seedStudents;
-      if (Array.isArray(seedMarks)) updateDoc.$set.marks = seedMarks;
-      if (Array.isArray(seedAttendance)) updateDoc.$set.attendance = seedAttendance;
-      if (seedUpcomingTests) updateDoc.$set.upcomingTests = seedUpcomingTests;
+      updateDoc.$set.students = [];
+      updateDoc.$set.marks = [];
+      updateDoc.$set.attendance = [];
+      updateDoc.$set.upcomingTests = [];
     }
 
     await collection.updateOne(

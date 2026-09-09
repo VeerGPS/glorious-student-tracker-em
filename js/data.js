@@ -12,161 +12,12 @@ const STORAGE_KEYS = {
   ACTIVE_SESSION: 'gps_em_active_session_v1'
 };
 
-// Initial Seed Dataset for Glorious Public School
+// Clean Zero-Seed Configuration for Glorious Public School (EM)
 const SEED_TEACHERS = [];
-
-const SEED_STUDENTS = [
-  // Class 8 Students
-  { grNo: 'GR-2024-081', roll: 101, name: 'Aditya Dave', std: '8', section: 'A', mobile: '9876500001' },
-  { grNo: 'GR-2024-082', roll: 102, name: 'Bhavna Rathod', std: '8', section: 'A', mobile: '9876500002' },
-  { grNo: 'GR-2024-083', roll: 103, name: 'Chirag Solanki', std: '8', section: 'A', mobile: '9876500003' },
-  { grNo: 'GR-2024-084', roll: 104, name: 'Deepika Iyer', std: '8', section: 'A', mobile: '9876500004' },
-  { grNo: 'GR-2024-085', roll: 105, name: 'Eshaan Gupta', std: '8', section: 'A', mobile: '9876500005' },
-
-  // Class 9 Students
-  { grNo: 'GR-2024-001', roll: 101, name: 'Aarav Patel', std: '9', section: 'A', mobile: '9876543210' },
-  { grNo: 'GR-2024-002', roll: 102, name: 'Priya Shah', std: '9', section: 'A', mobile: '9123456780' },
-  { grNo: 'GR-2024-003', roll: 103, name: 'Rohan Mehta', std: '9', section: 'A', mobile: '9988776655' },
-  { grNo: 'GR-2024-004', roll: 104, name: 'Ananya Joshi', std: '9', section: 'A', mobile: '9822001122' },
-  { grNo: 'GR-2024-005', roll: 105, name: 'Kabir Singhania', std: '9', section: 'A', mobile: '9765432109' },
-  { grNo: 'GR-2024-006', roll: 106, name: 'Sneha Kulkarni', std: '9', section: 'B', mobile: '9654321987' },
-  { grNo: 'GR-2024-007', roll: 107, name: 'Devendra Dave', std: '9', section: 'B', mobile: '9543219876' },
-  { grNo: 'GR-2024-008', roll: 108, name: 'Isha Trivedi', std: '9', section: 'B', mobile: '9432198765' },
-  { grNo: 'GR-2024-009', roll: 109, name: 'Aryan Bhatt', std: '9', section: 'A', mobile: '9321987654' },
-  { grNo: 'GR-2024-010', roll: 110, name: 'Diya Parikh', std: '9', section: 'A', mobile: '9210987653' },
-  { grNo: 'GR-2024-011', roll: 111, name: 'Manav Desai', std: '9', section: 'B', mobile: '9109876542' },
-  { grNo: 'GR-2024-012', roll: 112, name: 'Tanvi Panchal', std: '9', section: 'B', mobile: '9098765431' },
-
-  // Class 10 Students
-  { grNo: 'GR-2024-101', roll: 101, name: 'Harshvardhan Rana', std: '10', section: 'A', mobile: '9876500011' },
-  { grNo: 'GR-2024-102', roll: 102, name: 'Janvi Bhatt', std: '10', section: 'A', mobile: '9876500012' },
-  { grNo: 'GR-2024-103', roll: 103, name: 'Kunal Kapoor', std: '10', section: 'A', mobile: '9876500013' },
-  { grNo: 'GR-2024-104', roll: 104, name: 'Lipika Sen', std: '10', section: 'A', mobile: '9876500014' },
-  { grNo: 'GR-2024-105', roll: 105, name: 'Mohit Rawat', std: '10', section: 'A', mobile: '9876500015' }
-];
-
-const SEED_MARKS = [
-  // Class 8 Marks
-  { id: 8001, grNo: 'GR-2024-081', roll: 101, std: '8', subject: 'Mathematics', topic: 'Rational Numbers', marks: 45, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 8002, grNo: 'GR-2024-082', roll: 102, std: '8', subject: 'Mathematics', topic: 'Rational Numbers', marks: 48, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 8003, grNo: 'GR-2024-083', roll: 103, std: '8', subject: 'Mathematics', topic: 'Rational Numbers', marks: 32, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 8004, grNo: 'GR-2024-084', roll: 104, std: '8', subject: 'Mathematics', topic: 'Rational Numbers', marks: 50, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 8005, grNo: 'GR-2024-085', roll: 105, std: '8', subject: 'Mathematics', topic: 'Rational Numbers', marks: 0, total: 50, date: '2026-08-10', isAbsent: true, source: 'excel' },
-
-  { id: 8006, grNo: 'GR-2024-081', roll: 101, std: '8', subject: 'Science', topic: 'Crop Production', marks: 43, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-  { id: 8007, grNo: 'GR-2024-082', roll: 102, std: '8', subject: 'Science', topic: 'Crop Production', marks: 47, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-  { id: 8008, grNo: 'GR-2024-083', roll: 103, std: '8', subject: 'Science', topic: 'Crop Production', marks: 36, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-  { id: 8009, grNo: 'GR-2024-084', roll: 104, std: '8', subject: 'Science', topic: 'Crop Production', marks: 49, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-  { id: 8010, grNo: 'GR-2024-085', roll: 105, std: '8', subject: 'Science', topic: 'Crop Production', marks: 40, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-
-  // Class 9 Marks
-  { id: 1001, grNo: 'GR-2024-001', roll: 101, std: '9', subject: 'Mathematics', topic: 'Algebra & Quadratics', marks: 47, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 1002, grNo: 'GR-2024-002', roll: 102, std: '9', subject: 'Mathematics', topic: 'Algebra & Quadratics', marks: 44, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 1003, grNo: 'GR-2024-003', roll: 103, std: '9', subject: 'Mathematics', topic: 'Algebra & Quadratics', marks: 16, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 1004, grNo: 'GR-2024-004', roll: 104, std: '9', subject: 'Mathematics', topic: 'Algebra & Quadratics', marks: 49, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 1005, grNo: 'GR-2024-005', roll: 105, std: '9', subject: 'Mathematics', topic: 'Algebra & Quadratics', marks: 0, total: 50, date: '2026-08-10', isAbsent: true, source: 'excel' },
-  
-  { id: 1006, grNo: 'GR-2024-001', roll: 101, std: '9', subject: 'Science', topic: 'Light & Optics', marks: 46, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-  { id: 1007, grNo: 'GR-2024-002', roll: 102, std: '9', subject: 'Science', topic: 'Light & Optics', marks: 42, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-  { id: 1008, grNo: 'GR-2024-003', roll: 103, std: '9', subject: 'Science', topic: 'Light & Optics', marks: 35, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-  { id: 1009, grNo: 'GR-2024-004', roll: 104, std: '9', subject: 'Science', topic: 'Light & Optics', marks: 48, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-  { id: 1010, grNo: 'GR-2024-005', roll: 105, std: '9', subject: 'Science', topic: 'Light & Optics', marks: 38, total: 50, date: '2026-08-18', isAbsent: false, source: 'excel' },
-
-  { id: 1011, grNo: 'GR-2024-001', roll: 101, std: '9', subject: 'English', topic: 'Grammar & Prose', marks: 23, total: 25, date: '2026-08-25', isAbsent: false, source: 'excel' },
-  { id: 1012, grNo: 'GR-2024-002', roll: 102, std: '9', subject: 'English', topic: 'Grammar & Prose', marks: 24, total: 25, date: '2026-08-25', isAbsent: false, source: 'excel' },
-  { id: 1013, grNo: 'GR-2024-003', roll: 103, std: '9', subject: 'English', topic: 'Grammar & Prose', marks: 14, total: 25, date: '2026-08-25', isAbsent: false, source: 'excel' },
-  { id: 1014, grNo: 'GR-2024-004', roll: 104, std: '9', subject: 'English', topic: 'Grammar & Prose', marks: 22, total: 25, date: '2026-08-25', isAbsent: false, source: 'excel' },
-  { id: 1015, grNo: 'GR-2024-005', roll: 105, std: '9', subject: 'English', topic: 'Grammar & Prose', marks: 19, total: 25, date: '2026-08-25', isAbsent: false, source: 'excel' },
-
-  // Class 10 Marks
-  { id: 10001, grNo: 'GR-2024-101', roll: 101, std: '10', subject: 'Mathematics', topic: 'Real Numbers', marks: 46, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 10002, grNo: 'GR-2024-102', roll: 102, std: '10', subject: 'Mathematics', topic: 'Real Numbers', marks: 49, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 10003, grNo: 'GR-2024-103', roll: 103, std: '10', subject: 'Mathematics', topic: 'Real Numbers', marks: 28, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 10004, grNo: 'GR-2024-104', roll: 104, std: '10', subject: 'Mathematics', topic: 'Real Numbers', marks: 42, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' },
-  { id: 10005, grNo: 'GR-2024-105', roll: 105, std: '10', subject: 'Mathematics', topic: 'Real Numbers', marks: 39, total: 50, date: '2026-08-10', isAbsent: false, source: 'excel' }
-];
-
-const SEED_UPCOMING_TESTS = [
-  {
-    id: 1,
-    subject: 'Mathematics',
-    std: '9',
-    section: 'A',
-    topic: 'Trigonometry & Coordinate Geometry',
-    date: '2026-09-12',
-    totalMarks: 50,
-    room: 'Room 204'
-  },
-  {
-    id: 2,
-    subject: 'Science',
-    std: '9',
-    section: 'A',
-    topic: 'Chemical Reactions & Equations',
-    date: '2026-09-18',
-    totalMarks: 50,
-    room: 'Science Lab 1'
-  },
-  {
-    id: 3,
-    subject: 'Mathematics',
-    std: '8',
-    section: 'A',
-    topic: 'Linear Equations in One Variable',
-    date: '2026-09-15',
-    totalMarks: 50,
-    room: 'Room 102'
-  },
-  {
-    id: 4,
-    subject: 'Science',
-    std: '10',
-    section: 'A',
-    topic: 'Acids, Bases & Salts',
-    date: '2026-09-20',
-    totalMarks: 50,
-    room: 'Science Lab 2'
-  }
-];
-
-const SEED_ATTENDANCE = [
-  {
-    date: '2026-09-07',
-    std: '8',
-    section: 'A',
-    records: [
-      { roll: 101, status: 'P' },
-      { roll: 102, status: 'P' },
-      { roll: 103, status: 'P' },
-      { roll: 104, status: 'P' },
-      { roll: 105, status: 'A' }
-    ]
-  },
-  {
-    date: '2026-09-07',
-    std: '9',
-    section: 'A',
-    records: [
-      { roll: 101, status: 'P' },
-      { roll: 102, status: 'P' },
-      { roll: 103, status: 'A' },
-      { roll: 104, status: 'P' },
-      { roll: 105, status: 'L' }
-    ]
-  },
-  {
-    date: '2026-09-07',
-    std: '10',
-    section: 'A',
-    records: [
-      { roll: 101, status: 'P' },
-      { roll: 102, status: 'P' },
-      { roll: 103, status: 'P' },
-      { roll: 104, status: 'P' },
-      { roll: 105, status: 'P' }
-    ]
-  }
-];
+const SEED_STUDENTS = [];
+const SEED_MARKS = [];
+const SEED_UPCOMING_TESTS = [];
+const SEED_ATTENDANCE = [];
 
 // App Global In-Memory Store
 let DB = {
@@ -205,9 +56,9 @@ function getActiveTeacherId() {
 // Retrieve the added teacher account created by the user (or fallback to first teacher)
 function getAddedTeacherAccount() {
   if (!DB.teachers || DB.teachers.length === 0) return null;
-  const custom = DB.teachers.filter(t => t.id !== 'T-101' && t.id !== 'T-102');
+  const custom = DB.teachers.filter(t => t.id !== 'T-101' && t.id !== 'T-102' && t.id !== 'T-999999');
   if (custom.length > 0) return custom[custom.length - 1];
-  return DB.teachers[0];
+  return DB.teachers[0] || null;
 }
 
 function getTeacherStorageKey(teacherId, moduleKey) {
@@ -230,7 +81,13 @@ function saveTeacherData(teacherId) {
 }
 
 function switchTeacherContext(teacherId, isBrandNew = false) {
-  if (!teacherId) return;
+  if (!teacherId) {
+    DB.students = [];
+    DB.marks = [];
+    DB.attendance = [];
+    DB.upcomingTests = [];
+    return;
+  }
 
   if (isBrandNew) {
     // Brand new teacher account: starts with strictly 0 students, 0 marks, 0 attendance, 0 upcoming tests!
@@ -262,20 +119,11 @@ function switchTeacherContext(teacherId, isBrandNew = false) {
       DB.upcomingTests = [];
     }
   } else {
-    // No specific data saved yet for this teacher
-    if (teacherId === 'T-101' || teacherId === 'T-102') {
-      // Demo teachers get sample demo dataset
-      DB.students = JSON.parse(JSON.stringify(SEED_STUDENTS));
-      DB.marks = JSON.parse(JSON.stringify(SEED_MARKS));
-      DB.attendance = JSON.parse(JSON.stringify(SEED_ATTENDANCE));
-      DB.upcomingTests = JSON.parse(JSON.stringify(SEED_UPCOMING_TESTS));
-    } else {
-      // Custom/new teacher accounts: start with 100% empty rosters until they upload tally excel!
-      DB.students = [];
-      DB.marks = [];
-      DB.attendance = [];
-      DB.upcomingTests = [];
-    }
+    // Custom/new teacher accounts: start with 100% empty rosters until they upload tally excel!
+    DB.students = [];
+    DB.marks = [];
+    DB.attendance = [];
+    DB.upcomingTests = [];
     saveTeacherData(teacherId);
   }
 }
@@ -287,23 +135,32 @@ function initDatabase() {
       CloudDB.init();
     }
 
+    // 1. Purge legacy demo keys from localStorage
+    const demoKeys = [
+      'gps_t_T-101_students', 'gps_t_T-101_marks', 'gps_t_T-101_attendance', 'gps_t_T-101_upcoming_tests',
+      'gps_t_T-102_students', 'gps_t_T-102_marks', 'gps_t_T-102_attendance', 'gps_t_T-102_upcoming_tests',
+      'gps_t_T-999999_students', 'gps_t_T-999999_marks', 'gps_t_T-999999_attendance', 'gps_t_T-999999_upcoming_tests'
+    ];
+    demoKeys.forEach(k => {
+      try { localStorage.removeItem(k); } catch (e) {}
+    });
+
     const rawTeachers = localStorage.getItem(STORAGE_KEYS.TEACHERS);
     const rawSession = localStorage.getItem(STORAGE_KEYS.ACTIVE_SESSION);
 
-    DB.teachers = rawTeachers ? JSON.parse(rawTeachers) : [...SEED_TEACHERS];
-    DB.activeSession = rawSession ? JSON.parse(rawSession) : null;
+    let loadedTeachers = rawTeachers ? JSON.parse(rawTeachers) : [];
+    loadedTeachers = loadedTeachers.filter(t => t.id !== 'T-101' && t.id !== 'T-102' && t.id !== 'T-999999');
+    DB.teachers = loadedTeachers;
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(DB.teachers));
+    } catch (e) {}
 
-    // Ensure demo teachers have classrooms 8, 9, 10
-    DB.teachers.forEach(teacher => {
-      if (teacher.id === 'T-101' || teacher.id === 'T-102') {
-        const clsNums = (teacher.classrooms || []).map(c => c.classNumber);
-        ['8', '9', '10'].forEach(cNum => {
-          if (!clsNums.includes(cNum)) {
-            teacher.classrooms.push({ classNumber: cNum, sections: ['A'] });
-          }
-        });
-      }
-    });
+    let session = rawSession ? JSON.parse(rawSession) : null;
+    if (session && session.teacher && (session.teacher.id === 'T-101' || session.teacher.id === 'T-102')) {
+      session = null;
+      try { localStorage.removeItem(STORAGE_KEYS.ACTIVE_SESSION); } catch (e) {}
+    }
+    DB.activeSession = session;
 
     // If active session is a teacher, keep teacher profile in sync and load teacher context
     if (DB.activeSession && DB.activeSession.role === 'teacher' && DB.activeSession.teacher) {
@@ -314,45 +171,61 @@ function initDatabase() {
       const activeTId = DB.activeSession.teacher.id;
       switchTeacherContext(activeTId, false);
 
-      // Self-healing migration for custom teachers who previously received demo seed data:
-      // If a non-demo teacher has the exact 22 seed students, clear them because they never gave a student tally excel!
-      if (activeTId !== 'T-101' && activeTId !== 'T-102') {
-        const isExactSeedDataset = DB.students.length === SEED_STUDENTS.length &&
-          DB.students.some(s => s.name === 'Aditya Dave') &&
-          DB.students.some(s => s.name === 'Aarav Patel') &&
-          DB.students.some(s => s.name === 'Harshvardhan Rana');
-
-        if (isExactSeedDataset) {
-          console.log('Clearing auto-injected demo seed students for custom teacher account:', activeTId);
-          DB.students = [];
-          DB.marks = [];
-          DB.attendance = [];
-          DB.upcomingTests = [];
+      // Self-clean any demo students that got injected
+      const demoNames = [
+        'Aditya Dave', 'Bhavna Rathod', 'Chirag Solanki', 'Deepika Iyer', 'Eshaan Gupta',
+        'Aarav Patel', 'Priya Shah', 'Rohan Mehta', 'Ananya Joshi', 'Kabir Singhania',
+        'Sneha Kulkarni', 'Devendra Dave', 'Isha Trivedi', 'Aryan Bhatt', 'Diya Parikh',
+        'Manav Desai', 'Tanvi Panchal', 'Harshvardhan Rana', 'Janvi Bhatt', 'Kunal Kapoor',
+        'Lipika Sen', 'Mohit Rawat'
+      ];
+      if (Array.isArray(DB.students)) {
+        const hasDemo = DB.students.some(s => demoNames.includes(s.name) || (s.grNo && (s.grNo.startsWith('GR-2024-08') || s.grNo.startsWith('GR-2024-10'))));
+        if (hasDemo) {
+          DB.students = DB.students.filter(s => !demoNames.includes(s.name) && !(s.grNo && (s.grNo.startsWith('GR-2024-08') || s.grNo.startsWith('GR-2024-10'))));
+          const validRolls = new Set(DB.students.map(s => s.roll));
+          DB.marks = DB.marks.filter(m => validRolls.has(m.roll));
+          DB.attendance = DB.attendance.filter(a => validRolls.has(a.roll));
           saveTeacherData(activeTId);
-        } else {
-          // Self-clean any students, marks, or attendance belonging to classes NOT selected by this teacher!
-          const teacherObj = DB.activeSession.teacher;
-          if (teacherObj && teacherObj.classrooms && Array.isArray(teacherObj.classrooms) && teacherObj.classrooms.length > 0) {
-            const validClasses = teacherObj.classrooms.map(c => String(c.classNumber || c));
-            const initialStuCount = DB.students.length;
-            const initialMarksCount = DB.marks.length;
-            DB.students = DB.students.filter(s => validClasses.includes(String(s.std)));
-            DB.marks = DB.marks.filter(m => validClasses.includes(String(m.std)));
-            DB.attendance = DB.attendance.filter(a => validClasses.includes(String(a.std)));
-            if (DB.students.length !== initialStuCount || DB.marks.length !== initialMarksCount) {
-              console.log(`Cleaned unassigned class records for teacher ${activeTId}: kept only classes`, validClasses);
-              saveTeacherData(activeTId);
-            }
-          }
+        }
+      }
+
+      // Self-clean any students, marks, or attendance belonging to classes NOT selected by this teacher!
+      const teacherObj = DB.activeSession.teacher;
+      if (teacherObj && teacherObj.classrooms && Array.isArray(teacherObj.classrooms) && teacherObj.classrooms.length > 0) {
+        const validClasses = teacherObj.classrooms.map(c => String(c.classNumber || c));
+        const initialStuCount = DB.students.length;
+        const initialMarksCount = DB.marks.length;
+        DB.students = DB.students.filter(s => validClasses.includes(String(s.std)));
+        DB.marks = DB.marks.filter(m => validClasses.includes(String(m.std)));
+        DB.attendance = DB.attendance.filter(a => validClasses.includes(String(a.std)));
+        if (DB.students.length !== initialStuCount || DB.marks.length !== initialMarksCount) {
+          console.log(`Cleaned unassigned class records for teacher ${activeTId}: kept only classes`, validClasses);
+          saveTeacherData(activeTId);
         }
       }
 
     } else if (DB.activeSession && DB.activeSession.role === 'management') {
-      const targetTeacherId = DB.activeSession.connectedTeacherId || (getAddedTeacherAccount() ? getAddedTeacherAccount().id : 'T-101');
-      switchTeacherContext(targetTeacherId, false);
+      const targetTeacherId = DB.activeSession.connectedTeacherId || (getAddedTeacherAccount() ? getAddedTeacherAccount().id : null);
+      if (targetTeacherId) {
+        switchTeacherContext(targetTeacherId, false);
+      } else {
+        DB.students = [];
+        DB.marks = [];
+        DB.attendance = [];
+        DB.upcomingTests = [];
+      }
     } else {
-      // If no active teacher session, load default demo preview
-      switchTeacherContext('T-101', false);
+      // If no active teacher session, load first teacher account if exists, else keep clean empty state
+      const firstT = DB.teachers && DB.teachers.length > 0 ? DB.teachers[0].id : null;
+      if (firstT) {
+        switchTeacherContext(firstT, false);
+      } else {
+        DB.students = [];
+        DB.marks = [];
+        DB.attendance = [];
+        DB.upcomingTests = [];
+      }
     }
 
     // Auto-migrate marks: ensure 'std' and 'source' are present on each mark
@@ -453,23 +326,23 @@ function factoryResetData(mode = 'wipe') {
       window.showToast('All examination marks, attendance, and test records cleared.', 'success');
     }
   } else if (mode === 'seed' || mode === 'demo') {
-    // Restore default sample dataset for current teacher
-    DB.students = JSON.parse(JSON.stringify(SEED_STUDENTS));
-    DB.marks = JSON.parse(JSON.stringify(SEED_MARKS));
-    DB.attendance = JSON.parse(JSON.stringify(SEED_ATTENDANCE));
-    DB.upcomingTests = JSON.parse(JSON.stringify(SEED_UPCOMING_TESTS));
+    // Zero demo data: completely wipe student roster and marks
+    DB.students = [];
+    DB.marks = [];
+    DB.attendance = [];
+    DB.upcomingTests = [];
 
-    const activeTId = getActiveTeacherId ? getActiveTeacherId() : (DB.activeSession && DB.activeSession.teacher ? DB.activeSession.teacher.id : 'T-101');
+    const activeTId = getActiveTeacherId ? getActiveTeacherId() : (DB.activeSession && DB.activeSession.teacher ? DB.activeSession.teacher.id : null);
     if (activeTId) saveTeacherData(activeTId);
 
     saveDatabase(false);
     if (typeof CloudDB !== 'undefined' && typeof CloudDB.resetCloudData === 'function') {
-      CloudDB.resetCloudData('seed');
+      CloudDB.resetCloudData('wipe');
     }
     refreshAllModulesUI();
 
     if (window.showToast) {
-      window.showToast('Sample demo dataset (22 students) restored!', 'success');
+      window.showToast('Workspace reset to clean empty state.', 'info');
     }
   }
 }
@@ -495,14 +368,10 @@ function refreshAllModulesUI() {
 
 // Backward compatibility helper
 function resetDatabase() {
-  if (window.confirmFactoryReset) {
-    window.confirmFactoryReset('seed');
-  } else if (window.openConfirmModal) {
-    window.openConfirmModal('Reset Demo Database', 'Are you sure you want to restore all default demo students, records, and test schedules?', () => {
-      factoryResetData('seed');
-    });
+  if (window.confirmResetTestData) {
+    window.confirmResetTestData();
   } else {
-    factoryResetData('seed');
+    factoryResetDatabase('marks_only');
   }
 }
 

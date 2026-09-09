@@ -357,10 +357,10 @@ const CloudDB = {
 
       const payload = {
         mode,
-        seedStudents: (typeof SEED_STUDENTS !== 'undefined') ? SEED_STUDENTS : [],
-        seedMarks: (typeof SEED_MARKS !== 'undefined') ? SEED_MARKS : [],
-        seedAttendance: (typeof SEED_ATTENDANCE !== 'undefined') ? SEED_ATTENDANCE : [],
-        seedUpcomingTests: (typeof SEED_UPCOMING_TESTS !== 'undefined') ? SEED_UPCOMING_TESTS : {}
+        seedStudents: [],
+        seedMarks: [],
+        seedAttendance: [],
+        seedUpcomingTests: {}
       };
 
       const resp = await this.apiFetch('/api/db/reset', {
