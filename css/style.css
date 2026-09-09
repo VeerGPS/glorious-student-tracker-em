@@ -1,0 +1,554 @@
+/* ==========================================================================
+   Glorious Public School Student Tracker - Dynamic Multicolor Styles
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  --primary-blue: #3b82f6;
+  --primary-indigo: #4f46e5;
+  --primary-purple: #7c3aed;
+  --primary-fuchsia: #c026d3;
+  --primary-emerald: #10b981;
+  --primary-amber: #f59e0b;
+  --primary-rose: #f43f5e;
+  --primary-cyan: #06b6d4;
+  --bg-gradient: linear-gradient(135deg, #f0fdf4 0%, #e0e7ff 35%, #fdf4ff 70%, #fff7ed 100%);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body, input, select, textarea, button {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  color: #1e293b;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Tab Content Switching */
+.tab-content {
+  display: none !important;
+}
+
+.tab-content.active {
+  display: block !important;
+  animation: fadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Universal Modal & Hidden Overlays Rule */
+.hidden,
+#confirm-modal.hidden,
+#edit-stu-modal.hidden,
+#edit-modal.hidden,
+#new-test-modal.hidden,
+#page-navigator-drawer.hidden,
+#role-selection-view.hidden,
+#auth-view.hidden,
+#teacher-setup-view.hidden,
+#teacher-dashboard-view.hidden,
+#management-dashboard-view.hidden,
+#parent-portal-view.hidden,
+#mass-entry-container.hidden,
+#wa-queue-container.hidden,
+#nav-badge-tests.hidden,
+#nav-badge-alerts.hidden {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* Explicit Flex Display for Active Modals */
+#confirm-modal:not(.hidden),
+#edit-stu-modal:not(.hidden),
+#edit-modal:not(.hidden),
+#new-test-modal:not(.hidden),
+#page-navigator-drawer:not(.hidden) {
+  display: flex !important;
+  pointer-events: auto !important;
+}
+
+/* Glassmorphism Styles */
+.glass-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 10px 30px -5px rgba(79, 70, 229, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-card-dark {
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.glass-card-colored {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* Animation utilities */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes popIn {
+  0% {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(217, 70, 239, 0.6);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pop-in {
+  animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.glow-effect {
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+
+/* Dynamic Gradients */
+.grad-indigo-purple {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+}
+
+.grad-fuchsia-rose {
+  background: linear-gradient(135deg, #d946ef 0%, #f43f5e 100%);
+}
+
+.grad-emerald-teal {
+  background: linear-gradient(135deg, #10b981 0%, #0d9488 100%);
+}
+
+.grad-amber-orange {
+  background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
+}
+
+.grad-cyan-blue {
+  background: linear-gradient(135deg, #06b6d4 0%, #2563eb 100%);
+}
+
+.grad-sunset {
+  background: linear-gradient(135deg, #f43f5e 0%, #fb923c 100%);
+}
+
+/* Horizontal Dashboard Navigation Buttons */
+.nav-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: all 0.25s ease;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+}
+
+.nav-tab-btn.active {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.39);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.nav-tab-btn:not(.active) {
+  background: rgba(255, 255, 255, 0.7);
+  color: #475569;
+  border-color: rgba(226, 232, 240, 0.9);
+}
+
+.nav-tab-btn:not(.active):hover {
+  background: #ffffff;
+  color: #1e1b4b;
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+}
+
+/* Classroom Select Pills */
+.class-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 1rem;
+  font-weight: 800;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: 2px solid transparent;
+}
+
+.class-chip.selected {
+  background: linear-gradient(135deg, #4f46e5 0%, #9333ea 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+  transform: scale(1.06);
+  border-color: #a855f7;
+}
+
+.class-chip:not(.selected) {
+  background: #ffffff;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.class-chip:not(.selected):hover {
+  border-color: #a5b4fc;
+  background: #f8fafc;
+  transform: translateY(-2px);
+}
+
+/* Subject Tag Pills */
+.subject-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: linear-gradient(135deg, #eef2ff 0%, #f3e8ff 100%);
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.subject-tag button {
+  color: #818cf8;
+  transition: color 0.15s;
+}
+
+.subject-tag button:hover {
+  color: #e11d48;
+}
+
+/* Table Hover and Row Effects */
+.table-row-dynamic {
+  transition: all 0.2s ease;
+}
+
+.table-row-dynamic:hover {
+  background: linear-gradient(90deg, rgba(238, 242, 255, 0.7) 0%, rgba(250, 232, 255, 0.7) 100%);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Horizontal scrollbar for tabs */
+.horizontal-scroll-container {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.horizontal-scroll-container::-webkit-scrollbar {
+  height: 4px;
+}
+
+/* Safe Area Inset */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+/* Mobile Bottom Navigation Bar */
+.mobile-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.mobile-nav-item.active {
+  color: #4f46e5;
+  transform: translateY(-2px);
+}
+
+.mobile-nav-item i {
+  font-size: 1.15rem;
+  margin-bottom: 0.2rem;
+}
+
+/* Attendance Toggle Buttons */
+.att-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.6rem;
+  font-weight: 800;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  border: 1.5px solid transparent;
+}
+
+.att-btn-p.active {
+  background: #10b981;
+  color: white;
+  border-color: #059669;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+}
+.att-btn-p:not(.active) {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.att-btn-a.active {
+  background: #ef4444;
+  color: white;
+  border-color: #dc2626;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+.att-btn-a:not(.active) {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.att-btn-l.active {
+  background: #f59e0b;
+  color: white;
+  border-color: #d97706;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+.att-btn-l:not(.active) {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+/* Print Rules */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .no-print, header, nav, #sidebar, #mobile-nav, .nav-tab-btn, button {
+    display: none !important;
+  }
+  .glass-card {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    background: #fff !important;
+  }
+}
+
+/* ==========================================================================
+   Separate Page Navigator & Drawer Styles
+   ========================================================================== */
+.separate-nav-bar {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 4px 20px -2px rgba(99, 102, 241, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  position: sticky;
+  top: 76px;
+  z-index: 25;
+}
+
+.page-indicator-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #eef2ff 0%, #fdf4ff 100%);
+  border: 1px solid #c7d2fe;
+  padding: 0.4rem 0.85rem;
+  border-radius: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #3730a3;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.nav-scroll-btn {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.65rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.nav-scroll-btn:hover {
+  background: #f8fafc;
+  color: #4f46e5;
+  border-color: #c7d2fe;
+  transform: translateY(-1px);
+}
+
+/* Page Navigator Drawer */
+#page-navigator-drawer.hidden {
+  display: none;
+}
+
+.drawer-card {
+  transition: all 0.2s ease;
+}
+
+.drawer-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Table Pagination Styles */
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.6rem;
+  border-radius: 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+.pagination-btn.active {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #ffffff;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ========================================================================= */
+/* OFFICIAL REPORT CARD & A4 PRINT MEDIA RULES                               */
+/* ========================================================================= */
+
+.em-scorecard-page {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@media print {
+  html, body {
+    width: 210mm;
+    height: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  /* Hide entire application shell during printing */
+  body > *:not(#em-print-container) {
+    display: none !important;
+  }
+
+  /* Expose printable scorecard container */
+  #em-print-container {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    z-index: 999999 !important;
+  }
+
+  .em-scorecard-page {
+    width: 100% !important;
+    max-width: 210mm !important;
+    margin: 0 auto !important;
+    padding: 4mm !important;
+    page-break-after: always !important;
+    break-after: page !important;
+    background: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 6mm;
+  }
+}
+

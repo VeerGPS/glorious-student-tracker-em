@@ -1,0 +1,2616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Glorious Public School • Student Tracker (English Medium)</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Chart.js for analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- jsPDF for Report Generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <!-- html2canvas for High-Definition PDF Generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- SheetJS for Native Excel (.xlsx) Import & Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <!-- Firebase Web SDK v10 (Compat Mode for Cloud Database & Auth) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="selection:bg-fuchsia-200 selection:text-fuchsia-900">
+
+  <!-- Datalists for Autocomplete -->
+  <datalist id="std-list">
+    <option value="1"></option><option value="2"></option><option value="3"></option>
+    <option value="4"></option><option value="5"></option><option value="6"></option>
+    <option value="7"></option><option value="8"></option><option value="9"></option>
+    <option value="10"></option>
+  </datalist>
+
+  <datalist id="subj-list">
+    <option value="Mathematics"></option>
+    <option value="Science"></option>
+    <option value="English"></option>
+    <option value="Social Science"></option>
+    <option value="Hindi"></option>
+    <option value="Gujarati"></option>
+    <option value="Sanskrit"></option>
+    <option value="Computer"></option>
+    <option value="Physics"></option>
+    <option value="Chemistry"></option>
+    <option value="Biology"></option>
+  </datalist>
+
+  <datalist id="student-list"></datalist>
+
+  <!-- ========================================================================= -->
+  <!-- 1. INITIAL SCREEN: "WHAT DESCRIBES YOU?" (TEACHER OR MANAGEMENT)          -->
+  <!-- ========================================================================= -->
+  <section id="role-selection-view" class="min-h-screen flex items-center justify-center p-4 md:p-8">
+    <div class="glass-card max-w-2xl w-full rounded-[2.5rem] p-6 sm:p-10 text-center shadow-2xl border border-white relative overflow-hidden animate-fade-in-up">
+      <!-- Background Ambient Glow -->
+      <div class="absolute -top-24 -left-24 w-64 h-64 bg-indigo-400 rounded-full blur-[90px] opacity-20 pointer-events-none"></div>
+      <div class="absolute -bottom-24 -right-24 w-64 h-64 bg-fuchsia-400 rounded-full blur-[90px] opacity-20 pointer-events-none"></div>
+
+      <!-- Cloud DB Live Link Badge & English Medium Indicator -->
+      <div class="absolute top-4 right-4 z-20 flex items-center gap-2">
+        <span class="px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-800 font-black text-xs shadow-sm flex items-center gap-1.5">
+          <i class="fa-solid fa-book-open text-indigo-600 text-xs"></i> English Medium
+        </span>
+        <div class="cloud-db-badge-el"></div>
+      </div>
+
+      <!-- School Crest Emblem -->
+      <div class="relative z-10">
+        <div class="w-24 h-24 bg-gradient-to-tr from-amber-400 via-orange-500 to-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-xl shadow-amber-500/30 transform hover:scale-105 transition-all">
+          <i class="fa-solid fa-graduation-cap text-5xl text-white"></i>
+        </div>
+
+        <h1 class="text-3xl sm:text-4xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-950 via-purple-900 to-fuchsia-900">
+          Glorious Public School
+        </h1>
+        <p class="text-xs sm:text-sm font-bold text-indigo-600 uppercase tracking-widest mt-1">English Medium • Student Tracker</p>
+        <p class="text-xs sm:text-sm font-black text-fuchsia-600 mt-1 uppercase tracking-[0.25em]">
+          Smart Student Tracker
+        </p>
+
+        <!-- The Primary Question -->
+        <div class="mt-8 mb-6">
+          <span class="inline-block bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-black uppercase px-4 py-1.5 rounded-full shadow-sm mb-3">
+            Welcome to Academic Portal
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">
+            What describes you?
+          </h2>
+          <p class="text-xs sm:text-sm font-semibold text-slate-500 mt-1">
+            Choose your role to access your personalized workspace.
+          </p>
+        </div>
+
+        <!-- Role Choices (Teacher or Management) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mt-8">
+          <!-- Teacher Card -->
+          <button type="button" onclick="selectRole('teacher')"
+            class="group bg-gradient-to-br from-indigo-600 via-purple-600 to-fuchsia-600 text-white p-6 sm:p-7 rounded-3xl shadow-xl shadow-indigo-500/25 hover:shadow-indigo-500/40 transform hover:-translate-y-1.5 transition-all text-left relative overflow-hidden border border-white/20">
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full flex items-center justify-center">
+              <i class="fa-solid fa-chalkboard-user text-5xl opacity-40"></i>
+            </div>
+            <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mb-4 backdrop-blur-sm">
+              <i class="fa-solid fa-user-tie text-2xl text-white"></i>
+            </div>
+            <h3 class="text-2xl font-black tracking-tight mb-1">Teacher</h3>
+            <p class="text-xs text-indigo-100 font-semibold leading-relaxed">
+              Mark attendance, track upcoming tests, generate test results & analyze performance.
+            </p>
+            <div class="mt-4 inline-flex items-center text-xs font-black text-amber-300 group-hover:translate-x-1 transition-transform">
+              Enter Teacher Desk <i class="fa-solid fa-arrow-right ml-1.5 text-[11px]"></i>
+            </div>
+          </button>
+
+          <!-- Management Card -->
+          <button type="button" onclick="selectRole('management')"
+            class="group bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 text-white p-6 sm:p-7 rounded-3xl shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 transform hover:-translate-y-1.5 transition-all text-left relative overflow-hidden border border-white/20">
+            <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full flex items-center justify-center">
+              <i class="fa-solid fa-school text-5xl opacity-40"></i>
+            </div>
+            <div class="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center mb-4 backdrop-blur-sm">
+              <i class="fa-solid fa-shield-halved text-2xl text-white"></i>
+            </div>
+            <h3 class="text-2xl font-black tracking-tight mb-1">Management</h3>
+            <p class="text-xs text-emerald-100 font-semibold leading-relaxed">
+              Executive bird's-eye view, total student roster, faculty assignments & institutional reports.
+            </p>
+            <div class="mt-4 inline-flex items-center text-xs font-black text-cyan-200 group-hover:translate-x-1 transition-transform">
+              School Administration <i class="fa-solid fa-arrow-right ml-1.5 text-[11px]"></i>
+            </div>
+          </button>
+
+          <!-- Parent / Student Card -->
+          <button type="button" onclick="selectRole('parent')"
+            class="sm:col-span-2 group bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white p-6 sm:p-7 rounded-3xl shadow-xl shadow-orange-500/25 hover:shadow-orange-500/40 transform hover:-translate-y-1.5 transition-all text-left relative overflow-hidden border border-white/20">
+            <div class="absolute -right-4 -bottom-4 w-28 h-28 bg-white/10 rounded-full flex items-center justify-center pointer-events-none">
+              <i class="fa-solid fa-user-graduate text-6xl opacity-35"></i>
+            </div>
+            <div class="flex items-center gap-4">
+              <div class="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-sm shrink-0">
+                <i class="fa-solid fa-children text-2xl text-white"></i>
+              </div>
+              <div class="flex-1">
+                <div class="inline-block bg-white/20 text-white text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full mb-1">
+                  Family & Student Access
+                </div>
+                <h3 class="text-2xl font-black tracking-tight mb-1">Parent & Student Portal</h3>
+                <p class="text-xs text-amber-100 font-semibold leading-relaxed max-w-xl">
+                  Log in with your Class & Roll Number to check test results, subject progress & download term report cards.
+                </p>
+              </div>
+              <div class="hidden md:flex items-center text-xs font-black text-white bg-white/20 px-4 py-2 rounded-xl group-hover:translate-x-1 transition-transform shrink-0">
+                Sign In <i class="fa-solid fa-arrow-right ml-1.5 text-[11px]"></i>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <p class="text-[11px] text-slate-400 font-semibold mt-8">
+          Glorious Public School • Academic Management Information System • Official Version 2026
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 2. AUTH SCREEN: SIGN IN OR SIGN UP                                         -->
+  <!-- ========================================================================= -->
+  <section id="auth-view" class="hidden min-h-screen flex items-center justify-center p-4 md:p-8">
+    <div class="glass-card max-w-lg w-full rounded-[2.5rem] p-6 sm:p-10 shadow-2xl border border-white relative overflow-hidden animate-fade-in-up">
+      <!-- Back to Role Selection Button -->
+      <button onclick="showRoleSelectionView()" class="inline-flex items-center text-xs font-bold text-slate-500 hover:text-indigo-600 mb-5 transition-colors">
+        <i class="fa-solid fa-arrow-left mr-1.5"></i> Back to Role Selection
+      </button>
+
+      <!-- TEACHER AUTH CONTAINER -->
+      <div id="teacher-auth-container">
+        <div class="text-center mb-6">
+          <h2 class="text-3xl font-black text-slate-800 tracking-tight">Teacher Portal</h2>
+          <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wider mt-1">Sign in or create a new teacher profile</p>
+        </div>
+
+        <!-- Auth Tabs: Sign In / Sign Up -->
+        <div class="flex bg-slate-100/90 p-1.5 rounded-2xl mb-6 border border-slate-200/80">
+          <button id="tab-teacher-signup" type="button" onclick="switchTeacherAuthTab('signup')"
+            class="flex-1 py-2.5 rounded-xl font-bold text-xs transition-all bg-indigo-600 text-white shadow-md">
+            Create Account (Sign Up)
+          </button>
+          <button id="tab-teacher-signin" type="button" onclick="switchTeacherAuthTab('signin')"
+            class="flex-1 py-2.5 rounded-xl font-bold text-xs transition-all text-slate-600 hover:bg-slate-100">
+            Sign In
+          </button>
+        </div>
+
+        <!-- TEACHER SIGN UP FORM (5 MAJOR OPTIONS) -->
+        <form id="teacher-signup-form" onsubmit="handleTeacherSignupSubmit(event)" class="space-y-4">
+          <!-- 1st: Enter Full Name -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              1. Full Name <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                <i class="fa-regular fa-user"></i>
+              </span>
+              <input type="text" id="teacher-reg-name" required placeholder="e.g. Mrs. Ananya Sharma"
+                class="w-full bg-white border-2 border-slate-100 rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none transition-all">
+            </div>
+          </div>
+
+          <!-- 2nd: Enter Mobile No. -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              2. Mobile No. <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                <i class="fa-solid fa-phone"></i>
+              </span>
+              <input type="tel" id="teacher-reg-mobile" required placeholder="e.g. 9876543210"
+                class="w-full bg-white border-2 border-slate-100 rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none transition-all">
+            </div>
+          </div>
+
+          <!-- 3rd: Enter Password -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              3. Password <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                <i class="fa-solid fa-lock"></i>
+              </span>
+              <input type="password" id="teacher-reg-pass" required placeholder="Create a password"
+                class="w-full bg-white border-2 border-slate-100 rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none transition-all">
+            </div>
+          </div>
+
+          <!-- 4th: Re-Enter Password -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              4. Re-Enter Password <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                <i class="fa-solid fa-shield-check"></i>
+              </span>
+              <input type="password" id="teacher-reg-repass" required placeholder="Re-enter same password"
+                class="w-full bg-white border-2 border-slate-100 rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 outline-none transition-all">
+            </div>
+          </div>
+
+          <!-- 5th: Subject He/She teaches (With dynamic Add button) -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              5. Subjects You Teach <span class="text-rose-500">*</span>
+            </label>
+            <div class="flex gap-2">
+              <input list="subj-list" id="teacher-subject-input" placeholder="Type or pick subject (e.g. Maths)"
+                class="flex-1 bg-white border-2 border-slate-100 rounded-xl px-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-indigo-400 outline-none transition-all">
+              <button type="button" onclick="addTeacherSubject()"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow-md transition-all flex items-center gap-1 shrink-0">
+                <i class="fa-solid fa-plus"></i> Add
+              </button>
+            </div>
+            <!-- Dynamic Added Subjects Chips -->
+            <div id="teacher-subjects-chips" class="flex flex-wrap gap-2 mt-2.5 p-2 bg-slate-50/70 rounded-xl border border-slate-100 min-h-[44px]">
+              <span class="text-xs text-slate-400 italic">Add subjects using the button above.</span>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit"
+            class="w-full mt-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 hover:from-indigo-700 hover:to-fuchsia-700 text-white font-black py-3.5 px-4 rounded-xl shadow-lg shadow-indigo-500/30 transform hover:-translate-y-0.5 transition-all text-sm">
+            Submit & Configure Classrooms <i class="fa-solid fa-arrow-right ml-1"></i>
+          </button>
+        </form>
+
+        <!-- TEACHER SIGN IN FORM -->
+        <form id="teacher-signin-form" onsubmit="handleTeacherSigninSubmit(event)" class="hidden space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Registered Mobile Number</label>
+            <input type="tel" id="teacher-login-mobile" required placeholder="e.g. 9876543210"
+              class="w-full bg-white border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-semibold focus:ring-2 focus:ring-indigo-400 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Password</label>
+            <input type="password" id="teacher-login-pass" required placeholder="Enter password"
+              class="w-full bg-white border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-semibold focus:ring-2 focus:ring-indigo-400 outline-none">
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <button type="button" onclick="fillDemoTeacher()" class="text-xs font-bold text-indigo-600 hover:underline">
+              ⚡ Fill Demo Teacher Credentials
+            </button>
+          </div>
+
+          <button type="submit"
+            class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-black py-3.5 px-4 rounded-xl shadow-lg shadow-indigo-500/30 transition-all text-sm">
+            Sign In to Teacher Dashboard
+          </button>
+        </form>
+      </div>
+
+      <!-- MANAGEMENT AUTH CONTAINER -->
+      <div id="management-auth-container" class="hidden">
+        <div class="text-center mb-6">
+          <div class="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-emerald-600 text-2xl shadow-inner">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <h2 class="text-3xl font-black text-slate-800 tracking-tight">Management Access</h2>
+          <p class="text-xs font-semibold text-emerald-600 uppercase tracking-wider mt-1">Official Executive Security Sign In</p>
+        </div>
+
+        <form onsubmit="handleManagementLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">Administrative Passcode</label>
+            <input type="password" id="management-pass" required placeholder="Enter passcode (e.g. gps369)"
+              class="w-full bg-white border-2 border-slate-100 rounded-xl px-4 py-3 text-sm font-semibold focus:ring-2 focus:ring-emerald-400 outline-none">
+            <p class="text-[11px] text-slate-400 mt-1">Management passcode: <code class="text-emerald-700 font-bold">gps369</code></p>
+          </div>
+
+          <button type="submit"
+            class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-500/30 transition-all text-sm">
+            Access School Management Board
+          </button>
+        </form>
+      </div>
+
+      <!-- PARENT AUTH CONTAINER -->
+      <div id="parent-auth-container" class="hidden">
+        <div class="text-center mb-6">
+          <div class="w-14 h-14 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-amber-600 text-2xl shadow-inner border border-amber-200">
+            <i class="fa-solid fa-user-graduate"></i>
+          </div>
+          <h2 class="text-3xl font-black text-slate-800 tracking-tight">Parent Portal Sign In</h2>
+          <p class="text-xs font-semibold text-amber-700 uppercase tracking-wider mt-1">Check Student Academic Performance & Marks</p>
+        </div>
+
+        <form onsubmit="handleParentLoginFormSubmit(event)" class="space-y-4">
+          <!-- Select Class -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              Select Class / Standard <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                <i class="fa-solid fa-chalkboard"></i>
+              </span>
+              <select id="parent-login-std" required
+                class="w-full bg-white border-2 border-slate-100 rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none transition-all">
+                <option value="">-- Select Class --</option>
+                <option value="1">Class 1</option>
+                <option value="2">Class 2</option>
+                <option value="3">Class 3</option>
+                <option value="4">Class 4</option>
+                <option value="5">Class 5</option>
+                <option value="6">Class 6</option>
+                <option value="7">Class 7</option>
+                <option value="8">Class 8</option>
+                <option value="9">Class 9</option>
+                <option value="10">Class 10</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Roll Number -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              Student Roll Number <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                <i class="fa-solid fa-id-card-clip"></i>
+              </span>
+              <input type="number" id="parent-login-roll" required placeholder="e.g. 101" min="1"
+                class="w-full bg-white border-2 border-slate-100 rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none transition-all">
+            </div>
+          </div>
+
+          <!-- Optional GR Number or Mobile -->
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              Registered Mobile / GR Number <span class="text-slate-400 text-[10px] font-normal">(Optional Verification)</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                <i class="fa-solid fa-phone"></i>
+              </span>
+              <input type="text" id="parent-login-contact" placeholder="e.g. 9876543210 or GR-2024-001"
+                class="w-full bg-white border-2 border-slate-100 rounded-xl pl-10 pr-4 py-2.5 text-sm font-semibold focus:ring-2 focus:ring-amber-400 focus:border-amber-400 outline-none transition-all">
+            </div>
+          </div>
+
+          <button type="submit"
+            class="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white font-black py-3.5 px-4 rounded-xl shadow-lg shadow-orange-500/30 transition-all text-sm flex items-center justify-center gap-2">
+            <i class="fa-solid fa-arrow-right-to-bracket"></i> Open Student Progress Report
+          </button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 3. TEACHER SETUP SCREEN (CLASSROOMS 1 TO 10 & SECTIONS ONBOARDING)         -->
+  <!-- ========================================================================= -->
+  <section id="teacher-setup-view" class="hidden min-h-screen flex items-center justify-center p-4 md:p-8">
+    <div class="glass-card max-w-3xl w-full rounded-[2.5rem] p-6 sm:p-10 shadow-2xl border border-white relative overflow-hidden animate-fade-in-up">
+      <!-- Header -->
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-indigo-100/80 pb-5 mb-6 gap-3">
+        <div>
+          <span class="text-[10px] font-black uppercase tracking-widest text-fuchsia-600 bg-fuchsia-50 px-3 py-1 rounded-full border border-fuchsia-100">
+            Step 2: Classrooms Onboarding
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight mt-2">
+            Welcome, <span id="setup-teacher-display-name" class="text-indigo-600">Teacher</span>!
+          </h2>
+          <p class="text-xs sm:text-sm font-semibold text-slate-500 mt-0.5">
+            Set up the classrooms & sections you instruct before entering your dashboard.
+          </p>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 text-xl shrink-0">
+          <i class="fa-solid fa-chalkboard"></i>
+        </div>
+      </div>
+
+      <div class="space-y-8">
+        <!-- 1st Option: Classrooms I teach (Numbers 1 to 10) -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <label class="block text-sm font-black text-slate-800 uppercase tracking-wide">
+              1. Classrooms I Teach (1 to 10) <span class="text-rose-500">*</span>
+            </label>
+            <span class="text-xs text-indigo-600 font-bold">Select all that apply</span>
+          </div>
+
+          <!-- Classroom Pills 1 to 10 -->
+          <div id="classroom-chips-grid" class="flex flex-wrap gap-2.5 justify-center sm:justify-start"></div>
+
+          <!-- Visual Display of Selected Classrooms on Screen -->
+          <div class="mt-4 p-4 rounded-2xl bg-gradient-to-r from-indigo-50/70 to-purple-50/70 border border-indigo-100">
+            <div class="text-xs font-black uppercase tracking-wider text-indigo-800 mb-2">
+              <i class="fa-solid fa-list-check mr-1 text-indigo-600"></i> Selected Classrooms on Screen:
+            </div>
+            <div id="selected-classrooms-display" class="flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
+        <!-- 2nd Option: Add sections for each classroom selected -->
+        <div>
+          <div class="mb-3">
+            <label class="block text-sm font-black text-slate-800 uppercase tracking-wide">
+              2. Add Sections for Each Selected Classroom
+            </label>
+            <p class="text-xs text-slate-500 font-medium">Specify active section divisions (e.g. A, B, C) for your classes.</p>
+          </div>
+
+          <div id="class-sections-config-list" class="space-y-3"></div>
+        </div>
+
+        <!-- 3rd Option: Upload your student data (Optional) -->
+        <div class="p-6 rounded-3xl bg-slate-50/90 border-2 border-dashed border-indigo-200">
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <i class="fa-solid fa-file-excel text-emerald-600 text-xl"></i>
+              <h4 class="text-sm font-black text-slate-800 uppercase tracking-wide">
+                3. Upload Student Data (Optional)
+              </h4>
+            </div>
+            <span class="text-[10px] font-black uppercase text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-md border border-indigo-100">
+              Excel / CSV or Manual
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 font-medium mb-4">
+            Upload your classroom roster now or you can easily do it later inside the dashboard.
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button type="button" onclick="downloadFormatExcel('randomized-multi')"
+              class="px-4 py-2.5 bg-white hover:bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition-all flex items-center justify-center gap-2 shadow-sm">
+              <i class="fa-solid fa-download"></i> Download Sample Excel
+            </button>
+
+            <div>
+              <input type="file" id="setup-excel-upload" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
+              <label for="setup-excel-upload"
+                class="cursor-pointer px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Excel / CSV
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit to Dashboard Button -->
+        <div class="pt-3 border-t border-slate-100 flex justify-end">
+          <button type="button" onclick="finishTeacherSetup()"
+            class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-fuchsia-600 hover:from-indigo-700 hover:to-fuchsia-700 text-white font-black text-sm rounded-2xl shadow-xl shadow-indigo-500/30 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2">
+            Submit & Enter Teacher Dashboard <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 4. TEACHER MAIN DASHBOARD (CLEAN & PROFESSIONAL WITH HORIZONTAL NAV)       -->
+  <!-- ========================================================================= -->
+  <section id="teacher-dashboard-view" class="hidden min-h-screen flex flex-col">
+    <!-- Top Professional Brand Header -->
+    <header class="bg-gradient-to-r from-indigo-950 via-purple-900 to-fuchsia-950 text-white p-4 md:px-8 border-b border-white/10 shadow-lg sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+        <!-- Logo & School Name -->
+        <div class="flex items-center space-x-3.5 w-full md:w-auto justify-between md:justify-start">
+          <div class="flex items-center space-x-3">
+            <div class="w-11 h-11 bg-gradient-to-tr from-amber-400 to-rose-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/30 transform hover:rotate-6 transition-transform">
+              <i class="fa-solid fa-graduation-cap text-2xl text-white"></i>
+            </div>
+            <div>
+              <h1 class="text-xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-100 to-fuchsia-200">
+                Glorious Public School
+              </h1>
+              <p class="text-[10px] text-fuchsia-300 font-extrabold uppercase tracking-[0.2em]">
+                Student Tracker Dashboard
+              </p>
+            </div>
+          </div>
+
+          <!-- Mobile Sign Out -->
+          <div class="flex items-center gap-1.5 md:hidden">
+            <span class="text-[10px] bg-white/20 text-white font-extrabold px-2 py-0.5 rounded-lg uppercase">EM</span>
+            <button onclick="logoutSession()" class="text-white/70 hover:text-white p-2 text-sm">
+              <i class="fa-solid fa-power-off"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Teacher Profile Bar -->
+        <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+          <div class="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/15 flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-fuchsia-500 flex items-center justify-center text-white font-black text-sm shadow">
+              <i class="fa-solid fa-user-check"></i>
+            </div>
+            <div class="text-left">
+              <div class="flex items-center gap-2">
+                <h4 id="dash-teacher-name" class="text-xs font-black text-white leading-tight">Teacher Name</h4>
+                <span id="dash-teacher-badge" class="text-[9px] font-black uppercase bg-white/20 text-fuchsia-200 px-2 py-0.5 rounded-md">T-101</span>
+              </div>
+              <p id="dash-teacher-details" class="text-[10px] text-indigo-200 font-semibold truncate max-w-[200px] sm:max-w-xs">
+                Mathematics | Class 9 (A, B)
+              </p>
+            </div>
+          </div>
+
+          <div class="cloud-db-badge-el"></div>
+
+          <!-- English Medium Badge (Desktop) -->
+          <div class="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 text-white font-black text-xs border border-white/20">
+            <i class="fa-solid fa-book-open text-amber-300 text-xs"></i>
+            <span>English Medium</span>
+          </div>
+
+          <div class="hidden sm:flex items-center space-x-2">
+            <div class="bg-white/10 px-3.5 py-2 rounded-xl border border-white/10 text-xs font-bold text-fuchsia-200 flex items-center gap-1.5">
+              <i class="fa-regular fa-calendar-check text-amber-300"></i>
+              <span id="current-date"></span>
+            </div>
+            <button onclick="logoutSession()" title="Sign Out"
+              class="bg-white/10 hover:bg-rose-500/80 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all border border-white/15 flex items-center gap-1">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ========================================================================= -->
+    <!-- DEDICATED CLASSROOM WORKSPACE SWITCHER BAR                                -->
+    <!-- ========================================================================= -->
+    <div id="classroom-workspace-bar" class="bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 border-b border-indigo-500/20 px-4 py-2.5 shadow-md">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-indigo-200 bg-white/10 px-3 py-1 rounded-xl border border-white/10">
+            <i class="fa-solid fa-chalkboard text-amber-400"></i> Active Workspace:
+          </span>
+          <span id="active-workspace-badge" class="text-xs font-black text-amber-300 bg-amber-400/10 border border-amber-400/30 px-2.5 py-0.5 rounded-lg">All Assigned Classes</span>
+        </div>
+        <!-- Classroom Toggle Buttons Grid -->
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden md:inline">Switch Classroom:</span>
+          <div id="workspace-classrooms-list" class="flex items-center gap-1.5 flex-wrap"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- DEDICATED SEPARATE PAGE NAVIGATOR BAR                                     -->
+    <!-- ========================================================================= -->
+    <nav id="separate-page-navigator" class="separate-nav-bar px-4 py-2.5">
+      <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+        <!-- Active Page Breadcrumb / Pill -->
+        <div class="flex items-center justify-between md:justify-start gap-2">
+          <div class="page-indicator-pill" id="active-page-pill">
+            <i id="active-page-icon" class="fa-solid fa-chart-pie text-indigo-600"></i>
+            <span id="active-page-label">Overview Dashboard</span>
+          </div>
+          <button onclick="openPageDrawer()" class="md:hidden px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-black rounded-xl border border-indigo-200 transition-all flex items-center gap-1 shadow-sm">
+            <i class="fa-solid fa-compass"></i> All Pages
+          </button>
+        </div>
+
+        <!-- Horizontal Scrollable Tabs with Left & Right Quick Scroll Buttons -->
+        <div class="flex items-center gap-1.5 flex-1 max-w-4xl justify-end">
+          <button onclick="scrollPageNavigator(-200)" class="nav-scroll-btn hidden sm:inline-flex" title="Scroll Left">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+
+          <div id="page-nav-tabs-container" class="horizontal-scroll-container flex items-center gap-2 py-0.5 px-1 flex-1">
+            <button onclick="switchTab('dashboard')" class="nav-tab-btn active" data-target="dashboard">
+              <i class="fa-solid fa-chart-pie text-blue-500"></i> <span>Overview</span>
+            </button>
+            <button onclick="switchTab('attendance')" class="nav-tab-btn" data-target="attendance">
+              <i class="fa-solid fa-calendar-check text-emerald-500"></i> <span>Attendance</span>
+            </button>
+            <button onclick="switchTab('upcoming-tests')" class="nav-tab-btn" data-target="upcoming-tests">
+              <i class="fa-solid fa-stopwatch text-amber-500"></i> <span>Upcoming Tests</span>
+              <span id="nav-badge-tests" class="hidden text-[10px] bg-amber-100 text-amber-800 font-black px-1.5 py-0.5 rounded-full"></span>
+            </button>
+            <button onclick="switchTab('data-entry')" class="nav-tab-btn" data-target="data-entry">
+              <i class="fa-solid fa-file-pen text-fuchsia-500"></i> <span>Result Generator</span>
+            </button>
+            <button onclick="switchTab('students')" class="nav-tab-btn" data-target="students">
+              <i class="fa-solid fa-users-viewfinder text-cyan-500"></i> <span>Student Directory</span>
+            </button>
+            <button onclick="switchTab('records')" class="nav-tab-btn" data-target="records">
+              <i class="fa-solid fa-database text-purple-500"></i> <span>Records</span>
+            </button>
+            <button onclick="switchTab('analytics')" class="nav-tab-btn" data-target="analytics">
+              <i class="fa-solid fa-brain text-pink-500"></i> <span>AI Insights</span>
+            </button>
+            <button onclick="switchTab('communications')" class="nav-tab-btn" data-target="communications">
+              <i class="fa-solid fa-file-invoice text-rose-500"></i> <span>Reports & Export</span>
+              <span id="nav-badge-alerts" class="hidden text-[10px] bg-rose-100 text-rose-800 font-black px-1.5 py-0.5 rounded-full"></span>
+            </button>
+          </div>
+
+          <button onclick="scrollPageNavigator(200)" class="nav-scroll-btn hidden sm:inline-flex" title="Scroll Right">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+
+          <!-- Drawer Opener for All Devices -->
+          <button onclick="openPageDrawer()" class="hidden md:inline-flex px-3.5 py-2 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 text-indigo-700 rounded-xl text-xs font-black border border-indigo-200 transition-all items-center gap-1.5 shadow-sm whitespace-nowrap">
+            <i class="fa-solid fa-compass text-indigo-600"></i> <span>All Pages</span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Dynamic Content Container -->
+    <main id="dashboard-main-scroll" class="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-12 max-w-7xl w-full mx-auto">
+      <!-- ============================================== -->
+      <!-- TAB 1: OVERVIEW DASHBOARD                     -->
+      <!-- ============================================== -->
+      <section id="dashboard" class="tab-content active">
+
+        <!-- Filter Bar -->
+        <div class="glass-card p-5 sm:p-6 rounded-3xl mb-8 border-t-4 border-indigo-500 shadow-sm">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xs font-black text-indigo-900 uppercase tracking-widest flex items-center">
+              <i class="fa-solid fa-filter text-indigo-500 mr-2"></i> Academic Performance Filters
+            </h3>
+            <button onclick="clearDashFilters()" class="text-xs font-bold text-rose-600 hover:bg-rose-50 px-3 py-1 rounded-lg border border-rose-200 transition-all">
+              Reset Filters
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-indigo-600 mb-1 ml-1">Class / Standard</label>
+              <select id="dash-filter-std" onchange="updateDashboard()" class="w-full bg-white/70 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none">
+                <option value="all">All Classes</option>
+                <option value="1">Class 1</option><option value="2">Class 2</option><option value="3">Class 3</option>
+                <option value="4">Class 4</option><option value="5">Class 5</option><option value="6">Class 6</option>
+                <option value="7">Class 7</option><option value="8">Class 8</option><option value="9">Class 9</option>
+                <option value="10">Class 10</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-indigo-600 mb-1 ml-1">Roll / Name / GR</label>
+              <input type="text" id="dash-filter-student" list="student-list" oninput="updateDashboard()" placeholder="Search..."
+                class="w-full bg-white/70 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-indigo-600 mb-1 ml-1">Subject</label>
+              <select id="dash-filter-sub" onchange="updateDashboard()" class="w-full bg-white/70 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none">
+                <option value="all">All Subjects</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-indigo-600 mb-1 ml-1">Month</label>
+              <input type="month" id="dash-filter-month" onchange="updateDashboard()"
+                class="w-full bg-white/70 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-indigo-600 mb-1 ml-1">From Date</label>
+              <input type="date" id="dash-filter-fdate" onchange="updateDashboard()"
+                class="w-full bg-white/70 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none">
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-indigo-600 mb-1 ml-1">To Date</label>
+              <input type="date" id="dash-filter-tdate" onchange="updateDashboard()"
+                class="w-full bg-white/70 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- 4 Stat Summary Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+          <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-3xl relative overflow-hidden shadow-xl shadow-blue-500/20 text-white transform hover:-translate-y-1 transition-all">
+            <div class="absolute -right-3 -top-3 w-20 h-20 bg-white/10 rounded-full flex items-center justify-center">
+              <i class="fa-solid fa-users text-4xl opacity-40"></i>
+            </div>
+            <p id="stat-total-students-label" class="text-xs font-bold text-blue-200 uppercase tracking-wider">Total Students</p>
+            <h3 class="text-3xl sm:text-4xl font-black mt-1" id="stat-total-students">0</h3>
+          </div>
+
+          <div class="bg-gradient-to-br from-emerald-500 to-teal-700 p-6 rounded-3xl relative overflow-hidden shadow-xl shadow-emerald-500/20 text-white transform hover:-translate-y-1 transition-all">
+            <div class="absolute -right-3 -top-3 w-20 h-20 bg-white/10 rounded-full flex items-center justify-center">
+              <i class="fa-solid fa-chart-line text-4xl opacity-40"></i>
+            </div>
+            <p id="stat-avg-score-label" class="text-xs font-bold text-emerald-200 uppercase tracking-wider">Average Score</p>
+            <h3 class="text-3xl sm:text-4xl font-black mt-1" id="stat-avg-score">0%</h3>
+          </div>
+
+          <div class="bg-gradient-to-br from-amber-500 to-orange-600 p-6 rounded-3xl relative overflow-hidden shadow-xl shadow-amber-500/20 text-white transform hover:-translate-y-1 transition-all">
+            <div class="absolute -right-3 -top-3 w-20 h-20 bg-white/10 rounded-full flex items-center justify-center">
+              <i class="fa-solid fa-file-signature text-4xl opacity-40"></i>
+            </div>
+            <p id="stat-total-tests-label" class="text-xs font-bold text-amber-200 uppercase tracking-wider">Assessments Held</p>
+            <h3 class="text-3xl sm:text-4xl font-black mt-1" id="stat-total-tests">0</h3>
+          </div>
+
+          <div class="bg-gradient-to-br from-fuchsia-600 to-rose-600 p-6 rounded-3xl relative overflow-hidden shadow-xl shadow-fuchsia-500/20 text-white transform hover:-translate-y-1 transition-all">
+            <div class="absolute -right-3 -top-3 w-20 h-20 bg-white/10 rounded-full flex items-center justify-center">
+              <i class="fa-solid fa-medal text-4xl opacity-40"></i>
+            </div>
+            <p id="stat-top-subject-label" class="text-xs font-bold text-fuchsia-200 uppercase tracking-wider">Top Subject</p>
+            <h3 class="text-2xl sm:text-3xl font-black mt-1 truncate" id="stat-top-subject">-</h3>
+          </div>
+        </div>
+
+        <!-- Charts: Performance Trend & Grade Distribution -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div class="glass-card p-6 rounded-3xl border-t-4 border-indigo-500 shadow-sm">
+            <h3 id="trend-chart-heading" class="text-lg font-black text-slate-800 mb-4 flex items-center">
+              <i class="fa-solid fa-arrow-trend-up text-indigo-500 mr-2"></i> Performance Trend (Over Time)
+            </h3>
+            <div class="relative h-64 w-full">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+
+          <div class="glass-card p-6 rounded-3xl border-t-4 border-purple-500 shadow-sm flex flex-col items-center">
+            <h3 id="grade-chart-heading" class="text-lg font-black text-slate-800 mb-4 flex items-center w-full">
+              <i class="fa-solid fa-chart-pie text-purple-500 mr-2"></i> Grade Distribution
+            </h3>
+            <div class="relative h-64 w-full max-w-xs">
+              <canvas id="gradeChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts: Performance by Subject & Top Performers -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div class="glass-card p-6 rounded-3xl lg:col-span-2 border-t-4 border-emerald-500 shadow-sm">
+            <h3 class="text-lg font-black text-slate-800 mb-4 flex items-center">
+              <i class="fa-solid fa-chart-column text-emerald-500 mr-2"></i> Performance by Subject
+            </h3>
+            <div class="relative h-72 w-full">
+              <canvas id="batchChart"></canvas>
+            </div>
+          </div>
+
+          <div class="glass-card p-0 rounded-3xl border-t-4 border-amber-500 shadow-sm flex flex-col overflow-hidden">
+            <div class="p-6 pb-2 border-b border-slate-100">
+              <h3 class="text-lg font-black text-slate-800 flex items-center">
+                <i class="fa-solid fa-trophy text-amber-500 mr-2"></i> Top Performers
+              </h3>
+            </div>
+            <div class="overflow-x-auto flex-1 p-2">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="text-slate-400 text-[10px] font-black uppercase tracking-wider">
+                    <th class="p-3 w-14 text-center">Rank</th>
+                    <th class="p-3">Student Name</th>
+                    <th class="p-3 text-right">Score</th>
+                  </tr>
+                </thead>
+                <tbody id="leaderboard-body" class="text-xs font-semibold"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 2: ATTENDANCE MANAGEMENT                   -->
+      <!-- ============================================== -->
+      <section id="attendance" class="tab-content">
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-3xl font-black text-slate-800 tracking-tight">Attendance Management</h2>
+            <p class="text-xs font-semibold text-emerald-600 uppercase tracking-wider mt-0.5">
+              Class & Section Date-wise Daily Attendance Register
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="exportAttendanceExcel()" class="px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200 shadow-sm flex items-center gap-1.5 transition-all">
+              <i class="fa-solid fa-file-excel"></i> Export Sheet (.xlsx)
+            </button>
+            <button onclick="notifyAbsenteesWhatsApp()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md shadow-emerald-500/25 flex items-center gap-1.5 transition-all">
+              <i class="fa-brands fa-whatsapp"></i> Notify Absentees
+            </button>
+          </div>
+        </div>
+
+        <!-- Attendance Controls Bar -->
+        <div class="glass-card p-6 rounded-3xl mb-6 border-t-4 border-emerald-500 shadow-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wide mb-1">Class / Standard</label>
+              <select id="att-class-select" class="w-full bg-white border-2 border-slate-100 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wide mb-1">Section Division</label>
+              <select id="att-section-select" class="w-full bg-white border-2 border-slate-100 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wide mb-1">Date</label>
+              <input type="date" id="att-date" class="w-full bg-white border-2 border-slate-100 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none">
+            </div>
+            <div class="flex items-end gap-2">
+              <button type="button" onclick="markAllAttendance('P')" class="flex-1 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-black border border-emerald-200 transition-all">
+                All Present
+              </button>
+              <button type="button" onclick="markAllAttendance('A')" class="flex-1 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-black border border-rose-200 transition-all">
+                All Absent
+              </button>
+            </div>
+          </div>
+
+          <!-- Attendance Stats Banner -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-100 text-center">
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase">Enrolled Students</span>
+              <div class="text-xl font-black text-slate-800" id="att-stat-total">0</div>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold text-emerald-600 uppercase">Present Count</span>
+              <div class="text-xl font-black text-emerald-600" id="att-stat-present">0</div>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold text-rose-600 uppercase">Absent / Leave</span>
+              <div class="text-xl font-black text-rose-600" id="att-stat-absent">0</div>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold text-indigo-600 uppercase">Attendance Rate</span>
+              <div class="text-xl font-black text-indigo-600" id="att-stat-pct">0%</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attendance Roster Table -->
+        <div class="glass-card rounded-3xl overflow-hidden shadow-lg border border-white">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[650px]">
+              <thead class="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-emerald-100">
+                <tr class="text-emerald-900 text-xs font-black uppercase tracking-wider">
+                  <th class="p-4 w-16">Roll</th>
+                  <th class="p-4 w-28">GR Number</th>
+                  <th class="p-4">Student Name</th>
+                  <th class="p-4 w-36">Contact</th>
+                  <th class="p-4 w-44 text-right">Attendance Status</th>
+                </tr>
+              </thead>
+              <tbody id="attendance-table-body" class="text-xs font-semibold divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+
+          <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <button onclick="saveAttendance()" class="px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-500/30 transition-all flex items-center gap-2">
+              <i class="fa-solid fa-floppy-disk"></i> Save Attendance Register
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 3: UPCOMING TESTS SCHEDULER                -->
+      <!-- ============================================== -->
+      <section id="upcoming-tests" class="tab-content">
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-3xl font-black text-slate-800 tracking-tight">Upcoming Tests</h2>
+            <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wider mt-0.5">
+              Check & Schedule Subject Assessments for Your Classes
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <!-- Filter buttons: All vs My Subjects -->
+            <div class="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button onclick="filterUpcomingTests('all')" class="upcoming-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-sm" data-filter="all">
+                All Tests
+              </button>
+              <button onclick="filterUpcomingTests('my')" class="upcoming-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-200" data-filter="my">
+                My Subjects
+              </button>
+            </div>
+
+            <button onclick="openNewTestModal()" class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/25 transition-all flex items-center gap-1.5">
+              <i class="fa-solid fa-plus"></i> Schedule Test
+            </button>
+          </div>
+        </div>
+
+        <!-- Upcoming Tests Grid Container -->
+        <div id="upcoming-tests-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 4: TEST RESULT GENERATOR                   -->
+      <!-- ============================================== -->
+      <section id="data-entry" class="tab-content">
+        <div class="mb-6">
+          <h2 class="text-3xl font-black text-slate-800 tracking-tight">Test Result Generator</h2>
+          <p class="text-xs font-semibold text-fuchsia-600 uppercase tracking-wider mt-0.5">
+            Fill Details Manually or Bulk Upload Marks via Excel
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <!-- Left: Manual Rapid Entry -->
+          <div class="glass-card p-6 sm:p-8 rounded-3xl border-t-4 border-fuchsia-500 shadow-md">
+            <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xl font-black text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-pen-nib text-fuchsia-500"></i> Manual Result Entry
+              </h3>
+              <span class="text-[10px] font-bold text-fuchsia-700 bg-fuchsia-100 px-2.5 py-1 rounded-md border border-fuchsia-200">
+                Type "AB" for Absent
+              </span>
+            </div>
+
+            <div class="space-y-4 mb-5">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Class / Standard</label>
+                  <input list="std-list" id="entry-std" class="w-full bg-white border-2 border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:ring-2 focus:ring-fuchsia-400 outline-none" placeholder="e.g. 9">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Subject</label>
+                  <input list="subj-list" id="entry-subject" class="w-full bg-white border-2 border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:ring-2 focus:ring-fuchsia-400 outline-none" placeholder="e.g. Mathematics">
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Test Topic / Chapter</label>
+                <input type="text" id="entry-topic" class="w-full bg-white border-2 border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:ring-2 focus:ring-fuchsia-400 outline-none" placeholder="e.g. Linear Equations Unit Test">
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Test Date</label>
+                  <input type="date" id="entry-date" class="w-full bg-white border-2 border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-bold focus:ring-2 focus:ring-fuchsia-400 outline-none">
+                </div>
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">Max Total Marks</label>
+                  <input type="number" id="entry-total" value="50" min="1" class="w-full bg-white border-2 border-slate-100 rounded-xl px-3.5 py-2.5 text-xs font-black text-indigo-600 focus:ring-2 focus:ring-fuchsia-400 outline-none">
+                </div>
+              </div>
+
+              <button onclick="loadMassEntryList()" class="w-full bg-gradient-to-r from-indigo-50 to-fuchsia-50 hover:from-indigo-100 hover:to-fuchsia-100 text-indigo-900 font-black py-3 rounded-xl text-xs border border-indigo-200 transition-all flex items-center justify-center gap-2 mt-2">
+                <i class="fa-solid fa-list-check"></i> Generate Student Score Inputs
+              </button>
+            </div>
+
+            <!-- Score input container -->
+            <div id="mass-entry-container" class="hidden bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80">
+              <h4 class="text-xs font-black text-slate-800 uppercase tracking-wide mb-3 pb-2 border-b border-slate-200">
+                Enter Scores for Selected Class
+              </h4>
+              <div id="mass-entry-list" class="max-h-64 overflow-y-auto space-y-2 pr-1 custom-scrollbar mb-4"></div>
+              <button onclick="saveMassEntry()" class="w-full bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:from-fuchsia-700 hover:to-rose-700 text-white font-black py-3 rounded-xl text-xs shadow-lg shadow-rose-500/25 transition-all">
+                <i class="fa-solid fa-floppy-disk mr-1.5"></i> Save All Marks Securely
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Dedicated Report Card Generation Excel System -->
+          <div class="space-y-6">
+            <div class="glass-card p-6 sm:p-8 rounded-3xl border-t-4 border-emerald-500 shadow-md">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-emerald-100">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-xl shadow-sm">
+                    <i class="fa-solid fa-file-excel"></i>
+                  </div>
+                  <div>
+                    <h3 class="text-xl font-black text-slate-800">Report Card Generation Excel</h3>
+                    <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Class-Specific Bulk Assessment Upload</p>
+                  </div>
+                </div>
+
+                <!-- Target Classroom Dropdown -->
+                <div class="flex items-center gap-2">
+                  <label class="text-[10px] font-black uppercase tracking-wider text-slate-500">Target Class:</label>
+                  <select id="marks-target-std" onchange="updateMarksTargetClassUI()"
+                    class="bg-emerald-50 border-2 border-emerald-300 text-emerald-900 rounded-xl px-3 py-1.5 text-xs font-black outline-none shadow-sm cursor-pointer">
+                    <option value="8">Class 8</option>
+                    <option value="9" selected>Class 9</option>
+                    <option value="10">Class 10</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="mb-4 text-[11px] font-semibold text-emerald-800 bg-emerald-50/80 p-3 rounded-2xl border border-emerald-200/80 flex items-start gap-2.5">
+                <i class="fa-solid fa-circle-check text-emerald-600 mt-0.5 shrink-0 text-sm"></i>
+                <div class="space-y-1">
+                  <div id="marks-isolation-desc"><strong>Class Isolation Enabled:</strong> Uploading marks for <span id="marks-target-class-label" class="font-black text-emerald-900 underline">Class 9</span> will strictly update that class.</div>
+                  <div class="text-[10px] text-emerald-700">Header format like <code class="bg-white px-1.5 py-0.5 rounded text-emerald-800 font-bold">Mathematics 2026-09-12 (25)</code> auto-detects Subject, Date & bracketed Total Marks.</div>
+                </div>
+
+              </div>
+
+              <!-- Template Downloads -->
+              <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 mb-5">
+                <div class="flex items-center justify-between mb-2.5">
+                  <h4 class="text-[10px] font-black uppercase tracking-widest text-emerald-800">
+                    Report Card Marks Templates
+                  </h4>
+                  <span class="text-[9px] font-extrabold uppercase bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md">1-Click Auto Fill</span>
+                </div>
+                <div class="space-y-2">
+
+                  <button type="button" onclick="downloadClassMarksTemplate()" class="w-full text-left bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-black transition-all shadow-sm flex items-center justify-between">
+                    <span class="flex items-center gap-2">
+                      <i class="fa-solid fa-file-excel text-amber-300"></i> Download Class Roster Marks Template
+                    </span>
+                    <span class="text-[10px] font-bold text-emerald-100 bg-emerald-700/50 px-2 py-0.5 rounded">Pre-filled with Enrolled Students</span>
+                  </button>
+                  <button type="button" onclick="downloadFormatExcel('randomized-multi')" class="w-full text-left bg-white hover:bg-emerald-50 text-emerald-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-file-lines text-emerald-600"></i> Standard Multi-Subject Format (Sample)
+                  </button>
+                  <button type="button" onclick="downloadFormatExcel('single')" class="w-full text-left bg-white hover:bg-teal-50 text-teal-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border border-teal-200 shadow-sm flex items-center gap-2">
+                    <i class="fa-solid fa-file-arrow-down text-teal-600"></i> Single Test Assessment Format (Sample)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Upload Drag / Drop Zone -->
+              <div>
+                <input type="file" id="marks-excel-file" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
+                <label for="marks-excel-file"
+                  class="cursor-pointer flex flex-col items-center justify-center p-8 bg-white hover:bg-emerald-50 border-2 border-dashed border-emerald-300 hover:border-emerald-500 rounded-2xl transition-all shadow-inner group text-center">
+                  <div class="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform text-emerald-600 text-2xl">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                  </div>
+                  <span class="text-xs font-black text-emerald-900">Upload Marks for Selected Class</span>
+                  <span class="text-[10px] font-bold text-emerald-600 mt-1 uppercase">
+                    Directly updates official scorecard records without affecting other classes
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 5: STUDENT DIRECTORY                       -->
+      <!-- ============================================== -->
+      <section id="students" class="tab-content">
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-3xl font-black text-slate-800 tracking-tight">Student Directory</h2>
+            <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wider mt-0.5">
+              Manage Enrolled Students, GR Numbers & Parent Portals
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 flex-wrap">
+            <button onclick="openFactoryResetModal()" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white text-xs font-bold shadow-md shadow-rose-500/25 transition-all flex items-center gap-1.5">
+              <i class="fa-solid fa-trash-can"></i> Factory Reset Data
+            </button>
+            <button onclick="resetDatabase()" class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-all flex items-center gap-1.5">
+              <i class="fa-solid fa-arrow-rotate-left"></i> Reset Demo Data
+            </button>
+          </div>
+        </div>
+
+        <!-- Dedicated Student Tally Excel System Panel -->
+        <div class="glass-card p-6 sm:p-8 rounded-3xl mb-6 border-t-4 border-cyan-500 shadow-md">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-cyan-100">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-2xl bg-cyan-100 flex items-center justify-center text-cyan-600 text-2xl shadow-sm">
+                <i class="fa-solid fa-users-rectangle"></i>
+              </div>
+              <div>
+                <h3 class="text-xl font-black text-slate-800">Student Tally Excel System</h3>
+                <p class="text-[10px] font-bold text-cyan-600 uppercase tracking-wider">Class-Wise Roster Import & Enrollment Tally</p>
+              </div>
+            </div>
+
+            <!-- Target Class Selector for Tally -->
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-black uppercase tracking-wider text-slate-600">Target Class:</label>
+              <select id="tally-target-std" onchange="updateStudentTallyUI()"
+                class="bg-cyan-50 border-2 border-cyan-300 text-cyan-900 rounded-xl px-3.5 py-2 text-xs font-black outline-none shadow-sm cursor-pointer">
+                <option value="8">Class 8</option>
+                <option value="9">Class 9</option>
+                <option value="10">Class 10</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Class-Wise Tally Stats Cards Container (Dynamically Rendered for Active Teacher) -->
+          <div id="student-tally-cards-container" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+            <!-- Dynamically populated via updateStudentTallyBadges() -->
+          </div>
+
+
+          <!-- Tally Action Buttons -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <button type="button" onclick="downloadStudentTallyTemplate()"
+              class="px-4 py-3 bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md">
+              <i class="fa-solid fa-users text-cyan-100 text-sm"></i> Roster Template (.xlsx)
+            </button>
+
+            <button type="button" onclick="downloadStudentTallyExcel()"
+              class="px-4 py-3 bg-white hover:bg-cyan-50 text-cyan-800 rounded-xl text-xs font-black border border-cyan-200 transition-all flex items-center justify-center gap-2 shadow-sm">
+              <i class="fa-solid fa-file-arrow-down text-cyan-600 text-sm"></i> Download Tally (.xlsx)
+            </button>
+
+            <button type="button" onclick="exportCurrentStudentTally()"
+              class="px-4 py-3 bg-white hover:bg-indigo-50 text-indigo-800 rounded-xl text-xs font-black border border-indigo-200 transition-all flex items-center justify-center gap-2 shadow-sm">
+              <i class="fa-solid fa-file-excel text-indigo-600 text-sm"></i> Export Roster Sheet (.xlsx)
+            </button>
+
+            <div>
+              <input type="file" id="student-tally-file-upload" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleStudentTallyUpload(event)">
+              <label for="student-tally-file-upload"
+                class="cursor-pointer px-4 py-3 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 shadow-md">
+                <i class="fa-solid fa-cloud-arrow-up text-sm"></i> Upload Student Tally Excel
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Add Single Student Bar -->
+        <div class="glass-card p-6 rounded-3xl mb-6 border-t-4 border-indigo-500 shadow-sm">
+          <h3 class="text-sm font-black text-slate-800 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <i class="fa-solid fa-user-plus text-indigo-600"></i> Enroll Individual Student
+          </h3>
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Roll No *</label>
+              <input type="number" id="new-stu-roll" placeholder="e.g. 101" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">GR Number</label>
+              <input type="text" id="new-stu-gr" placeholder="e.g. GR-2024-001" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Full Name *</label>
+              <input type="text" id="new-stu-name" placeholder="Student Name" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Class / Std</label>
+              <input list="std-list" id="new-stu-std" placeholder="9" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Section</label>
+              <input type="text" id="new-stu-sec" placeholder="A" maxlength="3" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none uppercase">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Mobile (WhatsApp)</label>
+              <input type="tel" id="new-stu-mobile" placeholder="9876543210" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+          </div>
+          <div class="mt-3 flex justify-end">
+            <button onclick="addSingleStudent()" class="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition-all">
+              + Add to Directory
+            </button>
+          </div>
+        </div>
+
+        <!-- Directory Class Filter Bar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-black uppercase tracking-wide text-slate-700">Filter Directory by Class:</span>
+            <select id="stu-filter-class" onchange="renderStudentsTable()" class="bg-white border-2 border-indigo-200 text-indigo-900 rounded-xl px-3 py-1.5 text-xs font-black outline-none shadow-sm cursor-pointer">
+              <option value="all">All Classes (Combined)</option>
+              <option value="8">Class 8</option>
+              <option value="9">Class 9</option>
+              <option value="10">Class 10</option>
+            </select>
+          </div>
+          <span class="text-[11px] text-slate-400 font-semibold italic">Roll numbers are independent per class.</span>
+        </div>
+
+        <!-- Directory Table -->
+        <div class="glass-card rounded-3xl overflow-hidden shadow-lg border border-white">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[700px]">
+              <thead class="bg-gradient-to-r from-slate-50 to-indigo-50/50 border-b border-slate-200">
+                <tr class="text-slate-600 text-[11px] font-black uppercase tracking-wider">
+                  <th class="p-4 w-20">Roll</th>
+                  <th class="p-4 w-28">GR No</th>
+                  <th class="p-4">Full Name</th>
+                  <th class="p-4 w-32">Class & Sec</th>
+                  <th class="p-4 w-36">Mobile Number</th>
+                  <th class="p-4 text-center w-44">Parent Portal</th>
+                  <th class="p-4 text-center w-24">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="students-table-body" class="text-xs font-semibold divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+
+          <!-- Student Directory Table Page Navigator -->
+          <div class="p-4 bg-slate-50/80 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div class="text-slate-500 font-semibold">
+              Showing <span id="stu-page-start" class="font-bold text-slate-700">1</span> to <span id="stu-page-end" class="font-bold text-slate-700">10</span> of <span id="stu-page-total" class="font-bold text-slate-700">12</span> students
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-slate-400 font-bold">Rows:</span>
+              <select id="stu-page-size" onchange="changeStudentsPageSize(this.value)" class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold outline-none">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="all">All</option>
+              </select>
+              <div id="stu-pagination-controls" class="flex items-center gap-1"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 6: DATABASE RECORDS (HISTORICAL SCORES)    -->
+      <!-- ============================================== -->
+      <section id="records" class="tab-content">
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-3xl font-black text-slate-800 tracking-tight">Database Records</h2>
+            <p class="text-xs font-semibold text-purple-600 uppercase tracking-wider mt-0.5">
+              Search, Filter & Inline-Edit Historical Assessment Scores
+            </p>
+          </div>
+          <button onclick="openFactoryResetModal()" class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-all flex items-center gap-1.5 self-start sm:self-auto">
+            <i class="fa-solid fa-trash-can"></i> Factory Reset Data
+          </button>
+        </div>
+
+        <!-- Advanced Search Filter Bar -->
+        <div class="glass-card p-5 rounded-3xl mb-6 border-l-4 border-indigo-500 shadow-sm">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="text-xs font-black text-indigo-900 uppercase tracking-wider">
+              <i class="fa-solid fa-magnifying-glass text-indigo-500 mr-1.5"></i> Multi-field Filter
+            </h3>
+            <button onclick="clearRecordsFilter()" class="text-xs font-bold text-indigo-600 hover:bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100 transition-all">
+              Clear Filter
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+            <input type="text" id="filter-std" onkeyup="renderRecordsTable()" list="std-list" placeholder="Filter Class..." class="bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            <input type="text" id="filter-name" onkeyup="renderRecordsTable()" placeholder="Filter Name / Roll / GR..." class="bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            <input type="text" id="filter-subject" onkeyup="renderRecordsTable()" list="subj-list" placeholder="Filter Subject..." class="bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            <input type="text" id="filter-topic" onkeyup="renderRecordsTable()" placeholder="Filter Topic / Exam..." class="bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            <input type="date" id="filter-date" onchange="renderRecordsTable()" class="bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+          </div>
+        </div>
+
+        <!-- Records Table -->
+        <div class="glass-card rounded-3xl overflow-hidden shadow-lg border border-white">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[750px]">
+              <thead class="bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-indigo-100">
+                <tr class="text-indigo-900 text-[11px] font-black uppercase tracking-wider">
+                  <th class="p-4 w-16">Roll</th>
+                  <th class="p-4 w-24">Class</th>
+                  <th class="p-4">Student Name</th>
+                  <th class="p-4">Subject & Topic</th>
+                  <th class="p-4 w-28">Exam Date</th>
+                  <th class="p-4 w-24">Score</th>
+                  <th class="p-4 w-24 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="records-table-body" class="text-xs font-semibold divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+
+          <!-- Database Records Table Page Navigator -->
+          <div class="p-4 bg-slate-50/80 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+            <div class="text-slate-500 font-semibold">
+              Showing <span id="rec-page-start" class="font-bold text-slate-700">1</span> to <span id="rec-page-end" class="font-bold text-slate-700">10</span> of <span id="rec-page-total" class="font-bold text-slate-700">15</span> records
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-slate-400 font-bold">Rows:</span>
+              <select id="rec-page-size" onchange="changeRecordsPageSize(this.value)" class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold outline-none">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="all">All</option>
+              </select>
+              <div id="rec-pagination-controls" class="flex items-center gap-1"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 7: AI INSIGHTS ENGINE                      -->
+      <!-- ============================================== -->
+      <section id="analytics" class="tab-content">
+        <div class="mb-6">
+          <h2 class="text-3xl font-black text-slate-800 tracking-tight">AI Insights Engine</h2>
+          <p class="text-xs font-semibold text-fuchsia-600 uppercase tracking-wider mt-0.5">
+            Deep Student Performance Diagnostics & Subject Skill Mapping
+          </p>
+        </div>
+
+        <div class="glass-card p-6 sm:p-8 rounded-3xl mb-6 border-t-4 border-fuchsia-500 shadow-sm">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/70 backdrop-blur p-4 rounded-2xl border border-white mb-8">
+            <h3 class="text-sm font-black text-fuchsia-900 flex items-center gap-2">
+              <i class="fa-solid fa-microchip text-fuchsia-600 text-lg"></i> Select Student Profile
+            </h3>
+            <select id="analytics-student-select" onchange="renderAnalytics()" class="bg-white border-2 border-fuchsia-100 rounded-xl p-3 text-xs font-bold text-slate-700 min-w-[280px] outline-none shadow-sm"></select>
+          </div>
+
+          <!-- Empty State -->
+          <div id="analytics-empty" class="text-center py-16">
+            <div class="w-20 h-20 bg-fuchsia-50 rounded-full flex items-center justify-center mx-auto mb-3 text-fuchsia-400 text-3xl shadow-inner">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <h4 class="text-lg font-black text-slate-700">Awaiting Student Selection</h4>
+            <p class="text-xs text-slate-500 mt-1">Pick a student from the dropdown above to generate personalized radar insights.</p>
+          </div>
+
+          <!-- Content State -->
+          <div id="analytics-content" class="hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+              <!-- Radar Chart Container -->
+              <div class="bg-white/80 p-6 rounded-3xl border border-white shadow-md flex flex-col items-center">
+                <h4 class="text-xs font-black uppercase tracking-widest text-fuchsia-800 mb-4">
+                  Multi-Subject Skill Radar
+                </h4>
+                <div class="relative h-72 w-full max-w-sm">
+                  <canvas id="radarChart"></canvas>
+                </div>
+              </div>
+
+              <!-- Strengths, Weaknesses, AI Recommendation -->
+              <div class="space-y-4">
+                <div class="bg-emerald-50/80 border border-emerald-200 p-5 rounded-2xl">
+                  <h5 class="text-xs font-black text-emerald-800 uppercase tracking-wide flex items-center gap-2 mb-2">
+                    <i class="fa-solid fa-medal text-emerald-600"></i> Core Strengths
+                  </h5>
+                  <ul id="strength-list" class="text-xs font-semibold text-emerald-900 space-y-1"></ul>
+                </div>
+
+                <div class="bg-rose-50/80 border border-rose-200 p-5 rounded-2xl">
+                  <h5 class="text-xs font-black text-rose-800 uppercase tracking-wide flex items-center gap-2 mb-2">
+                    <i class="fa-solid fa-triangle-exclamation text-rose-600"></i> Areas for Improvement
+                  </h5>
+                  <ul id="weakness-list" class="text-xs font-semibold text-rose-900 space-y-1"></ul>
+                </div>
+
+                <div class="bg-gradient-to-br from-slate-900 to-indigo-950 p-5 rounded-2xl text-white shadow-lg border border-indigo-500/30">
+                  <h5 class="text-xs font-black text-fuchsia-300 uppercase tracking-wide flex items-center gap-2 mb-2">
+                    <i class="fa-solid fa-robot"></i> Personalized AI Action Plan
+                  </h5>
+                  <p id="ai-recommendation" class="text-xs font-medium text-indigo-100 leading-relaxed"></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================== -->
+      <!-- TAB 8: REPORTS & EXPORT                        -->
+      <!-- ============================================== -->
+      <section id="communications" class="tab-content">
+        <div class="mb-6">
+          <h2 class="text-3xl font-black text-slate-800 tracking-tight">Reports & Export</h2>
+          <p class="text-xs font-semibold text-indigo-600 uppercase tracking-wider mt-0.5">
+            Board Marksheet PDFs, Student-Wise Excel Master & WhatsApp Broadcasts
+          </p>
+        </div>
+
+        <!-- 1. WhatsApp Broadcast Section -->
+        <div class="glass-card p-6 sm:p-8 rounded-3xl mb-8 border-t-4 border-emerald-500 shadow-md">
+          <div class="flex items-center gap-3 mb-4 pb-3 border-b border-emerald-100">
+            <div class="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 text-2xl">
+              <i class="fa-brands fa-whatsapp"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-black text-slate-800">Smart WhatsApp Broadcast Dispatcher</h3>
+              <p class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Automated personalized scorecard texting</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Class</label>
+              <select id="wa-filter-std" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none"></select>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Student</label>
+              <input type="text" id="wa-filter-student" placeholder="All Students" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Subject</label>
+              <input type="text" id="wa-filter-subject" placeholder="All Subjects" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Exam Title</label>
+              <input type="text" id="wa-exam-name" value="Unit Assessment" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">From Date</label>
+              <input type="date" id="wa-filter-fdate" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">To Date</label>
+              <input type="date" id="wa-filter-tdate" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+            </div>
+          </div>
+
+          <button onclick="loadWhatsAppQueue()" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black py-3 rounded-xl text-xs shadow-md transition-all">
+            <i class="fa-solid fa-bolt mr-1.5"></i> Load Target Students to Dispatch Queue
+          </button>
+
+          <!-- Queue Box -->
+          <div id="wa-queue-container" class="hidden mt-5 bg-slate-50 border border-slate-200 p-5 rounded-2xl">
+            <div class="flex justify-between items-center mb-3">
+              <h5 class="text-xs font-black text-slate-800 uppercase tracking-wide">
+                Dispatch Queue (<span id="wa-queue-count">0</span> remaining)
+              </h5>
+              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full">Automated Text Builder</span>
+            </div>
+            <div id="wa-queue-list" class="max-h-48 overflow-y-auto space-y-1 mb-3 custom-scrollbar"></div>
+            <button id="wa-btn-send-next" onclick="sendNextWhatsApp()" class="w-full bg-[#25D366] hover:bg-[#128C7E] text-white py-3 rounded-xl font-black text-sm shadow-md transition-all flex items-center justify-center gap-2">
+              <i class="fa-brands fa-whatsapp text-lg"></i> Dispatch Next Message
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Dual Cards: PDF Marksheets & Master Excel Export -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <!-- Official Board Marksheet PDF -->
+          <div class="glass-card p-6 sm:p-8 rounded-3xl border-t-4 border-rose-500 shadow-md">
+            <div class="flex items-center gap-3 mb-4 pb-3 border-b border-rose-100">
+              <div class="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center text-rose-600 text-2xl">
+                <i class="fa-solid fa-file-pdf"></i>
+              </div>
+              <div>
+                <h3 class="text-lg font-black text-slate-800">Formal Progress Report Cards (PDF)</h3>
+                <p class="text-[10px] font-bold text-rose-600 uppercase tracking-wider">Multi-border Official School Format</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Class</label>
+                <select id="report-filter-std" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+                  <option value="all">All Classes</option>
+                  <option value="8">Class 8</option>
+                  <option value="9">Class 9</option>
+                  <option value="10">Class 10</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Roll / Name</label>
+                <input type="text" id="report-filter-student" placeholder="Specific student..." class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Subject</label>
+                <input type="text" id="report-filter-subject" list="subj-list" placeholder="All Subjects" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Assessment / Exam Title</label>
+                <input type="text" id="report-exam-type" value="FIRST TERM ASSESSMENT" placeholder="e.g. FIRST TERM ASSESSMENT" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-black text-rose-700 outline-none">
+              </div>
+              <div class="col-span-2">
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Report Card Layout</label>
+                <select id="report-language" class="w-full bg-indigo-50/60 border border-indigo-200 rounded-xl p-2.5 text-xs font-black text-indigo-900 outline-none">
+                  <option value="en" selected>English - Official School Progress Report Card</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-2.5">
+              <button onclick="printBulkReportCards()" class="flex-1 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-blue-800 text-white font-black py-3 rounded-xl text-xs shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-print"></i> Print Report Cards
+              </button>
+              <button onclick="generateBulkPDF()" class="flex-1 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-black py-3 rounded-xl text-xs shadow-lg shadow-rose-500/25 transition-all flex items-center justify-center gap-2">
+                <i class="fa-solid fa-file-pdf"></i> Download PDF
+              </button>
+            </div>
+          </div>
+
+          <!-- Master Data Export Excel (.xlsx) -->
+          <div class="glass-card p-6 sm:p-8 rounded-3xl border-t-4 border-cyan-500 shadow-md">
+            <div class="flex items-center gap-3 mb-4 pb-3 border-b border-cyan-100">
+              <div class="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center text-cyan-600 text-2xl">
+                <i class="fa-solid fa-file-excel"></i>
+              </div>
+              <div>
+                <h3 class="text-lg font-black text-slate-800">Master Data Export (Excel)</h3>
+                <p class="text-[10px] font-bold text-cyan-600 uppercase tracking-wider">Student-Wise Structured .XLSX</p>
+              </div>
+            </div>
+
+            <p class="text-xs text-slate-500 font-semibold mb-4">
+              Extract assessment scores grouped neatly per student with totals, percentages and grades.
+            </p>
+
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Target Class</label>
+                <select id="excel-filter-std" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+                  <option value="all">All Classes</option>
+                  <option value="8">Class 8</option>
+                  <option value="9">Class 9</option>
+                  <option value="10">Class 10</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">Data Source</label>
+                <select id="excel-filter-source" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+                  <option value="excel" selected>Excel Uploads Only</option>
+                  <option value="all">All Combined Records</option>
+                  <option value="manual">Manual Entry Only</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">From Date</label>
+                <input type="date" id="excel-filter-fdate" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-600 uppercase mb-1">To Date</label>
+                <input type="date" id="excel-filter-tdate" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold outline-none">
+              </div>
+            </div>
+
+            <button onclick="generateBulkExcel()" class="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white font-black py-3 rounded-xl text-xs shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2">
+              <i class="fa-solid fa-table"></i> Export Master Excel (.xlsx)
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. Parent Alerts Table (<40% or Absent) -->
+        <div class="glass-card p-6 sm:p-8 rounded-3xl border-l-4 border-amber-500 shadow-md">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+            <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span> Parent Alerts (Low Scores &lt;40% / Absent)
+            </h3>
+            <select id="ptm-subject-filter" onchange="renderCommunications()" class="bg-white border border-slate-200 rounded-xl p-2 text-xs font-bold outline-none">
+              <option value="all">All Subjects</option>
+            </select>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse min-w-[600px]">
+              <thead>
+                <tr class="text-slate-400 text-[10px] font-black uppercase tracking-wider bg-slate-50/70">
+                  <th class="p-3 w-16">Class</th>
+                  <th class="p-3">Student Name</th>
+                  <th class="p-3">Subject & Assessment</th>
+                  <th class="p-3 w-32">Score</th>
+                  <th class="p-3 w-40 text-right">Instant Action</th>
+                </tr>
+              </thead>
+              <tbody id="ptm-body" class="text-xs font-semibold divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Phone Mobile Bottom Navigation Bar -->
+    <nav id="mobile-nav" class="md:hidden bg-white/95 backdrop-blur-xl border-t border-indigo-100 flex justify-around p-2 pb-safe fixed bottom-0 w-full z-40 shadow-2xl">
+      <button onclick="switchTab('dashboard')" class="mobile-nav-item active" data-target="dashboard">
+        <i class="fa-solid fa-chart-pie"></i>
+        <span>Overview</span>
+      </button>
+      <button onclick="switchTab('attendance')" class="mobile-nav-item" data-target="attendance">
+        <i class="fa-solid fa-calendar-check"></i>
+        <span>Attendance</span>
+      </button>
+      <button onclick="switchTab('upcoming-tests')" class="mobile-nav-item" data-target="upcoming-tests">
+        <i class="fa-solid fa-stopwatch"></i>
+        <span>Tests</span>
+      </button>
+      <button onclick="switchTab('data-entry')" class="mobile-nav-item" data-target="data-entry">
+        <i class="fa-solid fa-file-pen"></i>
+        <span>Entry</span>
+      </button>
+      <button onclick="switchTab('communications')" class="mobile-nav-item" data-target="communications">
+        <i class="fa-solid fa-file-invoice"></i>
+        <span>Reports</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 5. MANAGEMENT DASHBOARD VIEW                                              -->
+  <!-- ========================================================================= -->
+  <section id="management-dashboard-view" class="hidden min-h-screen flex flex-col bg-slate-50/60">
+    <!-- Management Header -->
+    <header class="bg-gradient-to-r from-emerald-950 via-teal-900 to-cyan-950 text-white p-4 md:px-8 border-b border-white/10 shadow-lg sticky top-0 z-30">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-11 h-11 bg-gradient-to-tr from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg">
+            <i class="fa-solid fa-school text-2xl text-white"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-xl font-black text-white">Glorious Public School</h1>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 uppercase tracking-widest">Executive</span>
+              <span id="mgmt-connected-teacher-badge" class="hidden px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-teal-500/30 text-teal-200 border border-teal-400/30"></span>
+            </div>
+            <p class="text-[10px] text-emerald-300 font-extrabold uppercase tracking-widest">Management Board Console • School-Wide Academic & Study Analytics</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <div class="cloud-db-badge-el"></div>
+          <!-- English Medium Badge -->
+          <div class="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 text-white font-black text-xs border border-white/20">
+            <i class="fa-solid fa-book-open text-amber-300 text-xs"></i>
+            <span>English Medium</span>
+          </div>
+          <button type="button" onclick="openFactoryResetModal()" class="bg-rose-500/25 hover:bg-rose-600 text-rose-200 hover:text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all border border-rose-400/30 flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-trash-can"></i> Factory Reset
+          </button>
+          <button type="button" onclick="showRoleSelectionView()" class="bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all border border-white/15 flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-repeat"></i> Switch Role
+          </button>
+          <button type="button" onclick="logoutSession()" class="bg-white/10 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all border border-white/15 flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto space-y-6">
+
+      <!-- Classroom Options Switcher Bar (All Classrooms + Class 1 to 10) -->
+      <div class="glass-card p-4 sm:p-5 rounded-3xl shadow-sm border border-emerald-100 bg-white/90">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-sm font-black">
+              <i class="fa-solid fa-layer-group"></i>
+            </div>
+            <div>
+              <h3 class="text-xs font-black text-slate-800 uppercase tracking-wider">Classroom Navigation & Scope</h3>
+              <p class="text-[11px] text-slate-500 font-medium">Select any classroom to filter study analytics, or choose "All Classrooms" for school-wide oversight</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="mgmt-active-scope-pill" class="px-3 py-1 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Viewing: All Classrooms
+            </span>
+          </div>
+        </div>
+
+        <!-- Horizontal Scrollable Classroom Options -->
+        <div id="mgmt-class-bar" class="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-thin">
+          <!-- Populated dynamically via renderManagementClassroomBar() -->
+        </div>
+      </div>
+
+      <!-- Management Academic & Study Filters -->
+      <div class="glass-card p-5 sm:p-6 rounded-3xl shadow-sm border border-slate-100 bg-white/90">
+        <div class="flex justify-between items-center mb-3">
+          <h4 class="text-xs font-black text-teal-900 uppercase tracking-widest flex items-center gap-1.5">
+            <i class="fa-solid fa-filter text-teal-600"></i> Academic Study Filters
+          </h4>
+          <button type="button" onclick="clearManagementFilters()" class="text-xs font-bold text-rose-600 hover:bg-rose-50 px-3 py-1 rounded-xl border border-rose-200 transition-all flex items-center gap-1">
+            <i class="fa-solid fa-rotate-left text-[10px]"></i> Reset Filters
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div>
+            <label class="block text-[11px] font-bold text-teal-700 mb-1 ml-1">Class / Standard</label>
+            <select id="mgmt-filter-std" onchange="setManagementClassFilter(this.value)" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-teal-400">
+              <option value="all">All Classrooms (Whole School)</option>
+              <option value="1">Class 1</option><option value="2">Class 2</option><option value="3">Class 3</option>
+              <option value="4">Class 4</option><option value="5">Class 5</option><option value="6">Class 6</option>
+              <option value="7">Class 7</option><option value="8">Class 8</option><option value="9">Class 9</option>
+              <option value="10">Class 10</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-teal-700 mb-1 ml-1">Subject</label>
+            <select id="mgmt-filter-sub" onchange="updateManagementDashboard()" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-teal-400">
+              <option value="all">All Subjects</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-teal-700 mb-1 ml-1">Academic Month</label>
+            <input type="month" id="mgmt-filter-month" onchange="updateManagementDashboard()" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-teal-400">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-teal-700 mb-1 ml-1">From Date</label>
+            <input type="date" id="mgmt-filter-fdate" onchange="updateManagementDashboard()" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-teal-400">
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-teal-700 mb-1 ml-1">To Date</label>
+            <input type="date" id="mgmt-filter-tdate" onchange="updateManagementDashboard()" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-teal-400">
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 Executive KPI Stat Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <!-- Total Students -->
+        <div class="glass-card p-5 rounded-3xl border-t-4 border-emerald-500 shadow-sm bg-white flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[11px] font-bold uppercase tracking-wider">Students</span>
+              <i class="fa-solid fa-users text-emerald-500"></i>
+            </div>
+            <h3 class="text-3xl font-black text-slate-800" id="mgmt-total-students">0</h3>
+          </div>
+          <span id="mgmt-class-scope-badge" class="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md mt-2 block truncate">All Classes</span>
+        </div>
+
+        <!-- Academic Average Score -->
+        <div class="glass-card p-5 rounded-3xl border-t-4 border-teal-500 shadow-sm bg-white flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[11px] font-bold uppercase tracking-wider">Average Score</span>
+              <i class="fa-solid fa-chart-simple text-teal-500"></i>
+            </div>
+            <h3 class="text-3xl font-black text-teal-700" id="mgmt-avg-score">0%</h3>
+          </div>
+          <span class="text-[10px] text-slate-400 font-semibold mt-2 block">Assessments Average</span>
+        </div>
+
+        <!-- Pass Rate -->
+        <div class="glass-card p-5 rounded-3xl border-t-4 border-cyan-500 shadow-sm bg-white flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[11px] font-bold uppercase tracking-wider">Pass Rate</span>
+              <i class="fa-solid fa-circle-check text-cyan-500"></i>
+            </div>
+            <h3 class="text-3xl font-black text-cyan-700" id="mgmt-pass-rate">0%</h3>
+          </div>
+          <span class="text-[10px] text-slate-400 font-semibold mt-2 block">Score &ge; 33% Standard</span>
+        </div>
+
+        <!-- Assessments Held -->
+        <div class="glass-card p-5 rounded-3xl border-t-4 border-indigo-500 shadow-sm bg-white flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[11px] font-bold uppercase tracking-wider">Tests Held</span>
+              <i class="fa-solid fa-file-pen text-indigo-500"></i>
+            </div>
+            <h3 class="text-3xl font-black text-indigo-700" id="mgmt-total-tests">0</h3>
+          </div>
+          <span class="text-[10px] text-slate-400 font-semibold mt-2 block">Curriculum Tests</span>
+        </div>
+
+        <!-- Top Performing Subject / Class -->
+        <div class="glass-card p-5 rounded-3xl border-t-4 border-amber-500 shadow-sm bg-white flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[11px] font-bold uppercase tracking-wider">Top Subject</span>
+              <i class="fa-solid fa-trophy text-amber-500"></i>
+            </div>
+            <h3 class="text-xl font-black text-amber-700 truncate" id="mgmt-top-subject">-</h3>
+          </div>
+          <span id="mgmt-top-class" class="text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-md mt-2 block truncate">Leading Subject</span>
+        </div>
+
+        <!-- School Attendance -->
+        <div class="glass-card p-5 rounded-3xl border-t-4 border-emerald-600 shadow-sm bg-white flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 mb-1">
+              <span class="text-[11px] font-bold uppercase tracking-wider">Attendance</span>
+              <i class="fa-solid fa-calendar-check text-emerald-600"></i>
+            </div>
+            <h3 class="text-3xl font-black text-emerald-600" id="mgmt-attendance-rate">94%</h3>
+          </div>
+          <span class="text-[10px] text-slate-400 font-semibold mt-2 block">Daily Average</span>
+        </div>
+      </div>
+
+      <!-- STUDY GRAPHS SECTION (ROW 1): Classroom Benchmark & Performance Trend -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Graph 1: Classroom vs Classroom Benchmark -->
+        <div class="glass-card p-6 rounded-3xl border-t-4 border-teal-500 shadow-sm bg-white">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-black text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-chart-column text-teal-600"></i> Classroom Comparative Benchmark
+            </h3>
+            <span class="text-[10px] font-bold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Class 1 - 10</span>
+          </div>
+          <p class="text-xs text-slate-400 font-medium mb-4">Compares overall academic performance averages across all school classrooms</p>
+          <div class="relative h-72 w-full">
+            <canvas id="mgmtClassBenchmarkChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Graph 2: Academic Performance & Study Trend Timeline -->
+        <div class="glass-card p-6 rounded-3xl border-t-4 border-indigo-500 shadow-sm bg-white">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-black text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-arrow-trend-up text-indigo-600"></i> Academic Study & Performance Trend
+            </h3>
+            <span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full uppercase tracking-wider">Timeline</span>
+          </div>
+          <p class="text-xs text-slate-400 font-medium mb-4">Progression of assessment scores over time to track learning momentum</p>
+          <div class="relative h-72 w-full">
+            <canvas id="mgmtTrendChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- STUDY GRAPHS SECTION (ROW 2): Subject Mastery & Grade Distribution -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Graph 3: Subject-Wise Study Analysis -->
+        <div class="glass-card p-6 rounded-3xl border-t-4 border-emerald-500 shadow-sm bg-white lg:col-span-2">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-base font-black text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-book-open-reader text-emerald-600"></i> Subject-Wise Study Analysis & Mastery
+            </h3>
+            <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full uppercase tracking-wider">All Curriculum Subjects</span>
+          </div>
+          <p class="text-xs text-slate-400 font-medium mb-4">Detailed subject breakdown highlighting scholastic strengths and curriculum focus areas</p>
+          <div class="relative h-72 w-full">
+            <canvas id="mgmtSubjectChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Graph 4: Grade & Marks Distribution -->
+        <div class="glass-card p-6 rounded-3xl border-t-4 border-purple-500 shadow-sm bg-white flex flex-col items-center">
+          <div class="w-full flex items-center justify-between mb-4">
+            <h3 class="text-base font-black text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-chart-pie text-purple-600"></i> Performance Brackets
+            </h3>
+            <span class="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Cohort %</span>
+          </div>
+          <p class="text-xs text-slate-400 font-medium mb-2 w-full">Distribution of student scores across performance tiers</p>
+          <div class="relative h-64 w-full max-w-xs flex-1 flex items-center justify-center">
+            <canvas id="mgmtGradeDistChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Classroom Academic Performance Matrix Table -->
+      <div class="glass-card p-6 rounded-3xl border-t-4 border-teal-600 shadow-sm bg-white">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-lg font-black text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-table-list text-teal-600"></i> Classroom Academic Matrix & Health Overview
+            </h3>
+            <p class="text-xs text-slate-400 font-medium">Holistic status of all 10 classrooms with enrollment, assessment volume, average score, and pass rate</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-slate-500">10 Total Classrooms</span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-slate-100">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-wider border-b border-slate-200">
+                <th class="p-3.5">Classroom</th>
+                <th class="p-3.5">Sections</th>
+                <th class="p-3.5 text-center">Enrolled Students</th>
+                <th class="p-3.5 text-center">Tests Recorded</th>
+                <th class="p-3.5 text-center">Class Average</th>
+                <th class="p-3.5 text-center">Pass Rate</th>
+                <th class="p-3.5">Assigned Faculty</th>
+                <th class="p-3.5 text-center">Academic Health</th>
+                <th class="p-3.5 text-right">Quick Filter</th>
+              </tr>
+            </thead>
+            <tbody id="mgmt-class-matrix-body" class="divide-y divide-slate-100 text-xs font-bold">
+              <!-- Populated dynamically via renderManagementClassMatrix() -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Faculty Directory & Assigned Classrooms -->
+      <div class="glass-card p-6 sm:p-8 rounded-3xl shadow-sm border-t-4 border-emerald-500 bg-white">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <h3 class="text-xl font-black text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-chalkboard-user text-emerald-600"></i> Active Faculty & Teaching Assignments
+            </h3>
+            <p class="text-xs text-slate-400 font-medium">Teaching staff details, subject specialties, and classroom section distributions</p>
+          </div>
+          <span class="px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200" id="mgmt-faculty-count-badge">
+            2 Teachers Active
+          </span>
+        </div>
+        <div id="mgmt-teachers-roster" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- 6. PARENT PORTAL VIEW (DIRECT STUDENT SCORECARD ACCESS)                   -->
+  <!-- ========================================================================= -->
+  <section id="parent-portal-view" class="hidden min-h-screen bg-slate-50">
+    <header class="bg-gradient-to-br from-indigo-950 via-purple-900 to-fuchsia-950 text-white pt-10 pb-16 px-6 text-center shadow-xl relative rounded-b-[3rem] border-b-4 border-amber-400">
+      <div class="max-w-md mx-auto">
+        <div class="w-16 h-16 bg-gradient-to-tr from-amber-300 via-orange-400 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg transform rotate-3">
+          <i class="fa-solid fa-graduation-cap text-3xl text-white -rotate-3"></i>
+        </div>
+        <h1 class="text-3xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-100 to-white">
+          Glorious Public School
+        </h1>
+        <p class="text-fuchsia-200 text-xs font-bold uppercase tracking-[0.25em] mt-1">Official Student Academic Portal</p>
+        <button type="button" onclick="showRoleSelectionView()" class="mt-3.5 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs border border-white/20 transition-all shadow-sm">
+          <i class="fa-solid fa-arrow-left"></i> Return to Main School Portal
+        </button>
+      </div>
+    </header>
+
+    <div class="max-w-4xl mx-auto p-4 md:p-6 -mt-10 relative z-20">
+      <div class="glass-card rounded-[2rem] p-6 sm:p-8 text-center mb-6 shadow-xl border border-white flex flex-col items-center">
+        <div class="w-20 h-20 bg-gradient-to-tr from-indigo-100 to-fuchsia-100 text-indigo-600 rounded-full flex items-center justify-center text-4xl mb-3 shadow-inner">
+          <i class="fa-solid fa-user-graduate"></i>
+        </div>
+        <h2 id="pp-student-name" class="text-3xl font-black text-slate-800 mb-1">Student Name</h2>
+        <div class="inline-flex items-center gap-3 bg-slate-100/80 px-4 py-1.5 rounded-full text-xs font-bold text-slate-600">
+          <span>Roll: <strong id="pp-student-roll" class="text-indigo-600"></strong></span>
+          <span>•</span>
+          <span>GR: <strong id="pp-student-gr" class="text-indigo-600"></strong></span>
+          <span>•</span>
+          <span id="pp-student-std"></span>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="mt-6 w-full bg-slate-50/80 p-4 rounded-2xl border border-slate-200 flex flex-col sm:flex-row gap-3 items-end">
+          <div class="flex-1 w-full text-left">
+            <label class="block text-[10px] font-black uppercase text-indigo-800 mb-1">Subject</label>
+            <select id="pp-filter-subject" class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-bold outline-none"></select>
+          </div>
+          <div class="flex-1 w-full text-left">
+            <label class="block text-[10px] font-black uppercase text-indigo-800 mb-1">From Date</label>
+            <input type="date" id="pp-filter-fdate" class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-bold outline-none">
+          </div>
+          <div class="flex-1 w-full text-left">
+            <label class="block text-[10px] font-black uppercase text-indigo-800 mb-1">To Date</label>
+            <input type="date" id="pp-filter-tdate" class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-bold outline-none">
+          </div>
+        </div>
+
+        <div class="mt-6 flex flex-wrap justify-center gap-3 w-full max-w-lg">
+          <button type="button" id="pp-btn-std-print" onclick="printParentMarksheet()" class="flex-1 px-4 py-3 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-blue-800 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 transition-all">
+            <i class="fa-solid fa-print"></i> Print Scorecard
+          </button>
+          <button type="button" id="pp-btn-std-pdf" onclick="downloadParentMarksheetPDF()" class="flex-1 px-4 py-3 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 transition-all">
+            <i class="fa-solid fa-file-pdf"></i> Download PDF
+          </button>
+          <button type="button" id="pp-btn-excel" onclick="downloadParentExcel()" class="flex-1 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-1.5 transition-all">
+            <i class="fa-solid fa-file-excel"></i> Download Excel
+          </button>
+        </div>
+      </div>
+
+      <!-- Assessment Table -->
+      <div class="glass-card rounded-[2rem] p-6 shadow-lg border border-white">
+        <h3 class="text-xl font-black text-slate-800 mb-4 flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-indigo-600"></i> Assessment History
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse min-w-[500px]">
+            <thead>
+              <tr class="text-slate-400 text-[10px] font-black uppercase tracking-wider bg-slate-50">
+                <th class="p-3 rounded-l-xl">Date</th>
+                <th class="p-3">Subject</th>
+                <th class="p-3">Topic</th>
+                <th class="p-3 text-right">Score</th>
+                <th class="p-3 text-right">Rank</th>
+                <th class="p-3 text-right rounded-r-xl">Grade</th>
+              </tr>
+            </thead>
+            <tbody id="pp-marks-body" class="text-xs font-semibold divide-y divide-slate-100"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- MODALS & TOAST NOTIFICATIONS                                              -->
+  <!-- ========================================================================= -->
+
+  <!-- Toast Container -->
+  <div id="toast" class="fixed top-6 right-6 z-[120] transform transition-all duration-300 translate-x-full opacity-0 bg-white/95 backdrop-blur shadow-2xl rounded-2xl p-4 flex items-start space-x-3 max-w-sm border-2">
+    <div id="toast-icon" class="text-emerald-500 text-2xl mt-0.5"></div>
+    <div class="flex-1 pr-2">
+      <h4 id="toast-title" class="text-xs font-black mb-0.5">Success</h4>
+      <p id="toast-msg" class="text-xs font-semibold text-slate-500 leading-relaxed"></p>
+    </div>
+    <button onclick="closeToast()" class="text-slate-400 hover:text-slate-600 p-1">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+
+  <!-- Factory Reset & Data Management Modal -->
+  <div id="factory-reset-modal" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-[125] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden animate-pop-in border border-rose-200">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 p-6 text-white flex justify-between items-center">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-lg">Factory Reset & Data Management</h3>
+            <p class="text-xs text-rose-100 font-medium">Manage or wipe student roster & assessment marks</p>
+          </div>
+        </div>
+        <button onclick="closeFactoryResetModal()" class="text-white/80 hover:text-white text-lg p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <!-- Option 1: Full Factory Reset (Wipe All Data) -->
+        <div class="p-4 rounded-2xl border-2 border-rose-200 bg-rose-50/50 hover:bg-rose-50 transition-all">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+              <i class="fa-solid fa-trash-can text-sm"></i>
+            </div>
+            <div class="flex-1">
+              <h4 class="font-black text-slate-800 text-sm">Full Factory Reset (Clear All Students & Marks)</h4>
+              <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+                Permanently wipes <strong>all student profiles, test scores, attendance records, and upcoming exam schedules</strong>. Leaves the database completely clean (0 students, 0 marks) so you can enter or upload your school's actual batch from scratch.
+              </p>
+              <button onclick="confirmFactoryReset('wipe')" class="mt-3 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-md shadow-rose-600/30 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-fire"></i> Wipe All Student & Marks Data
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Option 2: Clear Marks Records Only -->
+        <div class="p-4 rounded-2xl border border-amber-200 bg-amber-50/50 hover:bg-amber-50 transition-all">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+              <i class="fa-solid fa-file-excel text-sm"></i>
+            </div>
+            <div class="flex-1">
+              <h4 class="font-black text-slate-800 text-sm">Clear Marks Records Only</h4>
+              <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+                Retains all currently enrolled students in the directory, but clears all test marks, exam scores, and upcoming test notices for a new exam cycle.
+              </p>
+              <button onclick="confirmFactoryReset('marks_only')" class="mt-3 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-black text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-eraser"></i> Clear All Marks Records
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Option 3: Restore Default Demo Dataset -->
+        <div class="p-4 rounded-2xl border border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50 transition-all">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
+              <i class="fa-solid fa-rotate-left text-sm"></i>
+            </div>
+            <div class="flex-1">
+              <h4 class="font-black text-slate-800 text-sm">Restore Sample Demo Data</h4>
+              <p class="text-xs text-slate-600 mt-1 leading-relaxed">
+                Resets the database with the pre-configured Class 9 sample students, subject marks (Math, Science, English), attendance, and test schedules for demonstration and testing.
+              </p>
+              <button onclick="confirmFactoryReset('seed')" class="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs rounded-xl shadow-md shadow-indigo-500/20 transition-all flex items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-down"></i> Restore Class 9 Demo Data
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+        <button onclick="closeFactoryResetModal()" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- CLOUD DATABASE & LIVE LINK SETTINGS MODAL                                 -->
+  <!-- ========================================================================= -->
+  <div id="cloud-db-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[130] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-[2rem] shadow-2xl max-w-xl w-full overflow-hidden animate-pop-in border border-white/40 flex flex-col max-h-[90vh]">
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-teal-700 via-emerald-700 to-cyan-800 p-6 text-white flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center text-white text-2xl shadow-inner border border-white/20">
+            <i class="fa-solid fa-database"></i>
+          </div>
+          <div>
+            <h3 class="text-xl font-black tracking-tight">MongoDB Atlas Cloud Database</h3>
+            <p class="text-xs text-teal-200 font-medium">Enterprise Cloud MongoDB • Real-Time Multi-Device Sync</p>
+          </div>
+        </div>
+        <button onclick="closeCloudDbModal()" class="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white text-lg transition-all">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+        
+        <!-- Mobile Phone & Multi-Device Access Card -->
+        <div class="p-4 rounded-2xl bg-gradient-to-br from-indigo-50 via-teal-50 to-emerald-50 border border-teal-200 shadow-sm space-y-3">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-black text-teal-950 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-mobile-screen-button text-teal-700 text-sm"></i> Mobile Phone & Multi-Device Access
+            </span>
+            <span class="text-[10px] bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-black flex items-center gap-1 border border-emerald-300">
+              <i class="fa-solid fa-wifi text-[9px]"></i> Same Wi-Fi Network
+            </span>
+          </div>
+
+          <p class="text-[11px] text-slate-600 leading-relaxed">
+            To view and update all <strong>26 students</strong> on your smartphone, scan this QR code with your phone camera or type this Wi-Fi address into your mobile browser:
+          </p>
+
+          <div class="flex flex-col sm:flex-row items-center gap-3 bg-white p-3 rounded-xl border border-teal-200/80 shadow-xs">
+            <!-- QR Code -->
+            <div class="shrink-0 flex flex-col items-center">
+              <img id="cloud-modal-qr-code" src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=http%3A%2F%2F192.168.1.42%3A5000" alt="Scan QR Code" class="w-24 h-24 rounded-lg border border-slate-200 shadow-xs bg-white p-1">
+              <span class="text-[9px] font-bold text-slate-500 mt-1 flex items-center gap-1">
+                <i class="fa-solid fa-camera text-teal-600"></i> Camera Scan
+              </span>
+            </div>
+
+            <!-- URL & Copy Button -->
+            <div class="flex-1 w-full space-y-2">
+              <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">Mobile Wi-Fi Address:</label>
+                <div class="flex items-center gap-2">
+                  <input type="text" id="cloud-modal-live-link" readonly value="http://192.168.1.42:5000"
+                    class="w-full bg-slate-50 border border-teal-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-teal-950 select-all outline-none focus:ring-2 focus:ring-teal-400">
+                  <button onclick="copyLiveAppLink()" class="bg-teal-600 hover:bg-teal-700 text-white px-3.5 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1 shrink-0 shadow-sm" title="Copy Mobile Link">
+                    <i class="fa-solid fa-copy"></i> Copy
+                  </button>
+                  <button onclick="openLiveAppLink()" class="bg-white hover:bg-slate-100 text-slate-700 p-2 rounded-xl text-xs border border-teal-200 transition-all shrink-0" title="Open in new tab">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="text-[10px] text-amber-900 flex items-start gap-1.5 bg-amber-50 border border-amber-200/80 p-2 rounded-lg">
+                <i class="fa-solid fa-triangle-exclamation text-amber-600 text-xs shrink-0 mt-0.5"></i>
+                <span><strong>Notice:</strong> On your mobile phone, do not type <code>localhost</code> (which refers to the phone itself). Open <strong>http://192.168.1.42:5000</strong> while on the same Wi-Fi network to load all <strong>26 students</strong>.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Backend Server Bridge Card -->
+        <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-sm shrink-0 border border-teal-200">
+              <i class="fa-solid fa-server"></i>
+            </div>
+            <div>
+              <div class="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                <span>Backend Server:</span>
+                <span id="cloud-modal-backend-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">Detecting...</span>
+              </div>
+              <div id="cloud-modal-backend-url" class="text-[10px] font-mono text-slate-500 truncate max-w-[200px] sm:max-w-xs">http://localhost:5000</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+            <button type="button" onclick="openDirectLocalhost()" class="flex-1 sm:flex-none px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 text-[11px] font-bold rounded-xl border border-teal-200 transition-all flex items-center justify-center gap-1.5" title="Open complete app on port 5000">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Port 5000
+            </button>
+            <button type="button" onclick="toggleCustomBackendInput()" class="px-2.5 py-1.5 bg-white hover:bg-slate-100 text-slate-600 text-[11px] font-bold rounded-xl border border-slate-200 transition-all" title="Configure custom backend URL">
+              <i class="fa-solid fa-gear"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Collapsible Custom Backend Input (hidden by default) -->
+        <div id="custom-backend-container" class="hidden p-3.5 rounded-2xl bg-white border border-slate-200 space-y-2 text-xs">
+          <div class="flex justify-between items-center">
+            <label class="text-[11px] font-bold text-slate-700">Custom Backend URL (Render / Cloud)</label>
+            <span class="text-[10px] text-slate-400">Default: http://localhost:5000</span>
+          </div>
+          <div class="flex gap-2">
+            <input type="url" id="custom-backend-url-input" placeholder="https://your-service.onrender.com"
+              class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 outline-none focus:ring-2 focus:ring-teal-400">
+            <button type="button" onclick="saveCustomBackendUrl()" class="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition-all">
+              Save
+            </button>
+            <button type="button" onclick="resetCustomBackendUrl()" class="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all" title="Reset to auto-detect">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Connection Status & Sync Hub -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+            <span class="text-[10px] uppercase font-black tracking-wider text-slate-400 block mb-1">Database State</span>
+            <div id="cloud-modal-status-text" class="text-xs font-bold text-slate-800">
+              <i class="fa-solid fa-circle-pause text-slate-400"></i> Local Storage Mode
+            </div>
+            <div class="text-[10px] text-slate-400 mt-1">
+              Database: <strong id="cloud-modal-project-text" class="text-slate-700 font-mono">glorious_public_school</strong>
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col justify-between">
+            <div>
+              <span class="text-[10px] uppercase font-black tracking-wider text-slate-400 block mb-1">Cloud Synchronization</span>
+              <div id="cloud-modal-sync-text" class="text-xs font-semibold text-slate-600">
+                Not synced yet
+              </div>
+            </div>
+            <div class="flex items-center gap-2 mt-2">
+              <button type="button" onclick="handleManualCloudSync()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-sm transition-all">
+                <i class="fa-solid fa-arrows-rotate"></i> Sync Now
+              </button>
+              <button type="button" onclick="handleTestFirebaseConnection()" class="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-bold flex items-center gap-1 transition-all">
+                <i class="fa-solid fa-heart-pulse"></i> Test Ping
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- MongoDB Atlas Configuration Form -->
+        <div class="p-4 rounded-2xl border border-slate-200 bg-white space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-key text-amber-500"></i> MongoDB Atlas Connection String
+            </h4>
+            <span class="text-[10px] text-slate-400 font-semibold">MongoDB Atlas Cloud</span>
+          </div>
+          <p class="text-[11px] text-slate-500 leading-relaxed">
+            Paste your MongoDB connection string from <a href="https://www.mongodb.com/cloud/atlas" target="_blank" class="text-teal-600 font-bold underline hover:text-teal-700">MongoDB Atlas</a> below:
+          </p>
+          <textarea id="cloud-config-input" rows="3" placeholder="mongodb+srv://<username>:<password>@cluster0.xxxx.mongodb.net/?retryWrites=true&w=majority"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-mono text-slate-800 outline-none focus:ring-2 focus:ring-teal-400 custom-scrollbar"></textarea>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <button type="button" onclick="handleSaveFirebaseConfig()" class="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-md shadow-teal-500/20 transition-all flex items-center gap-2">
+              <i class="fa-solid fa-cloud-check"></i> Connect & Save to MongoDB Atlas
+            </button>
+            <button type="button" onclick="handleClearFirebaseConfig()" class="text-rose-600 hover:text-rose-700 font-bold text-xs px-3 py-2 rounded-xl hover:bg-rose-50 transition-all">
+              <i class="fa-solid fa-trash-can mr-1"></i> Disconnect / Local Only
+            </button>
+          </div>
+        </div>
+
+        <!-- How to Setup Guide Accordion -->
+        <details class="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-600">
+          <summary class="font-bold text-slate-700 cursor-pointer flex items-center gap-2 select-none">
+            <i class="fa-solid fa-circle-question text-teal-600"></i> How to get your free MongoDB Atlas connection string (3 minutes)
+          </summary>
+          <div class="mt-3 pl-4 space-y-2 border-l-2 border-teal-400 text-[11px] leading-relaxed">
+            <p><strong>1.</strong> Sign up free at <a href="https://www.mongodb.com/cloud/atlas" target="_blank" class="text-teal-600 underline font-bold">mongodb.com/cloud/atlas</a> and click <em>"Build a Database"</em>.</p>
+            <p><strong>2.</strong> Choose <strong>M0 Shared (FREE)</strong>, select AWS Provider in Mumbai (<code>ap-south-1</code>), and click <em>"Create"</em>.</p>
+            <p><strong>3.</strong> In Security Quickstart, create a username (e.g. <code>gps_admin</code>) and password. Remember the password.</p>
+            <p><strong>4.</strong> In Network Access, add IP Address <code>0.0.0.0/0</code> (Allow Access from Anywhere) so Render and your PC can connect.</p>
+            <p><strong>5.</strong> Go to Database &rarr; Click <strong>Connect</strong> &rarr; Choose <strong>Drivers</strong> (Node.js) &rarr; Copy the connection string (replace <code>&lt;password&gt;</code> with your password) and paste above!</p>
+          </div>
+        </details>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end shrink-0">
+        <button onclick="closeCloudDbModal()" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Action Modal -->
+  <div id="confirm-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[130] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 text-center animate-pop-in">
+      <div class="w-16 h-16 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center text-3xl mx-auto mb-4">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 id="confirm-title" class="text-xl font-black text-slate-800 mb-1">Are you sure?</h3>
+      <p id="confirm-msg" class="text-xs font-semibold text-slate-500 mb-6">This action cannot be undone.</p>
+      <div class="flex gap-3 justify-center">
+        <button onclick="closeConfirmModal()" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">
+          Cancel
+        </button>
+        <button id="confirm-btn-yes" class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-md shadow-rose-500/30">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Student Profile Modal -->
+  <div id="edit-stu-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[125] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-pop-in">
+      <div class="bg-gradient-to-r from-indigo-600 to-purple-600 p-5 text-white flex justify-between items-center">
+        <h3 class="font-black text-sm flex items-center gap-2"><i class="fa-solid fa-user-pen"></i> Edit Student Profile</h3>
+        <button onclick="closeEditStuModal()" class="text-white/70 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Roll No</label>
+            <input type="number" id="edit-stu-roll" disabled class="w-full bg-slate-100 border border-slate-200 rounded-xl p-2.5 text-xs font-bold text-slate-500">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">GR Number</label>
+            <input type="text" id="edit-stu-gr" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Full Name</label>
+          <input type="text" id="edit-stu-name" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Class / Std</label>
+            <input list="std-list" id="edit-stu-std" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Section</label>
+            <input type="text" id="edit-stu-sec" maxlength="3" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold uppercase">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Mobile Number (WhatsApp)</label>
+          <input type="tel" id="edit-stu-mobile" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+        </div>
+      </div>
+      <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+        <button onclick="closeEditStuModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">Cancel</button>
+        <button onclick="saveStudentEdit()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md">Save Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Marks Record Modal -->
+  <div id="edit-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[125] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-pop-in">
+      <div class="bg-gradient-to-r from-purple-700 to-indigo-800 p-5 text-white flex justify-between items-center">
+        <h3 class="font-black text-sm flex items-center gap-2"><i class="fa-solid fa-pen-to-square"></i> Edit Assessment Score</h3>
+        <button onclick="closeEditModal()" class="text-white/70 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="edit-id">
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1">Student Focus</label>
+          <input type="text" id="edit-name" disabled class="w-full bg-indigo-50 border border-indigo-100 rounded-xl p-2.5 text-xs font-black text-indigo-900">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Subject</label>
+            <input list="subj-list" id="edit-subject" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Topic</label>
+            <input type="text" id="edit-topic" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Marks / AB</label>
+            <input type="text" id="edit-marks" class="w-full bg-white border-2 border-indigo-200 rounded-xl p-2.5 text-xs font-black text-center text-indigo-700">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Max Total</label>
+            <input type="number" id="edit-total" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-black text-center">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Date</label>
+          <input type="date" id="edit-date" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+        </div>
+      </div>
+      <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+        <button onclick="closeEditModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">Cancel</button>
+        <button onclick="saveEditedRecord()" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black shadow-md">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule New Test Modal -->
+  <div id="new-test-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[125] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-pop-in">
+      <div class="bg-gradient-to-r from-indigo-600 to-purple-600 p-5 text-white flex justify-between items-center">
+        <h3 class="font-black text-sm flex items-center gap-2"><i class="fa-solid fa-stopwatch"></i> Schedule Upcoming Test</h3>
+        <button onclick="closeNewTestModal()" class="text-white/70 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Subject *</label>
+            <select id="new-test-subject" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold"></select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Class *</label>
+            <select id="new-test-class" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold"></select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Section</label>
+            <input type="text" id="new-test-section" value="A" maxlength="3" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold uppercase">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Max Marks</label>
+            <input type="number" id="new-test-total" value="50" min="1" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+          </div>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Test Topic / Syllabus *</label>
+          <input type="text" id="new-test-topic" placeholder="e.g. Chapter 4: Quadratic Equations" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Test Date *</label>
+            <input type="date" id="new-test-date" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+          </div>
+          <div>
+            <label class="block text-[10px] font-bold uppercase text-slate-600 mb-1">Room / Hall</label>
+            <input type="text" id="new-test-room" placeholder="e.g. Room 204" class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+          </div>
+        </div>
+      </div>
+      <div class="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+        <button onclick="closeNewTestModal()" class="px-4 py-2 bg-slate-200 text-slate-700 rounded-xl text-xs font-bold">Cancel</button>
+        <button onclick="saveNewUpcomingTest()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md">Schedule Assessment</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- PAGE NAVIGATOR DRAWER / MODULE SWITCHER MODAL                             -->
+  <!-- ========================================================================= -->
+  <div id="page-navigator-drawer" class="fixed inset-0 bg-slate-950/75 backdrop-blur-md z-[140] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-[2rem] shadow-2xl max-w-2xl w-full p-6 sm:p-8 animate-pop-in relative overflow-hidden border border-white max-h-[90vh] flex flex-col">
+      <!-- Drawer Header -->
+      <div class="flex items-center justify-between pb-4 border-b border-indigo-100 shrink-0 mb-5">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white text-lg shadow-md">
+            <i class="fa-solid fa-compass"></i>
+          </div>
+          <div>
+            <h3 class="text-xl font-black text-slate-800">Page Navigator</h3>
+            <p class="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">Quick Switch Across All Workspace Sections</p>
+          </div>
+        </div>
+        <button onclick="closePageDrawer()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Drawer Content: Grid of 8 Dashboard Pages -->
+      <div class="overflow-y-auto custom-scrollbar pr-1 flex-1 space-y-4">
+        <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Teacher Workspace Sections</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button onclick="switchTabAndCloseDrawer('dashboard')" class="drawer-card p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-indigo-300 shadow-sm flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-chart-pie"></i>
+            </div>
+            <div>
+              <div class="font-black text-slate-800 text-xs">Overview Dashboard</div>
+              <div class="text-[10px] text-slate-400 font-semibold">KPIs, Trend & Grade Charts</div>
+            </div>
+          </button>
+
+          <button onclick="switchTabAndCloseDrawer('attendance')" class="drawer-card p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-emerald-300 shadow-sm flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-calendar-check"></i>
+            </div>
+            <div>
+              <div class="font-black text-slate-800 text-xs">Daily Attendance Register</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Mark P / A / L & Absent WhatsApp Alerts</div>
+            </div>
+          </button>
+
+          <button onclick="switchTabAndCloseDrawer('upcoming-tests')" class="drawer-card p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-amber-300 shadow-sm flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-stopwatch"></i>
+            </div>
+            <div>
+              <div class="font-black text-slate-800 text-xs">Upcoming Tests</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Subject Assessment Calendar</div>
+            </div>
+          </button>
+
+          <button onclick="switchTabAndCloseDrawer('data-entry')" class="drawer-card p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-fuchsia-300 shadow-sm flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-fuchsia-50 text-fuchsia-600 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-file-pen"></i>
+            </div>
+            <div>
+              <div class="font-black text-slate-800 text-xs">Test Result Generator</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Manual Entry & Excel Marks Upload</div>
+            </div>
+          </button>
+
+          <button onclick="switchTabAndCloseDrawer('students')" class="drawer-card p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-cyan-300 shadow-sm flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-users-viewfinder"></i>
+            </div>
+            <div>
+              <div class="font-black text-slate-800 text-xs">Student Directory</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Roster, GR Numbers & Parent Portals</div>
+            </div>
+          </button>
+
+          <button onclick="switchTabAndCloseDrawer('records')" class="drawer-card p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-purple-300 shadow-sm flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-database"></i>
+            </div>
+            <div>
+              <div class="font-black text-slate-800 text-xs">Database Records</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Historical Marks & Inline Editor</div>
+            </div>
+          </button>
+
+          <button onclick="switchTabAndCloseDrawer('analytics')" class="drawer-card p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-pink-300 shadow-sm flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-brain"></i>
+            </div>
+            <div>
+              <div class="font-black text-slate-800 text-xs">AI Insights Engine</div>
+              <div class="text-[10px] text-slate-400 font-semibold">Skill Radar & Targeted Remediation</div>
+            </div>
+          </button>
+
+          <button onclick="switchTabAndCloseDrawer('communications')" class="drawer-card p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-rose-300 shadow-sm flex items-center gap-3 text-left">
+            <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-lg shrink-0">
+              <i class="fa-solid fa-file-invoice"></i>
+            </div>
+            <div>
+              <div class="font-black text-slate-800 text-xs">Reports & Exports</div>
+              <div class="text-[10px] text-slate-400 font-semibold">PDF Marksheets, Excel & WhatsApp</div>
+            </div>
+          </button>
+        </div>
+
+        <!-- Role / Portal Switcher -->
+        <div class="pt-3 border-t border-slate-100">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">Switch Portal Mode</span>
+            <button onclick="closePageDrawer(); openCloudDbModal();" class="text-[11px] font-black text-teal-700 hover:text-teal-900 flex items-center gap-1 bg-teal-50 px-2.5 py-1 rounded-lg border border-teal-200">
+              <i class="fa-solid fa-cloud-arrow-up text-teal-600"></i> Cloud DB & Link
+            </button>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <button onclick="closePageDrawer(); showManagementDashboard();" class="p-2.5 rounded-xl bg-slate-50 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 text-xs font-bold border border-slate-200 transition-all flex items-center gap-2">
+              <i class="fa-solid fa-school text-emerald-600"></i> Management
+            </button>
+            <button onclick="closePageDrawer(); showRoleSelectionView();" class="p-2.5 rounded-xl bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 text-xs font-bold border border-slate-200 transition-all flex items-center gap-2">
+              <i class="fa-solid fa-repeat text-indigo-600"></i> Role Selection
+            </button>
+            <button onclick="closePageDrawer(); logoutSession();" class="p-2.5 rounded-xl bg-slate-50 hover:bg-rose-50 text-slate-700 hover:text-rose-700 text-xs font-bold border border-slate-200 transition-all flex items-center gap-2">
+              <i class="fa-solid fa-power-off text-rose-600"></i> Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Printable Container for Official English Marksheet -->
+  <div id="em-print-container" style="display:none;"></div>
+
+  <!-- JavaScript Modules in Dependency Order -->
+  <script src="js/database.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/attendance.js"></script>
+  <script src="js/tests.js"></script>
+  <script src="js/reports.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
