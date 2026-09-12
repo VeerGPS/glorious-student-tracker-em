@@ -1189,11 +1189,16 @@ function switchTabAndCloseDrawer(tabId) {
 
 function populateDashFilters() {
   const subSel = document.getElementById('dash-filter-sub');
-  if (subSel && subSel.options.length <= 1) {
-    const subs = [...new Set(DB.marks.map(m => m.subject))].filter(Boolean).sort();
+  if (subSel) {
+    const currentVal = subSel.value;
+    const subs = [...new Set(DB.marks.map(m => typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject))].filter(Boolean).sort();
+    subSel.innerHTML = '<option value="all">All Subjects</option>';
     subs.forEach(s => {
       subSel.innerHTML += `<option value="${s}">${s}</option>`;
     });
+    if (currentVal && (currentVal === 'all' || subs.includes(currentVal))) {
+      subSel.value = currentVal;
+    }
   }
 }
 
@@ -1206,6 +1211,13 @@ function clearDashFilters() {
 }
 
 function updateDashboard() {
+  if (typeof healStudentRollsAndMarks === 'function') {
+    healStudentRollsAndMarks();
+  }
+  if (typeof populateDashFilters === 'function') {
+    populateDashFilters();
+  }
+
   const std = document.getElementById('dash-filter-std') ? document.getElementById('dash-filter-std').value : 'all';
   const studentQ = document.getElementById('dash-filter-student') ? document.getElementById('dash-filter-student').value.trim().toLowerCase() : '';
   const sub = document.getElementById('dash-filter-sub') ? document.getElementById('dash-filter-sub').value : 'all';
@@ -1223,9 +1235,14 @@ function updateDashboard() {
   if (totalStuEl) totalStuEl.innerText = fStudents.length;
 
   const fMarks = DB.marks.filter(m => {
-    const sData = fStudents.find(x => x.roll === m.roll && (!m.std || String(x.std) === String(m.std)));
+    const sData = fStudents.find(x => 
+      (parseInt(x.roll) === parseInt(m.roll) || (m.grNo && x.grNo && String(m.grNo).trim().toLowerCase() === String(x.grNo).trim().toLowerCase())) && 
+      (!m.std || String(x.std) === String(m.std))
+    );
     if (!sData) return false;
-    const pSub = (sub === 'all' || m.subject === sub);
+    const cleanMSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+    const cleanFilterSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(sub) : sub;
+    const pSub = (sub === 'all' || m.subject === sub || cleanMSub === sub || cleanMSub === cleanFilterSub);
     const pMon = month && m.date ? m.date.startsWith(month) : true;
     const pFd = fdate && m.date ? m.date >= fdate : true;
     const pTd = tdate && m.date ? m.date <= tdate : true;
@@ -1404,10 +1421,14 @@ function renderLeaderboard(students, marks) {
   const scores = {};
   students.forEach(s => {
     const key = `${s.std || 'all'}_${s.roll}`;
-    scores[key] = { name: s.name, m: 0, t: 0, std: s.std };
+    scores[key] = { name: s.name, m: 0, t: 0, std: s.std, grNo: s.grNo };
   });
   marks.forEach(m => {
-    const key = `${m.std || 'all'}_${m.roll}`;
+    let key = `${m.std || 'all'}_${m.roll}`;
+    if (!scores[key] && m.grNo) {
+      const sMatch = students.find(s => s.grNo && String(s.grNo).trim().toLowerCase() === String(m.grNo).trim().toLowerCase());
+      if (sMatch) key = `${sMatch.std || 'all'}_${sMatch.roll}`;
+    }
     if (scores[key]) {
       scores[key].m += (m.isAbsent ? 0 : m.marks);
       scores[key].t += m.total;

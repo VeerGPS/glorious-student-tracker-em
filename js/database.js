@@ -331,6 +331,10 @@ const CloudDB = {
           DB.upcomingTests = cloudDoc.upcomingTests;
         }
 
+        if (typeof healStudentRollsAndMarks === 'function') {
+          healStudentRollsAndMarks();
+        }
+
         this.lastSyncTime = new Date().toLocaleTimeString();
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(CLOUD_META_KEY, JSON.stringify({ lastSyncTime: this.lastSyncTime }));
@@ -338,6 +342,7 @@ const CloudDB = {
 
         if (typeof saveDatabase === 'function') saveDatabase(false);
         if (typeof refreshAllModulesUI === 'function') refreshAllModulesUI();
+        if (typeof populateDashFilters === 'function') populateDashFilters();
         if (typeof updateDashboard === 'function') updateDashboard();
         this.updateBadgeUI();
         return true;

@@ -1079,22 +1079,27 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
       subjectCols.forEach(sc => {
         const rawScore = row[sc.index];
         if (rawScore !== undefined && rawScore !== null && rawScore.toString().trim() !== '') {
-          const strVal = toEngDigits(rawScore.toString().trim());
-          const lowerVal = strVal.toLowerCase();
-          const isAb = ['ab', 'absent', 'a', 'gh'].includes(lowerVal);
-          const marks = isAb ? 0 : parseFloat(strVal);
+          const rawStr = toEngDigits(rawScore.toString().trim());
+          const cleanScorePart = rawStr.split('/')[0].trim();
+          const lowerScorePart = cleanScorePart.toLowerCase();
+          const isAb = ['ab', 'absent', 'a', 'gh'].includes(lowerScorePart) || rawStr.toLowerCase().startsWith('ab') || rawStr.toLowerCase().startsWith('absent');
+          const marks = isAb ? 0 : parseFloat(cleanScorePart);
 
           if (isAb || (!isNaN(marks) && marks >= 0)) {
             const targetRoll = roll || (name ? getRollByName(name, rowStd) : 0);
             const targetDate = sc.date || defaultDate;
-            const targetTotal = sc.total || defaultTotal;
+            let targetTotal = sc.total || defaultTotal;
+            if (rawStr.includes('/')) {
+              const denom = parseFloat(rawStr.split('/')[1].trim());
+              if (!isNaN(denom) && denom > 0) targetTotal = denom;
+            }
             const targetTopic = defaultTopic;
 
             // Upsert mark record with CLASS SCOPING: match roll AND std
             const cleanTargetSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(sc.subject) : sc.subject;
             const ex = DB.marks.find(m => 
               (m.std ? m.std.toString() === rowStd.toString() : true) &&
-              m.roll === targetRoll && 
+              (m.roll === targetRoll || (grNo && m.grNo && String(m.grNo).trim() === String(grNo).trim())) && 
               (m.subject === cleanTargetSub || (typeof cleanSubjectName === 'function' && cleanSubjectName(m.subject) === cleanTargetSub)) && 
               (m.date === targetDate || m.date === defaultDate)
             );
@@ -1179,10 +1184,15 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
       const rawMarks = marksIdx !== -1 ? row[marksIdx] : null;
       if (rawMarks === null || rawMarks === undefined) continue;
 
-      const strVal = toEngDigits(rawMarks.toString().trim());
-      const lowerVal = strVal.toLowerCase();
-      const isAb = ['ab', 'absent', 'a', 'gh'].includes(lowerVal);
-      const marks = isAb ? 0 : parseFloat(strVal);
+      const rawStr = toEngDigits(rawMarks.toString().trim());
+      const cleanScorePart = rawStr.split('/')[0].trim();
+      const lowerScorePart = cleanScorePart.toLowerCase();
+      const isAb = ['ab', 'absent', 'a', 'gh'].includes(lowerScorePart) || rawStr.toLowerCase().startsWith('ab') || rawStr.toLowerCase().startsWith('absent');
+      const marks = isAb ? 0 : parseFloat(cleanScorePart);
+      if (rawStr.includes('/')) {
+        const denom = parseFloat(rawStr.split('/')[1].trim());
+        if (!isNaN(denom) && denom > 0) total = denom;
+      }
 
       if (isAb || (!isNaN(marks) && marks >= 0)) {
         ensureStudentRecord(roll, grNo, name, rowStd);
@@ -1192,7 +1202,7 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
 
         const ex = DB.marks.find(m => 
           (m.std ? m.std.toString() === rowStd.toString() : true) &&
-          m.roll === targetRoll && 
+          (m.roll === targetRoll || (grNo && m.grNo && String(m.grNo).trim() === String(grNo).trim())) && 
           (m.subject === cleanSub || (typeof cleanSubjectName === 'function' && cleanSubjectName(m.subject) === cleanSub)) && 
           (m.date === date || m.topic === topic)
         );
@@ -1233,11 +1243,22 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
     DB.marks = DB.marks.filter(m => m && m.subject && !isDedicatedMetaCol(m.subject));
   }
 
+  if (typeof healStudentRollsAndMarks === 'function') {
+    healStudentRollsAndMarks();
+  }
+
   saveDatabase();
   if (window.showToast) {
-    window.showToast(`Report Card Excel processed for Class ${defaultStd}: ${addedCount} added, ${updatedCount} updated!`, 'success');
+    if (addedCount === 0 && updatedCount === 0) {
+      window.showToast(`Excel read for Class ${defaultStd}, but 0 marks were found in score columns. If this is a downloaded template, please fill in student scores first.`, 'warning');
+    } else {
+      window.showToast(`Report Card Excel processed for Class ${defaultStd}: ${addedCount} added, ${updatedCount} updated!`, 'success');
+    }
   }
+  if (window.populateDashFilters) window.populateDashFilters();
   if (window.updateDashboard) window.updateDashboard();
+  if (window.renderMarksTable) window.renderMarksTable();
+  if (window.renderStudentsTable) window.renderStudentsTable();
   return { addedCount, updatedCount };
 }
 
@@ -1255,18 +1276,18 @@ function ensureStudentRecord(roll, grNo, name, std) {
   if (grNo) {
     existing = DB.students.find(s => s.grNo && s.grNo.toString().trim().toLowerCase() === grNo.toString().trim().toLowerCase());
   }
-  // Next match by (std, roll) - roll is unique strictly within its class!
-  if (!existing && roll) {
-    existing = DB.students.find(s => s.std.toString() === targetStd && s.roll === parseInt(roll));
-  }
-  // Next fallback to (std, name)
+  // Next fallback to (std, name) - match before roll, because old roll might have been set to GR number
   if (!existing && name) {
     existing = DB.students.find(s => s.std.toString() === targetStd && s.name.toLowerCase() === name.toLowerCase());
+  }
+  // Next match by (std, roll) - roll is unique strictly within its class
+  if (!existing && roll) {
+    existing = DB.students.find(s => s.std.toString() === targetStd && s.roll === parseInt(roll));
   }
 
   if (!existing) {
     const classRolls = DB.students.filter(s => s.std.toString() === targetStd).map(s => s.roll);
-    const newRoll = roll ? parseInt(roll) : (classRolls.length > 0 ? Math.max(...classRolls) + 1 : 101);
+    const newRoll = roll ? parseInt(roll) : (classRolls.length > 0 ? Math.max(...classRolls) + 1 : 1);
     DB.students.push({
       roll: newRoll,
       grNo: grNo || `GR-${new Date().getFullYear()}-${targetStd}-${String(newRoll).padStart(3, '0')}`,
@@ -1276,7 +1297,11 @@ function ensureStudentRecord(roll, grNo, name, std) {
       mobile: ''
     });
   } else {
-    if (grNo && !existing.grNo) existing.grNo = grNo;
+    // Sync roll if a valid roll number was provided in this upload
+    if (roll && (!existing.roll || existing.roll === parseInt(existing.grNo) || existing.roll !== parseInt(roll))) {
+      existing.roll = parseInt(roll);
+    }
+    if (grNo && (!existing.grNo || existing.grNo === String(existing.roll))) existing.grNo = grNo;
     if (targetStd && !existing.std) existing.std = targetStd;
     if (name && (!existing.name || existing.name.startsWith('Student '))) existing.name = name;
   }
