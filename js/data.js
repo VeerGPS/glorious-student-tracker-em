@@ -482,22 +482,28 @@ function cleanSubjectName(sub) {
   return s || sub.toString().trim();
 }
 
-// Student Lookup Helpers with Class Scoping
-function findStudentByRoll(roll, std = null) {
+// Student Lookup Helpers with Class & Section Scoping
+function findStudentByRoll(roll, std = null, section = null) {
+  if (roll === null || roll === undefined || roll === '') return null;
+  const targetRoll = parseInt(roll);
+  if (isNaN(targetRoll)) return null;
+
   if (std !== null && std !== undefined && std !== 'all' && std !== '') {
-    const sMatch = DB.students.find(s => s.roll === parseInt(roll) && s.std.toString() === std.toString());
+    const stdStr = String(std).trim();
+    if (section !== null && section !== undefined && section !== 'all' && section !== '') {
+      const secStr = String(section).trim().toUpperCase();
+      const sMatchSec = DB.students.find(s => parseInt(s.roll) === targetRoll && String(s.std).trim() === stdStr && String(s.section || 'A').trim().toUpperCase() === secStr);
+      if (sMatchSec) return sMatchSec;
+      return null;
+    }
+    const sMatch = DB.students.find(s => parseInt(s.roll) === targetRoll && String(s.std).trim() === stdStr);
     if (sMatch) return sMatch;
   }
-  return DB.students.find(s => s.roll === parseInt(roll));
+  return DB.students.find(s => parseInt(s.roll) === targetRoll) || null;
 }
 
-function findStudentByRollAndClass(roll, std) {
-  if (!roll) return null;
-  const targetRoll = parseInt(roll);
-  if (std !== null && std !== undefined && std !== 'all' && std !== '') {
-    return DB.students.find(s => s.roll === targetRoll && s.std.toString() === std.toString()) || null;
-  }
-  return DB.students.find(s => s.roll === targetRoll) || null;
+function findStudentByRollAndClass(roll, std, section = null) {
+  return findStudentByRoll(roll, std, section);
 }
 
 function findStudentByGrNo(grNo) {
@@ -505,23 +511,28 @@ function findStudentByGrNo(grNo) {
   return DB.students.find(s => s.grNo && s.grNo.toString().trim().toLowerCase() === grNo.toString().trim().toLowerCase()) || null;
 }
 
-function findStudent(roll, std = null, grNo = null) {
+function findStudent(roll, std = null, grNo = null, section = null) {
   if (grNo) {
     const sGr = findStudentByGrNo(grNo);
     if (sGr) return sGr;
   }
-  if (roll) {
-    return findStudentByRoll(roll, std);
+  if (roll !== null && roll !== undefined && roll !== '') {
+    return findStudentByRoll(roll, std, section);
   }
   return null;
 }
 
-function getMarksForStudent(roll, std = null) {
+function getMarksForStudent(roll, std = null, section = null) {
+  if (roll === null || roll === undefined || roll === '') return [];
   const targetRoll = parseInt(roll);
+  if (isNaN(targetRoll)) return [];
   return DB.marks.filter(m => {
-    if (m.roll !== targetRoll) return false;
+    if (parseInt(m.roll) !== targetRoll) return false;
     if (std !== null && std !== undefined && std !== 'all' && std !== '') {
-      return m.std ? m.std.toString() === std.toString() : true;
+      if (m.std && String(m.std).trim() !== String(std).trim()) return false;
+    }
+    if (section !== null && section !== undefined && section !== 'all' && section !== '') {
+      if (String(m.section || 'A').trim().toUpperCase() !== String(section).trim().toUpperCase()) return false;
     }
     return true;
   });

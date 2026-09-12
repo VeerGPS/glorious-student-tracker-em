@@ -11,16 +11,47 @@ let waDispatchQueue = [];
 // PDF REPORT CARDS (OFFICIAL MULTICOLOR BOARD FORMAT)
 // -------------------------------------------------------------
 
-function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, examType = "FIRST TERM EXAMINATIONS", subjectFilter = "All", targetStd = null) {
-  const student = DB.students.find(s => s.roll === roll && (targetStd ? s.std.toString() === targetStd.toString() : true)) || DB.students.find(s => s.roll === roll);
+function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, examType = "FIRST TERM EXAMINATIONS", subjectFilter = "All", targetStd = null, targetSec = null) {
+  if (roll === null || roll === undefined || roll === '') return;
+  const numRoll = parseInt(roll);
+
+  let student = null;
+  if (typeof findStudentByRoll === 'function') {
+    student = findStudentByRoll(roll, targetStd, targetSec);
+  }
+  if (!student && !isNaN(numRoll)) {
+    student = DB.students.find(s => 
+      parseInt(s.roll) === numRoll && 
+      (targetStd ? String(s.std).trim() === String(targetStd).trim() : true) &&
+      (targetSec ? String(s.section || 'A').trim().toUpperCase() === String(targetSec).trim().toUpperCase() : true)
+    );
+  }
+  if (!student) {
+    student = DB.students.find(s => 
+      String(s.roll).trim() === String(roll).trim() && 
+      (targetStd ? String(s.std).trim() === String(targetStd).trim() : true)
+    );
+  }
+  if (!student && !isNaN(numRoll)) {
+    student = DB.students.find(s => parseInt(s.roll) === numRoll);
+  }
   if (!student) return;
 
   if (!isFirstPage) doc.addPage();
 
-  const marks = passedMarks ? passedMarks.sort((a, b) => new Date(a.date) - new Date(b.date)) : 
-    DB.marks.filter(m => m.roll === roll && (m.std ? m.std.toString() === student.std.toString() : true)).sort((a, b) => new Date(a.date) - new Date(b.date));
+  const studentStd = student.std ? String(student.std).trim() : (targetStd ? String(targetStd).trim() : '');
+  const studentSec = String(student.section || targetSec || 'A').trim().toUpperCase();
 
-  const peerRolls = DB.students.filter(s => s.std.toString() === student.std.toString()).map(s => s.roll);
+  const marks = passedMarks ? [...passedMarks].sort((a, b) => new Date(a.date) - new Date(b.date)) : 
+    DB.marks.filter(m => 
+      parseInt(m.roll) === numRoll && 
+      (m.std ? String(m.std).trim() === studentStd : true) &&
+      (!m.section || String(m.section).trim().toUpperCase() === studentSec)
+    ).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const peerRolls = DB.students
+    .filter(s => String(s.std).trim() === studentStd && String(s.section || 'A').trim().toUpperCase() === studentSec)
+    .map(s => parseInt(s.roll));
 
   // High Quality Multi-border Frame
   doc.setLineWidth(1);
@@ -157,9 +188,10 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
       if (!m.isAbsent) {
         const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
         const subScores = DB.marks
-          .filter(x => (x.std ? x.std.toString() === student.std.toString() : true) && 
-                       peerRolls.includes(x.roll) && 
-                       (cleanSubjectName(x.subject) === cleanSub) && 
+          .filter(x => (x.std ? String(x.std).trim() === studentStd : true) && 
+                       (!x.section || String(x.section).trim().toUpperCase() === studentSec) &&
+                       peerRolls.includes(parseInt(x.roll)) && 
+                       ((typeof cleanSubjectName === 'function' ? cleanSubjectName(x.subject) : x.subject) === cleanSub) && 
                        !x.isAbsent)
           .map(x => x.marks)
           .sort((a, b) => b - a);
@@ -209,14 +241,19 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
   // Overall Class Rank
   const peerTotals = [];
   peerRolls.forEach(pr => {
-    const pMks = DB.marks.filter(m => (m.std ? m.std.toString() === student.std.toString() : true) && m.roll === pr && !m.isAbsent);
+    const pMks = DB.marks.filter(m => 
+      (m.std ? String(m.std).trim() === studentStd : true) && 
+      (!m.section || String(m.section).trim().toUpperCase() === studentSec) && 
+      parseInt(m.roll) === pr && 
+      !m.isAbsent
+    );
     if (pMks.length > 0) {
-      const pTotal = pMks.reduce((s, m) => s + m.marks, 0);
+      const pTotal = pMks.reduce((s, m) => s + (parseFloat(m.marks) || 0), 0);
       peerTotals.push({ roll: pr, total: pTotal });
     }
   });
   peerTotals.sort((a, b) => b.total - a.total);
-  const oRankIdx = peerTotals.findIndex(pt => pt.roll === roll);
+  const oRankIdx = peerTotals.findIndex(pt => pt.roll === numRoll);
   const overallRank = oRankIdx >= 0 ? (oRankIdx + 1).toString() : "-";
   const rankDisplay = overallRank !== "-" ? `#${overallRank} of ${peerRolls.length}` : "-";
 
@@ -601,14 +638,55 @@ function renderReportCardBarChartHTML(subjectList) {
   `;
 }
 
-function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST TERM ASSESSMENT", passedMarks = null) {
-  const student = DB.students.find(s => s.roll === roll && (targetStd ? s.std.toString() === targetStd.toString() : true)) || DB.students.find(s => s.roll === roll);
+function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST TERM ASSESSMENT", passedMarks = null, targetSec = null) {
+  // Support flexible argument positions if caller passes section directly
+  if (!targetSec && typeof examType === 'string' && ['A', 'B', 'C', 'D'].includes(examType.trim().toUpperCase())) {
+    targetSec = examType.trim();
+    examType = "FIRST TERM ASSESSMENT";
+  }
+  if (!targetSec && typeof passedMarks === 'string' && ['A', 'B', 'C', 'D'].includes(passedMarks.trim().toUpperCase())) {
+    targetSec = passedMarks.trim();
+    passedMarks = null;
+  }
+
+  if (roll === null || roll === undefined || roll === '') return '';
+  const numRoll = parseInt(roll);
+
+  let student = null;
+  if (typeof findStudentByRoll === 'function') {
+    student = findStudentByRoll(roll, targetStd, targetSec);
+  }
+  if (!student && !isNaN(numRoll)) {
+    student = DB.students.find(s => 
+      parseInt(s.roll) === numRoll && 
+      (targetStd ? String(s.std).trim() === String(targetStd).trim() : true) &&
+      (targetSec ? String(s.section || 'A').trim().toUpperCase() === String(targetSec).trim().toUpperCase() : true)
+    );
+  }
+  if (!student) {
+    student = DB.students.find(s => 
+      String(s.roll).trim() === String(roll).trim() && 
+      (targetStd ? String(s.std).trim() === String(targetStd).trim() : true)
+    );
+  }
+  if (!student && !isNaN(numRoll)) {
+    student = DB.students.find(s => parseInt(s.roll) === numRoll);
+  }
   if (!student) return '';
 
-  const marks = passedMarks ? passedMarks.sort((a, b) => new Date(a.date) - new Date(b.date)) : 
-    DB.marks.filter(m => m.roll === roll && (m.std ? m.std.toString() === student.std.toString() : true)).sort((a, b) => new Date(a.date) - new Date(b.date));
+  const studentStd = student.std ? String(student.std).trim() : (targetStd ? String(targetStd).trim() : '');
+  const studentSec = String(student.section || targetSec || 'A').trim().toUpperCase();
 
-  const peerRolls = DB.students.filter(s => s.std.toString() === student.std.toString()).map(s => s.roll);
+  const marks = passedMarks ? [...passedMarks].sort((a, b) => new Date(a.date) - new Date(b.date)) : 
+    DB.marks.filter(m => 
+      parseInt(m.roll) === numRoll && 
+      (m.std ? String(m.std).trim() === studentStd : true) &&
+      (!m.section || String(m.section).trim().toUpperCase() === studentSec)
+    ).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const peerRolls = DB.students
+    .filter(s => String(s.std).trim() === studentStd && String(s.section || 'A').trim().toUpperCase() === studentSec)
+    .map(s => parseInt(s.roll));
 
   let totalMax = 0;
   let totalObt = 0;
@@ -640,8 +718,9 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
     if (!m.isAbsent) {
       const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
       const subScores = DB.marks
-        .filter(x => (x.std ? x.std.toString() === student.std.toString() : true) && 
-                     peerRolls.includes(x.roll) && 
+        .filter(x => (x.std ? String(x.std).trim() === studentStd : true) && 
+                     (!x.section || String(x.section).trim().toUpperCase() === studentSec) &&
+                     peerRolls.includes(parseInt(x.roll)) && 
                      (typeof cleanSubjectName === 'function' ? cleanSubjectName(x.subject) : x.subject) === cleanSub && 
                      !x.isAbsent)
         .map(x => x.marks)
@@ -676,14 +755,19 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
   // Classroom Overall Rank calculation
   const peerTotals = [];
   peerRolls.forEach(pr => {
-    const pMks = DB.marks.filter(m => (m.std ? m.std.toString() === student.std.toString() : true) && m.roll === pr && !m.isAbsent);
+    const pMks = DB.marks.filter(m => 
+      (m.std ? String(m.std).trim() === studentStd : true) && 
+      (!m.section || String(m.section).trim().toUpperCase() === studentSec) &&
+      parseInt(m.roll) === pr && 
+      !m.isAbsent
+    );
     if (pMks.length > 0) {
-      const pTotal = pMks.reduce((s, m) => s + m.marks, 0);
+      const pTotal = pMks.reduce((s, m) => s + (parseFloat(m.marks) || 0), 0);
       peerTotals.push({ roll: pr, total: pTotal });
     }
   });
   peerTotals.sort((a, b) => b.total - a.total);
-  const oRankIdx = peerTotals.findIndex(pt => pt.roll === roll);
+  const oRankIdx = peerTotals.findIndex(pt => pt.roll === numRoll);
   const overallRank = oRankIdx >= 0 ? (oRankIdx + 1).toString() : "-";
   const overallPct = totalMax > 0 ? (totalObt / totalMax) * 100 : 0;
   const issueDateStr = typeof formatDateSlash === 'function' ? formatDateSlash(new Date()) : new Date().toLocaleDateString('en-GB');
@@ -811,8 +895,8 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
   `;
 }
 
-function generateGujaratiReportCardHTML(roll, targetStd = null, examType = "FIRST TERM ASSESSMENT", passedMarks = null) {
-  return generateEnglishReportCardHTML(roll, targetStd, examType, passedMarks);
+function generateGujaratiReportCardHTML(roll, targetStd = null, examType = "FIRST TERM ASSESSMENT", passedMarks = null, targetSec = null) {
+  return generateEnglishReportCardHTML(roll, targetStd, examType, passedMarks, targetSec);
 }
 
 function printBulkReportCards() {
@@ -846,21 +930,27 @@ function printBulkReportCards() {
 
   let htmlAll = '';
   targetStudents.sort((a, b) => {
-    if (a.std !== b.std) return parseInt(a.std) - parseInt(b.std);
-    return a.roll - b.roll;
+    if (a.std !== b.std) return (parseInt(a.std) || 0) - (parseInt(b.std) || 0);
+    const sA = (a.section || 'A').toUpperCase();
+    const sB = (b.section || 'A').toUpperCase();
+    if (sA !== sB) return sA.localeCompare(sB);
+    return (parseInt(a.roll) || 0) - (parseInt(b.roll) || 0);
   }).forEach(stu => {
-    let mks = DB.marks.filter(m => (m.std ? m.std.toString() === stu.std.toString() : true) && m.roll === stu.roll);
+    let mks = DB.marks.filter(m => 
+      (m.std ? String(m.std).trim() === String(stu.std).trim() : true) && 
+      (!m.section || String(m.section).trim().toUpperCase() === String(stu.section || 'A').trim().toUpperCase()) &&
+      parseInt(m.roll) === parseInt(stu.roll)
+    );
     if (fSub) {
       const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
       mks = mks.filter(m => (typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject).toLowerCase() : m.subject.toLowerCase()) === cleanFSub);
     }
-    if (mks.length > 0) {
-      htmlAll += generateEnglishReportCardHTML(stu.roll, stu.std, fEx, mks);
-    }
+    // Generate report card for student
+    htmlAll += generateEnglishReportCardHTML(stu.roll, stu.std, fEx, mks, stu.section || 'A');
   });
 
   if (!htmlAll) {
-    if (window.showToast) window.showToast('No marks available for the selected filters.', 'warning');
+    if (window.showToast) window.showToast('No report card data could be generated.', 'warning');
     return;
   }
 
@@ -872,7 +962,7 @@ function printBulkReportCards() {
   }, 350);
 }
 
-function printSingleStudent(roll, targetStd = null, examType = 'FIRST TERM ASSESSMENT') {
+function printSingleStudent(roll, targetStd = null, examType = 'FIRST TERM ASSESSMENT', targetSec = null) {
   let container = document.getElementById('em-print-container');
   if (!container) {
     container = document.createElement('div');
@@ -880,78 +970,154 @@ function printSingleStudent(roll, targetStd = null, examType = 'FIRST TERM ASSES
     document.body.appendChild(container);
   }
 
-  const html = generateEnglishReportCardHTML(roll, targetStd, examType);
+  const html = generateEnglishReportCardHTML(roll, targetStd, examType, null, targetSec);
   if (!html) {
     if (window.showToast) window.showToast('Student record not found.', 'error');
     return;
   }
 
   container.innerHTML = html;
+  if (window.showToast) window.showToast('Preparing Report Card print preview...', 'info');
   setTimeout(() => {
     window.print();
   }, 300);
 }
 
-function printSingleStudentGujarati(roll, targetStd = null, examType = 'FIRST TERM ASSESSMENT') {
-  printSingleStudent(roll, targetStd, examType);
+function printSingleStudentGujarati(roll, targetStd = null, examType = 'FIRST TERM ASSESSMENT', targetSec = null) {
+  printSingleStudent(roll, targetStd, examType, targetSec);
 }
 
 async function downloadEnglishPDF(targetStudents, examType, classLabel) {
+  if (!targetStudents || targetStudents.length === 0) {
+    if (window.showToast) window.showToast('No students selected for PDF generation.', 'warning');
+    return;
+  }
+
+  const fSub = document.getElementById('report-filter-subject') ? document.getElementById('report-filter-subject').value.trim() : '';
+
+  // Sort students cleanly by Class, Section, and Roll
+  const sortedStudents = [...targetStudents].sort((a, b) => {
+    if (a.std !== b.std) return (parseInt(a.std) || 0) - (parseInt(b.std) || 0);
+    const sA = (a.section || 'A').toUpperCase();
+    const sB = (b.section || 'A').toUpperCase();
+    if (sA !== sB) return sA.localeCompare(sB);
+    return (parseInt(a.roll) || 0) - (parseInt(b.roll) || 0);
+  });
+
+  // TIER 1: High-Resolution Visual html2canvas Capture
+  if (typeof html2canvas === 'function' && window.jspdf) {
+    let container = document.getElementById('em-print-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'em-print-container';
+      document.body.appendChild(container);
+    }
+
+    try {
+      let htmlAll = '';
+      sortedStudents.forEach(stu => {
+        let mks = DB.marks.filter(m => 
+          (m.std ? String(m.std).trim() === String(stu.std).trim() : true) && 
+          (!m.section || String(m.section).trim().toUpperCase() === String(stu.section || 'A').trim().toUpperCase()) &&
+          parseInt(m.roll) === parseInt(stu.roll)
+        );
+        if (fSub) {
+          const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
+          mks = mks.filter(m => (typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject).toLowerCase() : m.subject.toLowerCase()) === cleanFSub);
+        }
+        htmlAll += generateEnglishReportCardHTML(stu.roll, stu.std, examType, mks, stu.section || 'A');
+      });
+
+      if (htmlAll) {
+        // Temporarily render container offscreen with real layout dimensions so html2canvas can measure & render elements!
+        container.style.cssText = 'position: fixed; left: -9999px; top: 0; width: 210mm; min-height: 297mm; display: block !important; visibility: visible !important; z-index: -9999; background: #ffffff;';
+        container.innerHTML = htmlAll;
+
+        if (window.showToast) window.showToast('Generating high-resolution Report Card PDF...', 'info');
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pages = container.querySelectorAll('.em-scorecard-page');
+
+        if (pages && pages.length > 0) {
+          for (let i = 0; i < pages.length; i++) {
+            const pageEl = pages[i];
+            if (i > 0) pdf.addPage();
+
+            const canvas = await html2canvas(pageEl, {
+              scale: 2,
+              useCORS: true,
+              logging: false,
+              backgroundColor: '#ffffff'
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+          }
+
+          container.style.cssText = 'display: none;';
+          container.innerHTML = '';
+
+          pdf.save(`Glorious_School_Report_Cards_${classLabel || ''}${Date.now()}.pdf`);
+          if (window.showToast) window.showToast('Report Cards PDF downloaded successfully!', 'success');
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('html2canvas rendering fallback to direct vector jsPDF:', err);
+      if (container) {
+        container.style.cssText = 'display: none;';
+        container.innerHTML = '';
+      }
+    }
+  }
+
+  // TIER 2: Direct Vector jsPDF Engine (Super-fast, reliable vector PDF with bar charts, tables, and frames)
+  if (window.jspdf) {
+    try {
+      if (window.showToast) window.showToast('Compiling High-Resolution Vector PDF Marksheets...', 'info');
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      let pageAdded = false;
+
+      sortedStudents.forEach(stu => {
+        let mks = DB.marks.filter(m => 
+          (m.std ? String(m.std).trim() === String(stu.std).trim() : true) && 
+          (!m.section || String(m.section).trim().toUpperCase() === String(stu.section || 'A').trim().toUpperCase()) &&
+          parseInt(m.roll) === parseInt(stu.roll)
+        );
+        if (fSub) {
+          const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
+          mks = mks.filter(m => (typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject).toLowerCase() : m.subject.toLowerCase()) === cleanFSub);
+        }
+
+        addStudentScorecardToDoc(doc, stu.roll, !pageAdded, mks, examType, fSub || 'All', stu.std, stu.section || 'A');
+        pageAdded = true;
+      });
+
+      if (pageAdded) {
+        doc.save(`Glorious_School_Report_Cards_${classLabel || ''}${Date.now()}.pdf`);
+        if (window.showToast) window.showToast('Marksheet PDF downloaded successfully!', 'success');
+        return;
+      }
+    } catch (err) {
+      console.error('Vector PDF error:', err);
+    }
+  }
+
+  // TIER 3: Fallback to print dialog
+  if (window.showToast) window.showToast('Opening print dialog. Select "Save as PDF" to export.', 'info');
   let container = document.getElementById('em-print-container');
   if (!container) {
     container = document.createElement('div');
     container.id = 'em-print-container';
     document.body.appendChild(container);
   }
-
   let htmlAll = '';
-  targetStudents.forEach(stu => {
-    let mks = DB.marks.filter(m => (m.std ? m.std.toString() === stu.std.toString() : true) && m.roll === stu.roll);
-    if (mks.length > 0) {
-      htmlAll += generateEnglishReportCardHTML(stu.roll, stu.std, examType, mks);
-    }
+  sortedStudents.forEach(stu => {
+    let mks = DB.marks.filter(m => (m.std ? String(m.std).trim() === String(stu.std).trim() : true) && parseInt(m.roll) === parseInt(stu.roll));
+    htmlAll += generateEnglishReportCardHTML(stu.roll, stu.std, examType, mks, stu.section || 'A');
   });
-
-  if (!htmlAll) {
-    if (window.showToast) window.showToast('No examination marks available.', 'warning');
-    return;
-  }
-
   container.innerHTML = htmlAll;
-
-  // Check if html2canvas and jsPDF are available
-  if (typeof html2canvas === 'function' && window.jspdf) {
-    try {
-      if (window.showToast) window.showToast('Generating high-resolution Report Card PDF...', 'info');
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pages = container.querySelectorAll('.em-scorecard-page');
-
-      for (let i = 0; i < pages.length; i++) {
-        const pageEl = pages[i];
-        if (i > 0) pdf.addPage();
-
-        const canvas = await html2canvas(pageEl, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff'
-        });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-      }
-
-      pdf.save(`Glorious_School_Report_Cards_${classLabel || ''}${Date.now()}.pdf`);
-      if (window.showToast) window.showToast('Report Cards PDF downloaded successfully!', 'success');
-      return;
-    } catch (err) {
-      console.warn('html2canvas rendering fallback:', err);
-    }
-  }
-
-  // Fallback to print dialog
-  if (window.showToast) window.showToast('Opening print dialog. Select "Save as PDF" to export.', 'info');
   setTimeout(() => {
     window.print();
   }, 350);
@@ -969,7 +1135,6 @@ function generateBulkPDF() {
 
   const fStd = document.getElementById('report-filter-std') ? document.getElementById('report-filter-std').value.toString().toLowerCase().trim() : '';
   const fStudent = document.getElementById('report-filter-student') ? document.getElementById('report-filter-student').value.toLowerCase().trim() : '';
-  const fSub = document.getElementById('report-filter-subject') ? document.getElementById('report-filter-subject').value.trim() : '';
   const fEx = (document.getElementById('report-exam-type') ? document.getElementById('report-exam-type').value.trim() : '') || 'FIRST TERM ASSESSMENT';
 
   const targetStudents = DB.students.filter(s => {
@@ -985,44 +1150,6 @@ function generateBulkPDF() {
 
   const classLabel = (fStd && fStd !== 'all') ? `Class_${fStd}_` : '';
   downloadEnglishPDF(targetStudents, fEx, classLabel);
-  return;
-
-  if (window.showToast) window.showToast('Compiling High-Resolution PDF Marksheets...', 'info');
-
-  setTimeout(() => {
-    try {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      let pageAdded = false;
-
-      targetStudents.sort((a, b) => {
-        if (a.std !== b.std) return parseInt(a.std) - parseInt(b.std);
-        return a.roll - b.roll;
-      }).forEach(stu => {
-        let mks = DB.marks.filter(m => (m.std ? m.std.toString() === stu.std.toString() : true) && m.roll === stu.roll);
-        if (fSub) {
-          const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
-          mks = mks.filter(m => (typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject).toLowerCase() : m.subject.toLowerCase()) === cleanFSub);
-        }
-
-        if (mks.length > 0) {
-          addStudentScorecardToDoc(doc, stu.roll, !pageAdded, mks, fEx, fSub || 'All', stu.std);
-          pageAdded = true;
-        }
-      });
-
-      if (!pageAdded) {
-        if (window.showToast) window.showToast('No examination marks found for selected criteria.', 'warning');
-        return;
-      }
-
-      doc.save(`Glorious_School_Board_Marksheets_${classLabel}${Date.now()}.pdf`);
-      if (window.showToast) window.showToast('Marksheet PDF downloaded successfully!', 'success');
-    } catch (err) {
-      console.error('PDF error:', err);
-      if (window.showToast) window.showToast('Failed to generate PDF. Check console for details.', 'error');
-    }
-  }, 600);
 }
 
 // -------------------------------------------------------------

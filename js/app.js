@@ -1523,7 +1523,7 @@ function renderStudentsTable() {
         ${s.mobile ? `<i class="fa-brands fa-whatsapp text-emerald-500 mr-1"></i>${s.mobile}` : '<span class="opacity-40 italic">None</span>'}
       </td>
       <td class="p-4 text-center space-x-1.5 whitespace-nowrap">
-        <button onclick="printSingleStudent(${s.roll}, '${s.std || ''}', 'STUDENT PROGRESS REPORT')" class="bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-indigo-200 shadow-sm cursor-pointer" title="Print/Save English Report Card">
+        <button onclick="printSingleStudent(${s.roll}, '${s.std || ''}', 'STUDENT PROGRESS REPORT', '${s.section || 'A'}')" class="bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-indigo-200 shadow-sm cursor-pointer" title="Print/Save English Report Card">
           <i class="fa-solid fa-print mr-1"></i> Report Card
         </button>
         <button onclick="openParentLink(${s.roll}, '${s.std || ''}')" class="bg-white text-emerald-600 hover:bg-emerald-500 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-sm cursor-pointer" title="Open Parent Portal">
@@ -3323,7 +3323,7 @@ function renderManagementStudentDirectory(scopeStd) {
         </td>
         <td class="p-3 text-right">
           <div class="flex items-center justify-end gap-1.5">
-            <button type="button" onclick="printSingleStudent('${s.roll}', '${s.std}', 'STUDENT PROGRESS REPORT CARD')"
+            <button type="button" onclick="printSingleStudent(${parseInt(s.roll) || 0}, '${s.std || ''}', 'STUDENT PROGRESS REPORT CARD', '${s.section || 'A'}')"
               class="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[11px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Print / Download English Report Card">
               <i class="fa-solid fa-print"></i> Report Card
             </button>
@@ -3503,6 +3503,7 @@ function closeManagementStudentAiModal() {
 
 let activeParentPortalRoll = null;
 let activeParentPortalStd = null;
+let activeParentPortalSection = 'A';
 
 function showParentPortalView(roll, std) {
   hideAllViews();
@@ -3514,7 +3515,7 @@ function showParentPortalView(roll, std) {
   if (typeof findStudentByRoll === 'function') {
     student = findStudentByRoll(roll, std);
   } else {
-    student = DB.students.find(s => s.roll === roll && (!std || String(s.std) === String(std))) || DB.students.find(s => s.roll === roll);
+    student = DB.students.find(s => parseInt(s.roll) === parseInt(roll) && (!std || String(s.std) === String(std))) || DB.students.find(s => parseInt(s.roll) === parseInt(roll));
   }
 
   if (!student) {
@@ -3529,20 +3530,21 @@ function showParentPortalView(roll, std) {
     return;
   }
 
-  activeParentPortalRoll = student.roll;
+  activeParentPortalRoll = parseInt(student.roll);
   activeParentPortalStd = student.std;
+  activeParentPortalSection = student.section || 'A';
 
   document.getElementById('pp-student-name').innerText = student.name;
   document.getElementById('pp-student-roll').innerText = student.roll;
   document.getElementById('pp-student-gr').innerText = student.grNo || 'N/A';
   document.getElementById('pp-student-std').innerText = `Class ${student.std || 'N/A'} - Sec ${student.section || 'A'}`;
 
-  const peerRolls = DB.students.filter(s => String(s.std) === String(student.std)).map(s => s.roll);
+  const peerRolls = DB.students.filter(s => String(s.std) === String(student.std) && String(s.section || 'A').toUpperCase() === String(student.section || 'A').toUpperCase()).map(s => parseInt(s.roll));
 
   // Populate subject filter
   const sel = document.getElementById('pp-filter-subject');
   if (sel) {
-    const sMks = (typeof getMarksForStudent === 'function') ? getMarksForStudent(student.roll, student.std) : DB.marks.filter(m => m.roll === student.roll && (!student.std || String(m.std) === String(student.std)));
+    const sMks = (typeof getMarksForStudent === 'function') ? getMarksForStudent(student.roll, student.std, student.section || 'A') : DB.marks.filter(m => parseInt(m.roll) === parseInt(student.roll) && (!student.std || String(m.std) === String(student.std)));
     sel.innerHTML = '<option value="all">All Subjects</option>';
     [...new Set(sMks.map(m => m.subject))].forEach(s => {
       sel.innerHTML += `<option value="${s}">${typeof cleanSubjectName === 'function' ? cleanSubjectName(s) : s}</option>`;
@@ -3567,7 +3569,7 @@ function showParentPortalView(roll, std) {
 }
 
 function downloadParentMarksheetPDF() {
-  if (!activeParentPortalRoll) {
+  if (activeParentPortalRoll === null || activeParentPortalRoll === undefined) {
     showToast('No student scorecard selected.', 'warning');
     return;
   }
@@ -3577,22 +3579,22 @@ function downloadParentMarksheetPDF() {
   }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
-  const student = (typeof findStudentByRoll === 'function') ? findStudentByRoll(activeParentPortalRoll, activeParentPortalStd) : DB.students.find(s => s.roll === activeParentPortalRoll && (!activeParentPortalStd || String(s.std) === String(activeParentPortalStd)));
-  const studentMarks = (typeof getMarksForStudent === 'function') ? getMarksForStudent(activeParentPortalRoll, activeParentPortalStd) : DB.marks.filter(m => m.roll === activeParentPortalRoll && (!activeParentPortalStd || String(m.std) === String(activeParentPortalStd)));
-  addStudentScorecardToDoc(doc, activeParentPortalRoll, true, studentMarks, 'PORTAL SCORECARD', 'All', activeParentPortalStd);
+  const student = (typeof findStudentByRoll === 'function') ? findStudentByRoll(activeParentPortalRoll, activeParentPortalStd, activeParentPortalSection) : DB.students.find(s => parseInt(s.roll) === parseInt(activeParentPortalRoll) && (!activeParentPortalStd || String(s.std) === String(activeParentPortalStd)));
+  const studentMarks = (typeof getMarksForStudent === 'function') ? getMarksForStudent(activeParentPortalRoll, activeParentPortalStd, activeParentPortalSection) : DB.marks.filter(m => parseInt(m.roll) === parseInt(activeParentPortalRoll) && (!activeParentPortalStd || String(m.std) === String(activeParentPortalStd)));
+  addStudentScorecardToDoc(doc, activeParentPortalRoll, true, studentMarks, 'PORTAL SCORECARD', 'All', activeParentPortalStd, activeParentPortalSection);
   doc.save(`Official_Scorecard_${(student ? student.name : 'Student').replace(/\s+/g, '_')}_Class${activeParentPortalStd || ''}.pdf`);
-  showToast('Marksheet downloaded successfully!');
+  showToast('Marksheet downloaded successfully!', 'success');
 }
 
 function printParentMarksheet() {
-  if (!activeParentPortalRoll) {
+  if (activeParentPortalRoll === null || activeParentPortalRoll === undefined) {
     showToast('No student selected.', 'warning');
     return;
   }
   if (typeof printSingleStudent === 'function') {
-    printSingleStudent(activeParentPortalRoll, activeParentPortalStd, 'STUDENT PROGRESS REPORT CARD');
+    printSingleStudent(activeParentPortalRoll, activeParentPortalStd, 'STUDENT PROGRESS REPORT CARD', activeParentPortalSection);
   } else if (typeof printSingleStudentGujarati === 'function') {
-    printSingleStudentGujarati(activeParentPortalRoll, activeParentPortalStd, 'STUDENT PROGRESS REPORT CARD');
+    printSingleStudentGujarati(activeParentPortalRoll, activeParentPortalStd, 'STUDENT PROGRESS REPORT CARD', activeParentPortalSection);
   } else {
     showToast('Print module is initializing...', 'info');
   }
