@@ -463,15 +463,28 @@ function processParsedStudentTallyRows(rows, explicitStd = null) {
   }
 
   const headers = (rows[headerRowIdx] || []).map(h => (h ? h.toString().trim().toLowerCase() : ''));
-  const grIdx = headers.findIndex(h => h.includes('gr') || h.includes('g.r') || h.includes('general') || h.includes('reg') || h.includes('register'));
-  const rollIdx = headers.findIndex(h => h.includes('roll') || h.includes('no') || h.includes('r.no'));
-  const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('student'));
-  let stdIdx = headers.findIndex(h => h.includes('class') || h.includes('std') || h.includes('standard') || h.includes('grade'));
-  const secIdx = headers.findIndex(h => h.includes('sec') || h.includes('division') || h.includes('section'));
+  const grIdx = headers.findIndex(h => h.includes('gr') || h.includes('g.r') || h.includes('general') || h.includes('reg') || h.includes('register') || h.includes('જીઆર') || h.includes('જી.આર'));
+  let rollIdx = headers.findIndex(h => {
+    if (!h) return false;
+    const clean = h.toString().trim().toLowerCase();
+    if (clean.includes('gr') || clean.includes('g.r') || clean.includes('mobile') || clean.includes('phone') || clean.includes('contact')) return false;
+    return clean.includes('roll') || clean.includes('રોલ') || /\b(?:r\.?\s*no\.?|rno|r_no)\b/i.test(clean);
+  });
+  if (rollIdx === -1) {
+    rollIdx = headers.findIndex(h => {
+      if (!h) return false;
+      const clean = h.toString().trim().toLowerCase();
+      if (clean.includes('gr') || clean.includes('g.r') || clean.includes('mobile') || clean.includes('phone') || clean.includes('contact')) return false;
+      return /\b(?:sr\.?\s*no\.?|srno|sr_no|serial|seat\.?\s*no\.?)\b/i.test(clean) || clean.includes('અનુક્રમ') || clean.includes('ક્રમ');
+    });
+  }
+  const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('student') || h.includes('નામ') || h.includes('વિદ્યાર્થી'));
+  let stdIdx = headers.findIndex(h => h.includes('class') || h.includes('std') || h.includes('standard') || h.includes('grade') || h.includes('ધોરણ'));
+  const secIdx = headers.findIndex(h => h.includes('sec') || h.includes('division') || h.includes('section') || h.includes('વર્ગ') || h.includes('વિભાગ'));
   if (stdIdx === -1 && secIdx !== -1) {
     stdIdx = headers.findIndex((h, idx) => idx !== secIdx && (h.includes('class') || h.includes('std')));
   }
-  const mobIdx = headers.findIndex(h => h.includes('mob') || h.includes('phone') || h.includes('contact') || h.includes('whatsapp'));
+  const mobIdx = headers.findIndex(h => h.includes('mob') || h.includes('phone') || h.includes('contact') || h.includes('whatsapp') || h.includes('મોબાઈલ'));
 
   if (nameIdx === -1 && rollIdx === -1 && grIdx === -1) {
     if (window.showToast) window.showToast("Sheet must contain 'Full Name', 'Roll No', or 'GR No.'", 'error');
@@ -918,6 +931,40 @@ function parseSubjectHeader(headerStr, fallbackDate = '', fallbackTotal = 50) {
   };
 }
 
+function isDedicatedMetaCol(header) {
+  if (!header) return true;
+  const raw = header.toString().trim();
+  const lower = raw.toLowerCase();
+  const norm = lower.replace(/[()[\]{}:;.\-_/\\# ]+/g, '');
+  
+  const metaExactTokens = [
+    'gr', 'grno', 'grnum', 'generalreg', 'sr', 'srno', 'srnum', 'serial', 'serialno', 'seatno',
+    'roll', 'rollno', 'rollnum', 'rollnumber', 'rno', 'rno.', 'r.no', 'roll#',
+    'name', 'studentname', 'fullname', 'candidate', 'student',
+    'class', 'std', 'standard', 'grade',
+    'sec', 'section', 'division', 'div',
+    'mobile', 'phone', 'contact', 'whatsapp', 'cell',
+    'gender', 'dob', 'address', 'email',
+    'total', 'totalmarks', 'maxmarks', 'obtained', 'obtainedmarks',
+    'percentage', 'percent', 'pct', 'rank', 'grade', 'result',
+    'remarks', 'remark', 'status', 'attendance', 'absent', 'present',
+    // Gujarati tokens
+    'જીઆર', 'જીઆરનં', 'રોલ', 'રોલનં', 'રોલનંબર', 'અનુક્રમ', 'અનુક્રમનંબર', 'ક્રમ',
+    'નામ', 'વિદ્યાર્થી', 'વિદ્યાર્થીનુંનામ', 'ધોરણ', 'વર્ગ', 'વિભાગ', 'શાખા', 'ટુકડી',
+    'મોબાઈલ', 'ફોન', 'સંપર્ક', 'તારીખ', 'કુલ', 'ટકા', 'પરિણામ', 'ગ્રેડ', 'નંબર'
+  ];
+
+  if (metaExactTokens.includes(norm)) return true;
+
+  // Pattern matches
+  if (/\b(?:roll|roll\s*no\.?|roll\s*number|r\.?\s*no\.?|sr\.?\s*no\.?|serial\s*no\.?|gr\.?\s*no\.?|g\.?\s*r\.?|student\s*name|full\s*name)\b/i.test(lower)) return true;
+  if (/\b(?:total\s*marks?|max\s*marks?|marks?\s*obtained|percentage|percent|rank|grade|result|attendance)\b/i.test(lower)) return true;
+  if (lower.includes('રોલ') || lower.includes('જી.આર') || lower.includes('અનુક્રમ')) return true;
+
+  return false;
+}
+window.isDedicatedMetaCol = isDedicatedMetaCol;
+
 function processParsedExcelMarks(rows, explicitTargetStd = null) {
   const toEngDigits = (str) => {
     if (str === null || str === undefined) return '';
@@ -928,11 +975,29 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
   // Normalize header row
   const rawHeaders = rows[0].map(h => (h ? h.toString().trim().toLowerCase() : ''));
   
-  // Find key column indexes (standard English)
-  let grIdx = rawHeaders.findIndex(h => h.includes('gr') || h.includes('g.r') || h.includes('reg') || h.includes('register'));
-  let nameIdx = rawHeaders.findIndex(h => h.includes('name') || h.includes('student'));
-  let rollIdx = rawHeaders.findIndex(h => h.includes('roll') || h.includes('no') || h.includes('r.no'));
-  let stdIdx = rawHeaders.findIndex(h => h.includes('class') || h.includes('std') || h.includes('grade'));
+  // Find key column indexes (standard English & Gujarati)
+  let grIdx = rawHeaders.findIndex(h => h.includes('gr') || h.includes('g.r') || h.includes('reg') || h.includes('register') || h.includes('જીઆર') || h.includes('જી.આર'));
+  let nameIdx = rawHeaders.findIndex(h => h.includes('name') || h.includes('student') || h.includes('નામ') || h.includes('વિદ્યાર્થી'));
+  
+  // Find rollIdx with strict precision (NEVER match 'no' alone as it collides with 'gr no', 'sr no', 'economics', etc.)
+  let rollIdx = rawHeaders.findIndex(h => {
+    if (!h) return false;
+    const clean = h.toString().trim().toLowerCase();
+    if (clean.includes('gr') || clean.includes('g.r') || clean.includes('mobile') || clean.includes('phone') || clean.includes('contact')) return false;
+    return clean.includes('roll') || clean.includes('રોલ') || /\b(?:r\.?\s*no\.?|rno|r_no)\b/i.test(clean);
+  });
+  // Fallback: Check serial/sequence number ONLY if no explicit roll column was found
+  if (rollIdx === -1) {
+    rollIdx = rawHeaders.findIndex(h => {
+      if (!h) return false;
+      const clean = h.toString().trim().toLowerCase();
+      if (clean.includes('gr') || clean.includes('g.r') || clean.includes('mobile') || clean.includes('phone') || clean.includes('contact')) return false;
+      return /\b(?:sr\.?\s*no\.?|srno|sr_no|serial|seat\.?\s*no\.?)\b/i.test(clean) || clean.includes('અનુક્રમ') || clean.includes('ક્રમ');
+    });
+  }
+
+  let secIdx = rawHeaders.findIndex(h => h.includes('sec') || h.includes('division') || h.includes('section') || h.includes('વર્ગ') || h.includes('વિભાગ'));
+  let stdIdx = rawHeaders.findIndex((h, idx) => idx !== secIdx && (h.includes('class') || h.includes('std') || h.includes('grade') || h.includes('standard') || h.includes('ધોરણ')));
 
   if (rollIdx === -1 && nameIdx === -1 && grIdx === -1) {
     if (window.showToast) window.showToast("Excel must contain at least 'Roll No' or 'Student Name' or 'GR No.'", 'error');
@@ -957,20 +1022,21 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
   if (isMultiSubject) {
     const subjectCols = [];
     rows[0].forEach((colName, idx) => {
-      if (idx !== grIdx && idx !== nameIdx && idx !== rollIdx && idx !== stdIdx) {
-        const cleanName = colName ? colName.toString().trim() : '';
-        const lowerName = cleanName.toLowerCase();
-        if (cleanName && !['class', 'std', 'section', 'mobile', 'date'].some(ign => lowerName.includes(ign))) {
-          const parsed = parseSubjectHeader(cleanName, defaultDate, defaultTotal);
-          subjectCols.push({
-            index: idx,
-            rawHeader: cleanName,
-            subject: parsed.subject,
-            date: parsed.date,
-            total: parsed.total
-          });
-        }
-      }
+      if (idx === grIdx || idx === nameIdx || idx === rollIdx || idx === stdIdx || idx === secIdx) return;
+      const cleanName = colName ? colName.toString().trim() : '';
+      if (!cleanName) return;
+      if (isDedicatedMetaCol(cleanName)) return;
+
+      const parsed = parseSubjectHeader(cleanName, defaultDate, defaultTotal);
+      if (!parsed.subject || isDedicatedMetaCol(parsed.subject)) return;
+
+      subjectCols.push({
+        index: idx,
+        rawHeader: cleanName,
+        subject: parsed.subject,
+        date: parsed.date,
+        total: parsed.total
+      });
     });
 
     for (let r = 1; r < rows.length; r++) {
@@ -1105,6 +1171,7 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
 
       const parsedSubj = parseSubjectHeader(subject, date, total);
       subject = parsedSubj.subject;
+      if (isDedicatedMetaCol(subject)) continue;
       if (dateIdx === -1 && parsedSubj.date) date = parsedSubj.date;
       if (totalIdx === -1 && parsedSubj.total) total = parsedSubj.total;
       date = normalizeDateYMD(date);
@@ -1121,6 +1188,7 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
         ensureStudentRecord(roll, grNo, name, rowStd);
         const targetRoll = roll || (name ? getRollByName(name, rowStd) : 0);
         const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(subject) : subject;
+        if (isDedicatedMetaCol(cleanSub)) continue;
 
         const ex = DB.marks.find(m => 
           (m.std ? m.std.toString() === rowStd.toString() : true) &&
@@ -1158,6 +1226,11 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
         }
       }
     }
+  }
+
+  // Safety purge: Ensure no marks with corrupted metadata names remain in database
+  if (Array.isArray(DB.marks)) {
+    DB.marks = DB.marks.filter(m => m && m.subject && !isDedicatedMetaCol(m.subject));
   }
 
   saveDatabase();

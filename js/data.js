@@ -244,6 +244,16 @@ function initDatabase() {
       }
     });
 
+    // Purge corrupted marks where Roll No or student metadata was inadvertently stored as a subject
+    if (Array.isArray(DB.marks)) {
+      const invalidSubjectRegex = /^(?:roll(?:\s*no\.?|\s*number)?|r\.?no\.?|sr(?:\s*no\.?|\s*number)?|gr(?:\s*no\.?|\s*number)?|name|student(?:\s*name)?|class|std|section|total|percentage|grade|rank|mobile)$/i;
+      DB.marks = DB.marks.filter(m => {
+        if (!m || !m.subject) return false;
+        const s = m.subject.toString().trim();
+        return !invalidSubjectRegex.test(s) && !invalidSubjectRegex.test(s.replace(/[()[\]{}:;.\-_/\\# ]+/g, ''));
+      });
+    }
+
     saveDatabase();
   } catch (err) {
     console.error('Error initializing database:', err);
