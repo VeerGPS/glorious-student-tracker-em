@@ -494,41 +494,83 @@ function processParsedStudentTallyRows(rows, explicitStd = null) {
     let rowStdRaw = (stdIdx !== -1 && row[stdIdx] && row[stdIdx].toString().trim()) ? toEngDigits(row[stdIdx].toString().trim()) : targetStd;
     let rowStd = rowStdRaw.replace(/[^0-9]/g, '') || targetStd;
 
-    // If teacher has assigned classrooms, constrain rowStd to assignedClasses
-    if (assignedClasses.length > 0 && !assignedClasses.includes(rowStd)) {
-      rowStd = targetStd;
-    }
-
     let rowSec = secIdx !== -1 && row[secIdx] ? row[secIdx].toString().trim().toUpperCase() : 'A';
+    if (rowSec === 'અ' || rowSec === 'A') rowSec = 'A';
+    else if (rowSec === 'બ' || rowSec === 'B') rowSec = 'B';
+    else if (rowSec === 'ક' || rowSec === 'C') rowSec = 'C';
+    else if (rowSec === 'ડ' || rowSec === 'D') rowSec = 'D';
+    else if (!rowSec) rowSec = 'A';
 
     const rowMob = mobIdx !== -1 && row[mobIdx] ? toEngDigits(row[mobIdx].toString().trim()).replace(/[^0-9+]/g, '') : '';
 
     if (!rowName && !rawRoll && !rowGr) continue;
 
-    const classRolls = DB.students.filter(s => s.std.toString() === rowStd.toString()).map(s => s.roll);
-    const roll = rawRoll || (classRolls.length > 0 ? Math.max(...classRolls) + 1 : 101);
-    const grNo = rowGr || `GR-${new Date().getFullYear()}-${rowStd}-${String(roll).padStart(3, '0')}`;
-    const name = rowName || `Student ${roll}`;
+    const isCorruptName = !rowName || rowName.includes('???') || /^[?\s.-]{3,}$/.test(rowName.trim());
 
-    // Look for existing student by GR or by (std, roll)
+    // 1. Match strictly by (same class, same section, same roll)
     let existing = null;
-    if (rowGr) {
-      existing = DB.students.find(s => s.grNo && s.grNo.toLowerCase() === rowGr.toLowerCase());
+    if (rawRoll) {
+      existing = DB.students.find(s => 
+        String(s.std).trim() === String(rowStd).trim() && 
+        String(s.section || 'A').trim().toUpperCase() === rowSec.toUpperCase() && 
+        s.roll === rawRoll
+      );
     }
+
+    // 2. Next match strictly by (same class, matching GR number)
+    if (!existing && rowGr) {
+      const normGr = String(rowGr).trim().toLowerCase();
+      existing = DB.students.find(s => 
+        String(s.std).trim() === String(rowStd).trim() && 
+        s.grNo && String(s.grNo).trim().toLowerCase() === normGr &&
+        (!rowName || !s.name || s.name.trim().toLowerCase() === rowName.toLowerCase() || s.name.includes('???') || rowName.includes('???') || isCorruptName || s.roll === rawRoll)
+      );
+    }
+
+    // 3. Fallback: match by (same class, same section, exact name)
+    if (!existing && rowName && !isCorruptName && rowName.length > 2) {
+      existing = DB.students.find(s => 
+        String(s.std).trim() === String(rowStd).trim() && 
+        String(s.section || 'A').trim().toUpperCase() === rowSec.toUpperCase() && 
+        s.name && String(s.name).trim().toLowerCase() === rowName.toLowerCase()
+      );
+    }
+
+    let roll = rawRoll;
+    const sectionRolls = DB.students
+      .filter(s => String(s.std).trim() === String(rowStd).trim() && String(s.section || 'A').trim().toUpperCase() === rowSec.toUpperCase())
+      .map(s => s.roll)
+      .filter(r => typeof r === 'number' && !isNaN(r));
+
     if (!existing) {
-      existing = DB.students.find(s => s.std.toString() === rowStd.toString() && s.roll === roll);
+      if (!roll) {
+        roll = sectionRolls.length > 0 ? Math.max(...sectionRolls) + 1 : 1;
+      } else if (sectionRolls.includes(roll)) {
+        const maxRoll = sectionRolls.length > 0 ? Math.max(...sectionRolls) : 0;
+        roll = maxRoll + 1;
+      }
+    } else {
+      if (rawRoll && (!sectionRolls.includes(rawRoll) || existing.roll === rawRoll)) {
+        roll = rawRoll;
+      } else {
+        roll = existing.roll;
+      }
     }
+
+    const grNo = rowGr || (existing && existing.grNo) || `GR-${new Date().getFullYear()}-${rowStd}-${String(roll).padStart(3, '0')}`;
+    const name = rowName || (existing ? existing.name : `Student ${roll}`);
 
     if (existing) {
       existing.name = name;
       existing.std = rowStd.toString();
       existing.section = rowSec || existing.section || 'A';
+      existing.roll = roll;
       if (rowMob) existing.mobile = rowMob;
       if (rowGr) existing.grNo = rowGr;
       updatedCount++;
     } else {
       DB.students.push({
-        id: Date.now() + Math.floor(Math.random() * 100000),
+        id: Date.now() + Math.floor(Math.random() * 1000000),
         grNo: grNo,
         roll: roll,
         name: name,

@@ -21,6 +21,8 @@ let teacherSetupState = {
 // Charts instances
 let batchChartInst = null;
 let radarChartInst = null;
+let ppRadarChartInst = null;
+let mgmtStudentAiRadarChartInst = null;
 let gradeChartInst = null;
 let trendChartInst = null;
 
@@ -1950,8 +1952,121 @@ function deleteRecord(id) {
 }
 
 // -------------------------------------------------------------
-// AI INSIGHTS ENGINE
+// AI INSIGHTS ENGINE (CORE COMPUTATION & MULTI-VIEW DIAGNOSTICS)
 // -------------------------------------------------------------
+
+function computeStudentAiInsights(roll, std) {
+  const r = parseInt(roll);
+  const sStd = (std !== undefined && std !== null && String(std) !== '') ? String(std) : null;
+  const stu = (typeof findStudentByRoll === 'function')
+    ? findStudentByRoll(r, sStd)
+    : (DB.students ? DB.students.find(s => s.roll === r && (!sStd || String(s.std) === sStd)) : null);
+
+  const studentMarks = (typeof getMarksForStudent === 'function')
+    ? getMarksForStudent(r, stu ? stu.std : sStd)
+    : (DB.marks ? DB.marks.filter(m => m.roll === r && (!sStd || String(m.std) === sStd)) : []);
+
+  if (!stu || studentMarks.length === 0) {
+    return {
+      hasData: false,
+      student: stu,
+      marksCount: studentMarks.length,
+      overallPct: 0,
+      labels: [],
+      chartData: [],
+      strengths: [],
+      weaknesses: [],
+      topSubject: 'None',
+      focusSubject: 'None',
+      recommendation: 'Awaiting assessment marks to generate personalized AI Insights.',
+      tier: 'unranked'
+    };
+  }
+
+  const stats = {};
+  let overallO = 0, overallT = 0;
+
+  studentMarks.forEach(m => {
+    const rawSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+    const sub = rawSub || 'General';
+    if (!stats[sub]) stats[sub] = { o: 0, t: 0, c: 0, ab: 0 };
+    stats[sub].t += m.total;
+    stats[sub].c++;
+    if (m.isAbsent) stats[sub].ab++;
+    else stats[sub].o += m.marks;
+  });
+
+  const lbls = [];
+  const chartData = [];
+  const strengths = [];
+  const weaknesses = [];
+  let topSub = null, topSubPct = -1;
+  let focusSub = null, focusSubPct = 999;
+
+  for (let s in stats) {
+    lbls.push(s);
+    overallO += stats[s].o;
+    overallT += stats[s].t;
+    const pct = stats[s].t > 0 ? (stats[s].o / stats[s].t) * 100 : 0;
+    chartData.push(Number(pct.toFixed(1)));
+
+    if (pct > topSubPct) {
+      topSubPct = pct;
+      topSub = s;
+    }
+    if (pct < focusSubPct) {
+      focusSubPct = pct;
+      focusSub = s;
+    }
+
+    if (stats[s].c >= 2) {
+      if (pct >= 75) strengths.push(`${s}: ${pct.toFixed(0)}% (Strong Proficiency)`);
+      if (pct < 50) weaknesses.push(`${s}: ${pct.toFixed(0)}% (Needs Intensive Review)`);
+    } else {
+      if (pct >= 80) strengths.push(`${s}: ${pct.toFixed(0)}% (High Initial Mastery)`);
+      if (pct < 40) weaknesses.push(`${s}: ${pct.toFixed(0)}% (At Risk - Foundational Deficit)`);
+    }
+
+    if (stats[s].ab > 0) weaknesses.push(`${s}: Repeated Absenteeism Recorded (${stats[s].ab} test${stats[s].ab > 1 ? 's' : ''})`);
+  }
+
+  const oPct = overallT > 0 ? (overallO / overallT) * 100 : 0;
+  const firstName = stu.name ? stu.name.split(' ')[0] : 'The student';
+  let aiMsg = '';
+  let tier = 'steady';
+
+  if (oPct > 85) {
+    tier = 'exceptional';
+    aiMsg = `🏆 **Exceptional Aptitude**: ${firstName} is performing at an outstanding level (${oPct.toFixed(1)}%). Recommend olympiad preparation, advanced problem-solving worksheets, and leadership peer-tutoring.`;
+  } else if (oPct > 60) {
+    tier = 'steady';
+    aiMsg = `📈 **Steady Foundations**: ${firstName} demonstrates consistent understanding (${oPct.toFixed(1)}%). Focused revisions in weaker subject topics (${focusSub || 'core areas'}) will push them directly into the 90%+ percentile bracket.`;
+  } else if (oPct > 40) {
+    tier = 'intervention';
+    aiMsg = `⚠️ **Targeted Intervention Required**: ${firstName} (${oPct.toFixed(1)}%) requires structured daily problem practice and weekly concept checks to stabilize test confidence.`;
+  } else {
+    tier = 'critical';
+    aiMsg = `🚨 **High Priority Support Alert**: Overall academic performance is critically low (${oPct.toFixed(1)}%). Immediate Parent-Teacher Consultation and customized remediation plan recommended.`;
+  }
+
+  return {
+    hasData: true,
+    student: stu,
+    marksCount: studentMarks.length,
+    overallObtained: overallO,
+    overallTotal: overallT,
+    overallPct: oPct,
+    labels: lbls,
+    chartData: chartData,
+    strengths: strengths,
+    weaknesses: weaknesses,
+    topSubject: topSub ? `${topSub} (${topSubPct.toFixed(0)}%)` : 'N/A',
+    focusSubject: focusSub ? `${focusSub} (${focusSubPct.toFixed(0)}%)` : 'N/A',
+    recommendation: aiMsg,
+    tier: tier,
+    stats: stats
+  };
+}
 
 function populateAnalyticsSelect() {
   const sel = document.getElementById('analytics-student-select');
@@ -1971,7 +2086,7 @@ function populateAnalyticsSelect() {
 
 function renderAnalytics() {
   const sel = document.getElementById('analytics-student-select');
-  const val = sel.value;
+  const val = sel ? sel.value : '';
   const content = document.getElementById('analytics-content');
   const empty = document.getElementById('analytics-empty');
 
@@ -1990,10 +2105,9 @@ function renderAnalytics() {
     roll = parseInt(val);
   }
 
-  const stu = (typeof findStudentByRoll === 'function') ? findStudentByRoll(roll, std) : DB.students.find(s => s.roll === roll && (!std || String(s.std) === String(std)));
-  const studentMarks = (typeof getMarksForStudent === 'function') ? getMarksForStudent(roll, stu ? stu.std : std) : DB.marks.filter(m => m.roll === roll && (!std || String(m.std) === String(std)));
+  const insights = computeStudentAiInsights(roll, std);
 
-  if (studentMarks.length === 0) {
+  if (!insights.hasData) {
     if (empty) {
       empty.innerHTML = `
         <div class="py-12">
@@ -2004,45 +2118,15 @@ function renderAnalytics() {
       empty.classList.remove('hidden');
     }
     if (content) content.classList.add('hidden');
+    if (radarChartInst) {
+      radarChartInst.destroy();
+      radarChartInst = null;
+    }
     return;
   }
 
   if (content) content.classList.remove('hidden');
   if (empty) empty.classList.add('hidden');
-
-  const stats = {};
-  let overallO = 0, overallT = 0;
-
-  studentMarks.forEach(m => {
-    if (!stats[m.subject]) stats[m.subject] = { o: 0, t: 0, c: 0, ab: 0 };
-    stats[m.subject].t += m.total;
-    stats[m.subject].c++;
-    if (m.isAbsent) stats[m.subject].ab++;
-    else stats[m.subject].o += m.marks;
-  });
-
-  const lbls = [];
-  const chartData = [];
-  const strengths = [];
-  const weaknesses = [];
-
-  for (let s in stats) {
-    lbls.push(s);
-    overallO += stats[s].o;
-    overallT += stats[s].t;
-    const pct = stats[s].t > 0 ? (stats[s].o / stats[s].t) * 100 : 0;
-    chartData.push(pct.toFixed(1));
-
-    if (stats[s].c >= 2) {
-      if (pct >= 75) strengths.push(`${s}: ${pct.toFixed(0)}% (Strong Proficiency)`);
-      if (pct < 50) weaknesses.push(`${s}: ${pct.toFixed(0)}% (Needs Intensive Review)`);
-    } else {
-      if (pct >= 80) strengths.push(`${s}: ${pct.toFixed(0)}% (High Initial Mastery)`);
-      if (pct < 40) weaknesses.push(`${s}: ${pct.toFixed(0)}% (At Risk - Foundational Deficit)`);
-    }
-
-    if (stats[s].ab > 0) weaknesses.push(`${s}: Repeated Absenteeism Recorded`);
-  }
 
   // Radar Chart
   const radarCanvas = document.getElementById('radarChart');
@@ -2052,10 +2136,10 @@ function renderAnalytics() {
     radarChartInst = new Chart(ctx, {
       type: 'radar',
       data: {
-        labels: lbls,
+        labels: insights.labels,
         datasets: [{
           label: 'Proficiency %',
-          data: chartData,
+          data: insights.chartData,
           backgroundColor: 'rgba(217, 70, 239, 0.25)',
           borderColor: '#d946ef',
           pointBackgroundColor: '#a855f7',
@@ -2079,29 +2163,114 @@ function renderAnalytics() {
     });
   }
 
-  document.getElementById('strength-list').innerHTML = strengths.length ? 
-    strengths.map(s => `<li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-500"></i> ${s}</li>`).join('') :
-    '<li class="opacity-70">Awaiting more assessments for strong skill patterns.</li>';
-
-  document.getElementById('weakness-list').innerHTML = weaknesses.length ? 
-    weaknesses.map(w => `<li class="flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-rose-500"></i> ${w}</li>`).join('') :
-    '<li class="opacity-70 text-emerald-600 font-bold">No critical academic weaknesses identified!</li>';
-
-  const oPct = overallT > 0 ? (overallO / overallT) * 100 : 0;
-  const firstName = stu ? stu.name.split(' ')[0] : 'The student';
-  let aiMsg = '';
-
-  if (oPct > 85) {
-    aiMsg = `🏆 **Exceptional Aptitude**: ${firstName} is performing at an outstanding level (${oPct.toFixed(1)}%). Recommend olympiad preparation, advanced problem-solving worksheets, and leadership peer-tutoring.`;
-  } else if (oPct > 60) {
-    aiMsg = `📈 **Steady Foundations**: ${firstName} demonstrates consistent understanding (${oPct.toFixed(1)}%). Focused revisions in weaker subject topics will push them directly into the 90%+ percentile bracket.`;
-  } else if (oPct > 40) {
-    aiMsg = `⚠️ **Targeted Intervention Required**: ${firstName} (${oPct.toFixed(1)}%) requires structured daily problem practice and weekly concept checks to stabilize test confidence.`;
-  } else {
-    aiMsg = `🚨 **High Priority Support Alert**: Overall academic performance is critically low (${oPct.toFixed(1)}%). Immediate Parent-Teacher Consultation and customized remediation plan recommended.`;
+  const strengthEl = document.getElementById('strength-list');
+  if (strengthEl) {
+    strengthEl.innerHTML = insights.strengths.length ? 
+      insights.strengths.map(s => `<li class="flex items-center gap-2"><i class="fa-solid fa-check text-emerald-500"></i> ${s}</li>`).join('') :
+      '<li class="opacity-70">Awaiting more assessments for strong skill patterns.</li>';
   }
 
-  document.getElementById('ai-recommendation').innerHTML = aiMsg;
+  const weaknessEl = document.getElementById('weakness-list');
+  if (weaknessEl) {
+    weaknessEl.innerHTML = insights.weaknesses.length ? 
+      insights.weaknesses.map(w => `<li class="flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-rose-500"></i> ${w}</li>`).join('') :
+      '<li class="opacity-70 text-emerald-600 font-bold">No critical academic weaknesses identified!</li>';
+  }
+
+  const recEl = document.getElementById('ai-recommendation');
+  if (recEl) {
+    recEl.innerHTML = insights.recommendation;
+  }
+}
+
+// -------------------------------------------------------------
+// PARENT PORTAL AI INSIGHTS VIEW
+// -------------------------------------------------------------
+
+function renderParentPortalAiInsights(roll, std) {
+  const insights = computeStudentAiInsights(roll, std);
+  const emptyEl = document.getElementById('pp-ai-empty');
+  const contentEl = document.getElementById('pp-ai-content');
+  const scoreLabel = document.getElementById('pp-ai-score-label');
+  const strengthList = document.getElementById('pp-strength-list');
+  const weaknessList = document.getElementById('pp-weakness-list');
+  const recEl = document.getElementById('pp-ai-recommendation');
+  const radarCanvas = document.getElementById('ppRadarChart');
+
+  if (!insights.hasData) {
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    if (contentEl) contentEl.classList.add('hidden');
+    if (scoreLabel) scoreLabel.textContent = 'No Test Data';
+    if (ppRadarChartInst) {
+      ppRadarChartInst.destroy();
+      ppRadarChartInst = null;
+    }
+    return;
+  }
+
+  if (emptyEl) emptyEl.classList.add('hidden');
+  if (contentEl) contentEl.classList.remove('hidden');
+  if (scoreLabel) scoreLabel.textContent = `${insights.overallPct.toFixed(1)}% Skill Mastery`;
+
+  if (strengthList) {
+    strengthList.innerHTML = insights.strengths.length
+      ? insights.strengths.map(s => `<li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-600 text-xs"></i> <span>${s}</span></li>`).join('')
+      : '<li class="text-slate-400 italic font-normal">Awaiting more assessments for strong skill patterns.</li>';
+  }
+
+  if (weaknessList) {
+    weaknessList.innerHTML = insights.weaknesses.length
+      ? insights.weaknesses.map(w => `<li class="flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-amber-600 text-xs"></i> <span>${w}</span></li>`).join('')
+      : '<li class="text-emerald-700 font-bold flex items-center gap-2"><i class="fa-solid fa-check text-emerald-600"></i> No critical academic weaknesses identified!</li>';
+  }
+
+  if (recEl) {
+    recEl.innerHTML = insights.recommendation;
+  }
+
+  // Draw Radar Chart
+  if (typeof Chart !== 'undefined' && radarCanvas && typeof radarCanvas.getContext === 'function') {
+    const ctx = radarCanvas.getContext('2d');
+    if (ppRadarChartInst) ppRadarChartInst.destroy();
+
+    ppRadarChartInst = new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels: insights.labels,
+        datasets: [{
+          label: 'Proficiency %',
+          data: insights.chartData,
+          backgroundColor: 'rgba(217, 70, 239, 0.25)',
+          borderColor: '#d946ef',
+          pointBackgroundColor: '#a855f7',
+          pointBorderColor: '#ffffff',
+          pointHoverRadius: 6,
+          borderWidth: 2.5,
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            angleLines: { color: 'rgba(0,0,0,0.06)' },
+            grid: { color: 'rgba(0,0,0,0.06)' },
+            pointLabels: { font: { size: 11, weight: '700' }, color: '#334155' },
+            ticks: { display: false, max: 100, min: 0 }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.label}: ${ctx.parsed.r}%`
+            }
+          }
+        }
+      }
+    });
+  }
 }
 
 // -------------------------------------------------------------
@@ -3044,9 +3213,14 @@ function renderManagementTopPerformers(scopeStd) {
                     <div class="text-xs font-black ${s.pct >= 75 ? 'text-emerald-700' : (s.pct >= 50 ? 'text-teal-700' : 'text-slate-600')}">
                       ${s.pct > 0 ? s.pct.toFixed(1) + '%' : '-'}
                     </div>
-                    <button type="button" onclick="openManagementParentPortal('${s.roll}', '${s.std}')" class="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer">
-                      Portal &rarr;
-                    </button>
+                    <div class="flex items-center gap-2 justify-end mt-0.5">
+                      <button type="button" onclick="openManagementStudentAiInsights('${s.roll}', '${s.std}')" class="text-[10px] font-bold text-purple-600 hover:underline cursor-pointer flex items-center gap-0.5">
+                        <i class="fa-solid fa-brain text-[9px]"></i> AI &rarr;
+                      </button>
+                      <button type="button" onclick="openManagementParentPortal('${s.roll}', '${s.std}')" class="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer">
+                        Portal &rarr;
+                      </button>
+                    </div>
                   </div>
                 </div>
               `;
@@ -3153,6 +3327,10 @@ function renderManagementStudentDirectory(scopeStd) {
               class="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-[11px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="Print / Download English Report Card">
               <i class="fa-solid fa-print"></i> Report Card
             </button>
+            <button type="button" onclick="openManagementStudentAiInsights('${s.roll}', '${s.std}')"
+              class="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-[11px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer" title="View AI Insights Diagnostics">
+              <i class="fa-solid fa-brain"></i> AI Insights
+            </button>
             <button type="button" onclick="openManagementParentPortal('${s.roll}', '${s.std}')"
               class="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-[11px] font-bold shadow-sm transition-all flex items-center gap-1 cursor-pointer">
               <i class="fa-solid fa-arrow-up-right-from-square"></i> Portal
@@ -3172,6 +3350,150 @@ function openManagementParentPortal(roll, std) {
   if (returnBtn) {
     returnBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> Return to Management Dashboard';
     returnBtn.onclick = () => showManagementDashboard();
+  }
+}
+
+let activeMgmtAiStudent = null;
+
+function openManagementStudentAiInsights(roll, std) {
+  const r = parseInt(roll);
+  const sStd = (std !== undefined && std !== null && String(std) !== '') ? String(std) : null;
+  const insights = computeStudentAiInsights(r, sStd);
+  const modal = document.getElementById('mgmt-student-ai-modal');
+  if (!modal) return;
+
+  const stu = insights.student || (typeof findStudentByRoll === 'function' ? findStudentByRoll(r, sStd) : (DB.students ? DB.students.find(s => s.roll === r) : null));
+  if (!stu) {
+    showToast('Student record not found.', 'error');
+    return;
+  }
+
+  activeMgmtAiStudent = { roll: stu.roll, std: stu.std };
+
+  const nameEl = document.getElementById('mgmt-ai-stu-name');
+  const badgeEl = document.getElementById('mgmt-ai-stu-badge');
+  const subEl = document.getElementById('mgmt-ai-stu-sub');
+
+  if (nameEl) nameEl.textContent = stu.name;
+  if (badgeEl) badgeEl.textContent = `Class ${stu.std || '-'}-${stu.section || 'A'}`;
+  if (subEl) subEl.textContent = `Roll: ${stu.roll} • GR: ${stu.grNo || 'N/A'} • Executive AI Diagnostic Evaluation`;
+
+  const emptyEl = document.getElementById('mgmt-ai-empty');
+  const contentEl = document.getElementById('mgmt-ai-content');
+  const recBoxEl = document.getElementById('mgmt-ai-rec-box');
+
+  const statPct = document.getElementById('mgmt-ai-stat-pct');
+  const statTests = document.getElementById('mgmt-ai-stat-tests');
+  const statTop = document.getElementById('mgmt-ai-stat-top');
+  const statFocus = document.getElementById('mgmt-ai-stat-focus');
+
+  const strengthsList = document.getElementById('mgmt-ai-strengths');
+  const weaknessesList = document.getElementById('mgmt-ai-weaknesses');
+  const recEl = document.getElementById('mgmt-ai-recommendation');
+  const radarCanvas = document.getElementById('mgmtStudentAiRadarChart');
+
+  const portalBtn = document.getElementById('mgmt-ai-btn-portal');
+  if (portalBtn) {
+    portalBtn.onclick = () => {
+      closeManagementStudentAiModal();
+      openManagementParentPortal(stu.roll, stu.std);
+    };
+  }
+
+  if (!insights.hasData) {
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    if (contentEl) contentEl.classList.add('hidden');
+    if (recBoxEl) recBoxEl.classList.add('hidden');
+    if (statPct) statPct.textContent = '0%';
+    if (statTests) statTests.textContent = '0';
+    if (statTop) statTop.textContent = 'None';
+    if (statFocus) statFocus.textContent = 'None';
+    if (mgmtStudentAiRadarChartInst) {
+      mgmtStudentAiRadarChartInst.destroy();
+      mgmtStudentAiRadarChartInst = null;
+    }
+    modal.classList.remove('hidden');
+    return;
+  }
+
+  if (emptyEl) emptyEl.classList.add('hidden');
+  if (contentEl) contentEl.classList.remove('hidden');
+  if (recBoxEl) recBoxEl.classList.remove('hidden');
+
+  if (statPct) statPct.textContent = `${insights.overallPct.toFixed(1)}%`;
+  if (statTests) statTests.textContent = String(insights.marksCount);
+  if (statTop) statTop.textContent = insights.topSubject;
+  if (statFocus) statFocus.textContent = insights.focusSubject;
+
+  if (strengthsList) {
+    strengthsList.innerHTML = insights.strengths.length
+      ? insights.strengths.map(s => `<li class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-emerald-600 text-xs"></i> <span>${s}</span></li>`).join('')
+      : '<li class="text-slate-400 italic font-normal">Awaiting multiple tests to detect strong mastery.</li>';
+  }
+
+  if (weaknessesList) {
+    weaknessesList.innerHTML = insights.weaknesses.length
+      ? insights.weaknesses.map(w => `<li class="flex items-center gap-2"><i class="fa-solid fa-triangle-exclamation text-rose-600 text-xs"></i> <span>${w}</span></li>`).join('')
+      : '<li class="text-emerald-700 font-bold flex items-center gap-2"><i class="fa-solid fa-check text-emerald-600"></i> No critical academic weaknesses detected!</li>';
+  }
+
+  if (recEl) {
+    recEl.innerHTML = insights.recommendation;
+  }
+
+  // Draw Radar Chart
+  if (typeof Chart !== 'undefined' && radarCanvas && typeof radarCanvas.getContext === 'function') {
+    const ctx = radarCanvas.getContext('2d');
+    if (mgmtStudentAiRadarChartInst) mgmtStudentAiRadarChartInst.destroy();
+
+    mgmtStudentAiRadarChartInst = new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels: insights.labels,
+        datasets: [{
+          label: 'Proficiency %',
+          data: insights.chartData,
+          backgroundColor: 'rgba(147, 51, 234, 0.25)',
+          borderColor: '#9333ea',
+          pointBackgroundColor: '#7e22ce',
+          pointBorderColor: '#ffffff',
+          pointHoverRadius: 6,
+          borderWidth: 2.5,
+          tension: 0.2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            angleLines: { color: 'rgba(0,0,0,0.06)' },
+            grid: { color: 'rgba(0,0,0,0.06)' },
+            pointLabels: { font: { size: 11, weight: '700' }, color: '#334155' },
+            ticks: { display: false, max: 100, min: 0 }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.label}: ${ctx.parsed.r}%`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeManagementStudentAiModal() {
+  const modal = document.getElementById('mgmt-student-ai-modal');
+  if (modal) modal.classList.add('hidden');
+  if (mgmtStudentAiRadarChartInst) {
+    mgmtStudentAiRadarChartInst.destroy();
+    mgmtStudentAiRadarChartInst = null;
   }
 }
 
@@ -3234,6 +3556,7 @@ function showParentPortalView(roll, std) {
   if (tDateEl) tDateEl.onchange = () => renderParentPortalTable(student.roll, peerRolls, student.std);
 
   renderParentPortalTable(student.roll, peerRolls, student.std);
+  renderParentPortalAiInsights(student.roll, student.std);
 
   // Bind PDF & Excel triggers
   const pdfBtn = document.getElementById('pp-btn-std-pdf');
@@ -3910,3 +4233,7 @@ window.renderManagementTopPerformers = renderManagementTopPerformers;
 window.renderManagementStudentDirectory = renderManagementStudentDirectory;
 window.openManagementParentPortal = openManagementParentPortal;
 window.renderParentPortalStudentChart = renderParentPortalStudentChart;
+window.computeStudentAiInsights = computeStudentAiInsights;
+window.renderParentPortalAiInsights = renderParentPortalAiInsights;
+window.openManagementStudentAiInsights = openManagementStudentAiInsights;
+window.closeManagementStudentAiModal = closeManagementStudentAiModal;
