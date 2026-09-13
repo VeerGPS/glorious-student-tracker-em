@@ -2976,18 +2976,22 @@ function renderManagementFacultyRoster() {
           </p>
           <div class="text-xs text-slate-500 space-y-1.5 mb-4">
             <div><strong class="text-slate-700">Contact:</strong> ${t.mobile || '-'}</div>
+            <div><strong class="text-slate-700">Password:</strong> <span class="font-mono font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md text-[11px]">${t.password || '******'}</span></div>
             <div><strong class="text-slate-700">Classes:</strong> ${classLabels}</div>
           </div>
         </div>
-        <div class="pt-3 border-t border-slate-200/60 flex items-center justify-between">
-          <span class="text-[11px] text-slate-400 font-medium">Teacher ID: ${t.id}</span>
-          <div class="flex items-center gap-2">
+        <div class="pt-3 border-t border-slate-200/60 flex items-center justify-between gap-2">
+          <span class="text-[11px] text-slate-400 font-medium truncate">ID: ${t.id}</span>
+          <div class="flex items-center gap-1.5 shrink-0">
             ${t.mobile ? `
-              <a href="https://wa.me/${t.mobile}" target="_blank" class="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold transition-all flex items-center gap-1">
+              <a href="https://wa.me/${t.mobile}" target="_blank" class="px-2.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[11px] font-bold transition-all flex items-center gap-1">
                 <i class="fa-brands fa-whatsapp"></i> Chat
               </a>
             ` : ''}
-            <button type="button" onclick="confirmRemoveTeacher('${t.id}', '${encodeURIComponent(t.name)}')" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer">
+            <button type="button" onclick="openEditTeacherModal('${t.id}')" class="px-2.5 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer" title="Edit Teacher Details">
+              <i class="fa-solid fa-user-pen"></i> Edit
+            </button>
+            <button type="button" onclick="confirmRemoveTeacher('${t.id}', '${encodeURIComponent(t.name)}')" class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer" title="Remove Faculty Account">
               <i class="fa-solid fa-trash-can"></i> Remove
             </button>
           </div>
@@ -2998,7 +3002,7 @@ function renderManagementFacultyRoster() {
 }
 
 // -------------------------------------------------------------
-// MANAGEMENT FACULTY CONTROLS (ADD & REMOVE TEACHERS)
+// MANAGEMENT FACULTY CONTROLS (ADD, EDIT & REMOVE TEACHERS)
 // -------------------------------------------------------------
 
 function openAddTeacherModal() {
@@ -3012,6 +3016,195 @@ function openAddTeacherModal() {
 function closeAddTeacherModal() {
   const modal = document.getElementById('add-teacher-modal');
   if (modal) modal.classList.add('hidden');
+}
+
+function openEditTeacherModal(teacherId) {
+  const modal = document.getElementById('edit-teacher-modal');
+  if (!modal) return;
+  const teacher = (DB.teachers || []).find(t => t.id === teacherId);
+  if (!teacher) {
+    if (window.showToast) window.showToast('Teacher record not found.', 'error');
+    return;
+  }
+
+  const idInput = document.getElementById('edit-teacher-id');
+  const idBadge = document.getElementById('edit-teacher-id-badge');
+  const nameInput = document.getElementById('edit-teacher-name');
+  const mobileInput = document.getElementById('edit-teacher-mobile');
+  const passInput = document.getElementById('edit-teacher-pass');
+
+  if (idInput) idInput.value = teacher.id;
+  if (idBadge) idBadge.innerText = `Teacher ID: ${teacher.id}`;
+  if (nameInput) nameInput.value = teacher.name || '';
+  if (mobileInput) mobileInput.value = teacher.mobile || '';
+  if (passInput) {
+    passInput.value = teacher.password || '';
+    passInput.type = 'password';
+  }
+  const passIcon = document.getElementById('edit-teacher-pass-icon');
+  if (passIcon) passIcon.className = 'fa-solid fa-eye';
+
+  // Set subjects checkboxes
+  const teacherSubs = Array.isArray(teacher.subjects) ? teacher.subjects.map(s => s.toLowerCase().trim()) : [];
+  const subjCbs = document.querySelectorAll('input[name="edit-teacher-subj"]');
+  subjCbs.forEach(cb => {
+    cb.checked = teacherSubs.includes(cb.value.toLowerCase().trim());
+  });
+
+  // Set classrooms checkboxes
+  const teacherClasses = Array.isArray(teacher.classrooms) 
+    ? teacher.classrooms.map(c => String(c.classNumber || c).trim()) 
+    : [];
+  const clsCbs = document.querySelectorAll('input[name="edit-teacher-cls"]');
+  clsCbs.forEach(cb => {
+    cb.checked = teacherClasses.includes(cb.value.trim());
+  });
+
+  // Set sections checkboxes
+  const teacherSecs = new Set();
+  if (Array.isArray(teacher.classrooms)) {
+    teacher.classrooms.forEach(c => {
+      if (Array.isArray(c.sections)) c.sections.forEach(s => teacherSecs.add(String(s).toUpperCase()));
+    });
+  }
+  if (teacherSecs.size === 0) teacherSecs.add('A');
+  const secCbs = document.querySelectorAll('input[name="edit-teacher-sec"]');
+  secCbs.forEach(cb => {
+    cb.checked = teacherSecs.has(cb.value.toUpperCase());
+  });
+
+  modal.classList.remove('hidden');
+}
+
+function closeEditTeacherModal() {
+  const modal = document.getElementById('edit-teacher-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function toggleEditTeacherPasswordVisibility() {
+  const passInput = document.getElementById('edit-teacher-pass');
+  const passIcon = document.getElementById('edit-teacher-pass-icon');
+  if (!passInput) return;
+  if (passInput.type === 'password') {
+    passInput.type = 'text';
+    if (passIcon) passIcon.className = 'fa-solid fa-eye-slash';
+  } else {
+    passInput.type = 'password';
+    if (passIcon) passIcon.className = 'fa-solid fa-eye';
+  }
+}
+
+function setAllEditSubjects(selectAll) {
+  const subjCbs = document.querySelectorAll('input[name="edit-teacher-subj"]');
+  subjCbs.forEach(cb => cb.checked = !!selectAll);
+}
+
+function setEditClassesGroup(group) {
+  const clsCbs = document.querySelectorAll('input[name="edit-teacher-cls"]');
+  clsCbs.forEach(cb => {
+    const val = parseInt(cb.value);
+    if (group === 'primary') cb.checked = (val >= 1 && val <= 5);
+    else if (group === 'secondary') cb.checked = (val >= 6 && val <= 10);
+    else if (group === 'all') cb.checked = true;
+    else if (group === 'none') cb.checked = false;
+  });
+}
+
+function handleEditTeacherSubmit(e) {
+  e.preventDefault();
+  const idInput = document.getElementById('edit-teacher-id');
+  const nameInput = document.getElementById('edit-teacher-name');
+  const mobileInput = document.getElementById('edit-teacher-mobile');
+  const passInput = document.getElementById('edit-teacher-pass');
+
+  const teacherId = idInput ? idInput.value.trim() : '';
+  const name = nameInput ? nameInput.value.trim() : '';
+  const mobile = mobileInput ? mobileInput.value.trim() : '';
+  const password = passInput ? passInput.value.trim() : '';
+
+  if (!teacherId) {
+    if (window.showToast) window.showToast('Invalid teacher ID.', 'error');
+    return;
+  }
+  if (!name) {
+    if (window.showToast) window.showToast('Teacher full name is required.', 'error');
+    return;
+  }
+  if (!mobile || !/^\d{10}$/.test(mobile)) {
+    if (window.showToast) window.showToast('Please enter a valid 10-digit mobile number.', 'error');
+    return;
+  }
+  if (!password) {
+    if (window.showToast) window.showToast('Password cannot be empty.', 'error');
+    return;
+  }
+
+  // Check mobile uniqueness against other teachers
+  const isDuplicate = (DB.teachers || []).some(t => t.id !== teacherId && t.mobile === mobile);
+  if (isDuplicate) {
+    if (window.showToast) window.showToast('Another teacher already uses this mobile number.', 'error');
+    return;
+  }
+
+  // Collect subjects
+  const subjCheckboxes = document.querySelectorAll('input[name="edit-teacher-subj"]:checked');
+  let subjects = Array.from(subjCheckboxes).map(cb => cb.value);
+  if (subjects.length === 0) {
+    subjects = ['Mathematics', 'Science', 'English', 'Social Science'];
+  }
+
+  // Collect sections
+  const secCheckboxes = document.querySelectorAll('input[name="edit-teacher-sec"]:checked');
+  let sections = Array.from(secCheckboxes).map(cb => cb.value);
+  if (sections.length === 0) sections = ['A'];
+
+  // Collect classrooms
+  const clsCheckboxes = document.querySelectorAll('input[name="edit-teacher-cls"]:checked');
+  let classrooms = Array.from(clsCheckboxes).map(cb => ({
+    classNumber: cb.value,
+    sections: sections
+  }));
+  if (classrooms.length === 0) {
+    classrooms = [{ classNumber: '9', sections: sections }];
+  }
+
+  // Find and update teacher in DB.teachers
+  const teacher = (DB.teachers || []).find(t => t.id === teacherId);
+  if (!teacher) {
+    if (window.showToast) window.showToast('Teacher record not found in database.', 'error');
+    return;
+  }
+
+  teacher.name = name;
+  teacher.mobile = mobile;
+  teacher.password = password;
+  teacher.subjects = subjects;
+  teacher.classrooms = classrooms;
+
+  // If this is the active session teacher, sync activeSession object
+  if (DB.activeSession && DB.activeSession.teacher && DB.activeSession.teacher.id === teacherId) {
+    DB.activeSession.teacher = teacher;
+    try {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(DB.activeSession));
+    } catch (err) {}
+  }
+
+  try {
+    localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(DB.teachers));
+  } catch (err) {}
+
+  saveDatabase();
+  if (typeof CloudDB !== 'undefined' && typeof CloudDB.syncToCloud === 'function') {
+    CloudDB.syncToCloud();
+  }
+
+  closeEditTeacherModal();
+  renderManagementFacultyRoster();
+  if (typeof renderTeacherWorkspaceBar === 'function') renderTeacherWorkspaceBar();
+  if (typeof updateManagementDashboard === 'function') updateManagementDashboard();
+  if (window.showToast) {
+    window.showToast(`Teacher "${teacher.name}" details updated successfully!`, 'success');
+  }
 }
 
 function handleAddTeacherSubmit(e) {
@@ -4250,6 +4443,12 @@ window.populateParentClassDropdown = populateParentClassDropdown;
 window.openAddTeacherModal = openAddTeacherModal;
 window.closeAddTeacherModal = closeAddTeacherModal;
 window.handleAddTeacherSubmit = handleAddTeacherSubmit;
+window.openEditTeacherModal = openEditTeacherModal;
+window.closeEditTeacherModal = closeEditTeacherModal;
+window.toggleEditTeacherPasswordVisibility = toggleEditTeacherPasswordVisibility;
+window.setAllEditSubjects = setAllEditSubjects;
+window.setEditClassesGroup = setEditClassesGroup;
+window.handleEditTeacherSubmit = handleEditTeacherSubmit;
 window.confirmRemoveTeacher = confirmRemoveTeacher;
 window.confirmResetTestData = confirmResetTestData;
 window.renderManagementTopPerformers = renderManagementTopPerformers;

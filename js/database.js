@@ -310,11 +310,8 @@ const CloudDB = {
       if (resp.ok && resp.data && resp.data.success && resp.data.data) {
         const cloudDoc = resp.data.data;
 
-        if (cloudDoc.teachers && Array.isArray(cloudDoc.teachers) && cloudDoc.teachers.length > 0) {
-          const currentIds = (DB.teachers || []).map(t => t.id);
-          cloudDoc.teachers.forEach(ct => {
-            if (!currentIds.includes(ct.id)) DB.teachers.push(ct);
-          });
+        if (cloudDoc.teachers && Array.isArray(cloudDoc.teachers)) {
+          DB.teachers = cloudDoc.teachers;
         }
 
         // Allow empty arrays to properly wipe data on factory reset

@@ -3000,6 +3000,186 @@
     </div>
   </div>
 
+  <!-- Edit Faculty Teacher Modal (Management Controlled) -->
+  <div id="edit-teacher-modal" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[135] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-white animate-pop-in">
+      <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 text-white p-5 flex justify-between items-center">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white text-base">
+            <i class="fa-solid fa-user-pen"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-lg">Edit Faculty Teacher</h3>
+            <p class="text-[11px] text-indigo-100 font-semibold">Update credentials, teaching subjects & classroom allocations</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeEditTeacherModal()" class="text-white/80 hover:text-white text-lg p-1 cursor-pointer">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="edit-teacher-form" onsubmit="handleEditTeacherSubmit(event)" class="p-6 space-y-4 max-h-[78vh] overflow-y-auto custom-scrollbar">
+        <input type="hidden" id="edit-teacher-id">
+
+        <div class="flex items-center justify-between p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-xs font-black text-indigo-900" id="edit-teacher-id-badge">Teacher ID: -</span>
+          </div>
+          <span class="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-full">Faculty Profile</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+            Teacher Full Name <span class="text-rose-500">*</span>
+          </label>
+          <input type="text" id="edit-teacher-name" required placeholder="e.g. Mrs. Ananya Sharma"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              Mobile Number <span class="text-rose-500">*</span>
+            </label>
+            <input type="tel" id="edit-teacher-mobile" required placeholder="10-digit mobile" maxlength="10"
+              class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1">
+              Login Password <span class="text-rose-500">*</span>
+            </label>
+            <div class="relative">
+              <input type="password" id="edit-teacher-pass" required placeholder="Faculty password"
+                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 pr-9 text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500">
+              <button type="button" onclick="toggleEditTeacherPasswordVisibility()" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer text-xs p-1" title="Toggle password visibility">
+                <i class="fa-solid fa-eye" id="edit-teacher-pass-icon"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wide">
+              Teaching Subjects <span class="text-rose-500">*</span>
+            </label>
+            <div class="flex items-center gap-2 text-[11px]">
+              <button type="button" onclick="setAllEditSubjects(true)" class="text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer">Select All</button>
+              <span class="text-slate-300">•</span>
+              <button type="button" onclick="setAllEditSubjects(false)" class="text-slate-500 hover:text-slate-700 font-bold cursor-pointer">Clear</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-bold text-slate-700" id="edit-teacher-subjects-container">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="Mathematics" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Mathematics</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="Science" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Science</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="English" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>English</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="Social Science" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Social Science</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="Hindi" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Hindi</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="Gujarati" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Gujarati</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="Sanskrit" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Sanskrit</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="Computer" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Computer</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-subj" value="Drawing" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Drawing</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="text-xs font-bold text-slate-700 uppercase tracking-wide">
+              Assigned Classrooms (1 to 10) <span class="text-rose-500">*</span>
+            </label>
+            <div class="flex items-center gap-2 text-[11px]">
+              <button type="button" onclick="setEditClassesGroup('primary')" class="text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer">Std 1-5</button>
+              <span class="text-slate-300">•</span>
+              <button type="button" onclick="setEditClassesGroup('secondary')" class="text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer">Std 6-10</button>
+              <span class="text-slate-300">•</span>
+              <button type="button" onclick="setEditClassesGroup('all')" class="text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer">All</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-5 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-bold text-slate-700 text-center" id="edit-teacher-classes-container">
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="1" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 1</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="2" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 2</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="3" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 3</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="4" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 4</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="5" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 5</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="6" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 6</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="7" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 7</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="8" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 8</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="9" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 9</span>
+            </label>
+            <label class="p-2 bg-white rounded-xl border border-slate-200 cursor-pointer hover:border-indigo-500 flex flex-col items-center gap-1">
+              <input type="checkbox" name="edit-teacher-cls" value="10" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Std 10</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wide mb-1.5">
+            Assigned Section(s) <span class="text-rose-500">*</span>
+          </label>
+          <div class="flex items-center gap-4 p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-bold text-slate-700">
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-sec" value="A" checked class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Section A</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-sec" value="B" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Section B</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-sec" value="C" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Section C</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" name="edit-teacher-sec" value="D" class="rounded text-indigo-600 focus:ring-indigo-500"> <span>Section D</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 flex justify-end gap-2.5">
+          <button type="button" onclick="closeEditTeacherModal()" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer">
+            Cancel
+          </button>
+          <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:to-purple-800 text-white rounded-xl text-xs font-black shadow-lg shadow-indigo-600/30 transition-all cursor-pointer flex items-center gap-1.5">
+            <i class="fa-solid fa-floppy-disk"></i> Save Teacher Changes
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Printable Container for Official English Marksheet -->
   <div id="em-print-container" style="display:none;"></div>
 
