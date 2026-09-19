@@ -1541,7 +1541,7 @@ function renderStudentsTable() {
         </span>
       </td>
       <td class="p-4 text-xs font-semibold text-slate-600">
-        ${s.mobile ? `<i class="fa-brands fa-whatsapp text-emerald-500 mr-1"></i>${s.mobile}` : '<span class="opacity-40 italic">None</span>'}
+        ${typeof renderContactCell === 'function' ? renderContactCell(s.mobile) : (s.mobile ? `<i class="fa-brands fa-whatsapp text-emerald-500 mr-1"></i>${s.mobile}` : '<span class="opacity-40 italic">None</span>')}
       </td>
       <td class="p-4 text-center space-x-1.5 whitespace-nowrap">
         <button onclick="printSingleStudent(${s.roll}, '${s.std || ''}', 'STUDENT PROGRESS REPORT', '${s.section || 'A'}')" class="bg-white text-indigo-600 hover:bg-indigo-600 hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border border-indigo-200 shadow-sm cursor-pointer" title="Print/Save English Report Card">
@@ -1611,7 +1611,7 @@ function addSingleStudent() {
   const name = document.getElementById('new-stu-name').value.trim();
   const std = (document.getElementById('new-stu-std') ? document.getElementById('new-stu-std').value.trim() : '') || (currentTeacherWorkspaceClass !== 'all' ? currentTeacherWorkspaceClass : '9');
   const section = document.getElementById('new-stu-sec') ? document.getElementById('new-stu-sec').value.trim().toUpperCase() : 'A';
-  const mobile = document.getElementById('new-stu-mobile').value.trim();
+  const mobile = (typeof parseContactNumbers === 'function') ? parseContactNumbers(document.getElementById('new-stu-mobile').value.trim()) : document.getElementById('new-stu-mobile').value.trim();
 
   if (!roll || !name) {
     showToast('Roll No and Name are required.', 'warning');
@@ -1625,12 +1625,13 @@ function addSingleStudent() {
   }
 
   DB.students.push({
-    roll,
+    id: Date.now() + Math.floor(Math.random() * 1000000),
     grNo: grNo || `GR-${new Date().getFullYear()}-${std}-${String(roll).padStart(3, '0')}`,
-    name,
-    std,
-    section: section || 'A',
-    mobile
+    roll: roll,
+    name: name,
+    std: std.toString(),
+    section: section,
+    mobile: mobile
   });
 
   saveDatabase();
@@ -1686,7 +1687,7 @@ function saveStudentEdit() {
   DB.students[idx].name = name;
   DB.students[idx].std = newStd;
   DB.students[idx].section = document.getElementById('edit-stu-sec').value.trim().toUpperCase();
-  DB.students[idx].mobile = document.getElementById('edit-stu-mobile').value.trim();
+  DB.students[idx].mobile = (typeof parseContactNumbers === 'function') ? parseContactNumbers(document.getElementById('edit-stu-mobile').value.trim()) : document.getElementById('edit-stu-mobile').value.trim();
 
   saveDatabase();
   renderStudentsTable();
@@ -3526,14 +3527,7 @@ function renderManagementStudentDirectory(scopeStd) {
           ${pct !== '-' ? pct + '%' : '-'}
         </td>
         <td class="p-3 text-slate-600 text-xs">
-          ${s.mobile ? `
-            <div class="flex items-center gap-1.5">
-              <span>${s.mobile}</span>
-              <a href="https://wa.me/${s.mobile}" target="_blank" class="text-emerald-600 hover:text-emerald-700">
-                <i class="fa-brands fa-whatsapp"></i>
-              </a>
-            </div>
-          ` : '<span class="text-slate-400">-</span>'}
+          ${typeof renderContactCell === 'function' ? renderContactCell(s.mobile) : (s.mobile ? `<span>${s.mobile}</span>` : '<span class="text-slate-400">-</span>')}
         </td>
         <td class="p-3 text-right">
           <div class="flex items-center justify-end gap-1.5">

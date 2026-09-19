@@ -514,7 +514,7 @@ function processParsedStudentTallyRows(rows, explicitStd = null) {
     else if (rowSec === 'ડ' || rowSec === 'D') rowSec = 'D';
     else if (!rowSec) rowSec = 'A';
 
-    const rowMob = mobIdx !== -1 && row[mobIdx] ? toEngDigits(row[mobIdx].toString().trim()).replace(/[^0-9+]/g, '') : '';
+    const rowMob = mobIdx !== -1 && row[mobIdx] ? (typeof parseContactNumbers === 'function' ? parseContactNumbers(row[mobIdx]) : toEngDigits(row[mobIdx].toString().trim())) : '';
 
     if (!rowName && !rawRoll && !rowGr) continue;
 

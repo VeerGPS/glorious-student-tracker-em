@@ -402,11 +402,93 @@ function getGrade(pct) {
   return { g: 'E', desc: 'Needs Improvement', c: [239, 68, 68] };
 }
 
-// Format Phone for WhatsApp international linking
+// Clean and separate multiple contact numbers (e.g. "9427233487, 9429762778" or collided 20-digit string)
+function parseContactNumbers(raw) {
+  if (!raw && raw !== 0) return '';
+  const toEngDigits = typeof gujaratiToEnglishDigits === 'function' ? gujaratiToEnglishDigits : (v => v);
+  let str = toEngDigits(String(raw).trim());
+  if (!str) return '';
+
+  const cleanDigitsOnly = str.replace(/[^0-9]/g, '');
+  if (cleanDigitsOnly.length === 20 && !/[,\/;&|\n\s]/.test(str)) {
+    return `${cleanDigitsOnly.slice(0, 10)}, ${cleanDigitsOnly.slice(10)}`;
+  }
+
+  const tokens = str.split(/[,/;&|\n]+|\s+and\s+|\s*&\s*/i);
+  const validNumbers = [];
+
+  for (let token of tokens) {
+    let t = token.trim();
+    if (!t) continue;
+    
+    const d = t.replace(/[^0-9]/g, '');
+    if (d.length === 20) {
+      validNumbers.push(d.slice(0, 10));
+      validNumbers.push(d.slice(10));
+    } else if (d.length > 10 && d.startsWith('91') && d.length === 12) {
+      validNumbers.push(d.slice(2));
+    } else if (d.length >= 10) {
+      validNumbers.push(d.slice(-10));
+    } else if (d.length > 0) {
+      validNumbers.push(d);
+    }
+  }
+
+  if (validNumbers.length === 0 && cleanDigitsOnly.length >= 10) {
+    if (cleanDigitsOnly.length === 20) {
+      validNumbers.push(cleanDigitsOnly.slice(0, 10));
+      validNumbers.push(cleanDigitsOnly.slice(10));
+    } else {
+      validNumbers.push(cleanDigitsOnly.slice(-10));
+    }
+  }
+
+  return [...new Set(validNumbers)].join(', ');
+}
+
+// Render clean contact numbers cell with individual WhatsApp links
+function renderContactCell(mobileStr) {
+  if (!mobileStr || !mobileStr.toString().trim()) {
+    return '<span class="opacity-40 italic text-slate-400">None</span>';
+  }
+  const cleanStr = parseContactNumbers(mobileStr);
+  if (!cleanStr) {
+    return '<span class="opacity-40 italic text-slate-400">None</span>';
+  }
+  const nums = cleanStr.split(',').map(n => n.trim()).filter(Boolean);
+  if (nums.length === 0) {
+    return '<span class="opacity-40 italic text-slate-400">None</span>';
+  }
+  return `
+    <div class="flex flex-col gap-1">
+      ${nums.map(num => {
+        const rawDigits = num.replace(/\D/g, '');
+        const waNumber = rawDigits.length === 10 ? `91${rawDigits}` : (rawDigits.length === 12 && rawDigits.startsWith('91') ? rawDigits : rawDigits);
+        return `
+          <div class="inline-flex items-center gap-1.5 text-slate-700">
+            <a href="https://wa.me/${waNumber}" target="_blank" class="text-emerald-500 hover:text-emerald-600 hover:scale-110 transition-transform" title="Chat on WhatsApp with ${num}">
+              <i class="fa-brands fa-whatsapp text-sm"></i>
+            </a>
+            <span class="font-mono text-xs font-semibold">${num}</span>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Format Phone for WhatsApp international linking (handles single or multi-number strings)
 function formatPhoneForWA(number) {
-  if (!number) return '';
-  let cleaned = number.toString().replace(/\D/g, '');
+  if (!number && number !== 0) return '';
+  const str = String(number).trim();
+  if (!str) return '';
+
+  const cleanMulti = parseContactNumbers(str);
+  const firstPart = (cleanMulti ? cleanMulti.split(',')[0] : str.split(/[,/;&|\s]+/)[0]).trim();
+  let cleaned = firstPart.replace(/\D/g, '');
+  if (cleaned.length === 20) cleaned = cleaned.slice(0, 10);
   if (cleaned.length === 10) return '91' + cleaned;
+  if (cleaned.length === 12 && cleaned.startsWith('91')) return cleaned;
   return cleaned;
 }
 
@@ -573,6 +655,15 @@ function healStudentRollsAndMarks() {
         }
       }
     }
+
+    // Separate colliding contacts (e.g. 20-digit numbers or comma-separated without proper spacing)
+    if (s.mobile) {
+      const cleaned = parseContactNumbers(s.mobile);
+      if (cleaned && cleaned !== s.mobile) {
+        s.mobile = cleaned;
+        modified = true;
+      }
+    }
   });
 
   // Ensure each mark has matching grNo and std from student
@@ -633,6 +724,8 @@ window.factoryResetData = factoryResetData;
 window.refreshAllModulesUI = refreshAllModulesUI;
 window.getGrade = getGrade;
 window.formatPhoneForWA = formatPhoneForWA;
+window.parseContactNumbers = parseContactNumbers;
+window.renderContactCell = renderContactCell;
 window.findStudentByRoll = findStudentByRoll;
 window.findStudentByRollAndClass = findStudentByRollAndClass;
 window.findStudentByGrNo = findStudentByGrNo;

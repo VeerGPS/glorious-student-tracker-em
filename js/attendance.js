@@ -143,7 +143,7 @@ function renderAttendanceRows(students) {
         <td class="py-4 px-4 font-bold text-slate-500 text-xs">${s.grNo || 'N/A'}</td>
         <td class="py-4 px-4 font-black text-slate-800">${s.name}</td>
         <td class="py-4 px-4 text-xs font-semibold text-slate-500">
-          ${s.mobile ? `<i class="fa-brands fa-whatsapp text-emerald-500 mr-1"></i>${s.mobile}` : '<span class="opacity-50 italic">None</span>'}
+          ${typeof renderContactCell === 'function' ? renderContactCell(s.mobile) : (s.mobile ? `<i class="fa-brands fa-whatsapp text-emerald-500 mr-1"></i>${s.mobile}` : '<span class="opacity-50 italic">None</span>')}
         </td>
         <td class="py-4 px-4 text-right">
           <div class="inline-flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 shadow-inner">
@@ -287,15 +287,44 @@ function notifyAbsenteesWhatsApp() {
   }
 
   // Open modal / queue for absentees
-  const queueList = absentees.map(s => {
-    const mob = formatPhoneForWA(s.mobile);
-    const msg = `Dear Parent, your ward *${s.name}* (Roll: ${s.roll}, Class ${currentAttendanceClass}-${currentAttendanceSection}) was marked *ABSENT* on ${currentAttendanceDate} at Glorious Public School. Please report or contact school if this is unexpected.`;
-    return {
-      name: s.name,
-      roll: s.roll,
-      mobile: mob,
-      message: msg
-    };
+  const queueList = [];
+  absentees.forEach(s => {
+    const studentName = (s.name || '').trim();
+    const dateParts = (currentAttendanceDate || '').split('-');
+    let formattedDate = currentAttendanceDate;
+    if (dateParts.length === 3) {
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const mIdx = parseInt(dateParts[1], 10) - 1;
+      const dNum = parseInt(dateParts[2], 10);
+      if (months[mIdx] && !isNaN(dNum)) {
+        formattedDate = `${dNum} ${months[mIdx]} ${dateParts[0]}`;
+      }
+    }
+
+    const msg = `Dear Parent,
+Your child *${studentName}* (Roll No. ${s.roll}, Class ${currentAttendanceClass}-${currentAttendanceSection}) was *ABSENT* today, ${formattedDate}, at Glorious Public School.
+
+Please contact the school if this was not expected.`;
+
+    const mobStr = (typeof parseContactNumbers === 'function') ? parseContactNumbers(s.mobile) : (s.mobile ? String(s.mobile) : '');
+    const mobs = mobStr ? mobStr.split(',').map(m => formatPhoneForWA(m.trim())).filter(Boolean) : [];
+    if (mobs.length > 0) {
+      mobs.forEach(mob => {
+        queueList.push({
+          name: s.name,
+          roll: s.roll,
+          mobile: mob,
+          message: msg
+        });
+      });
+    } else {
+      queueList.push({
+        name: s.name,
+        roll: s.roll,
+        mobile: '',
+        message: msg
+      });
+    }
   });
 
   if (window.switchTab) window.switchTab('communications');
@@ -303,7 +332,7 @@ function notifyAbsenteesWhatsApp() {
     window.loadCustomWhatsAppQueue(queueList, 'Absentee Alerts');
   } else {
     const first = queueList[0];
-    if (first.mobile) {
+    if (first && first.mobile) {
       window.open(`https://wa.me/${first.mobile}?text=${encodeURIComponent(first.message)}`, '_blank');
     }
   }
