@@ -899,6 +899,135 @@ function generateGujaratiReportCardHTML(roll, targetStd = null, examType = "FIRS
   return generateEnglishReportCardHTML(roll, targetStd, examType, passedMarks, targetSec);
 }
 
+// -------------------------------------------------------------
+// TEST-SET SYNCHRONIZATION & SELECTION CONTROLS
+// -------------------------------------------------------------
+
+let currentActiveTestSet = 'all';
+
+function populateReportsFilters(preselectedSet = null) {
+  const sets = (typeof getAllTestSets === 'function') ? getAllTestSets() : [];
+
+  // 1. Report Cards (PDF) Dropdown
+  const rSel = document.getElementById('report-filter-testset');
+  if (rSel) {
+    const prev = preselectedSet || rSel.value || 'all';
+    rSel.innerHTML = '<option value="all">All Uploaded Sets (Latest)</option>';
+    sets.forEach(s => {
+      rSel.innerHTML += `<option value="${s}">${s}</option>`;
+    });
+    if (sets.includes(prev) || prev === 'all') rSel.value = prev;
+  }
+
+  // 2. Master Excel Dropdown
+  const eSel = document.getElementById('excel-filter-testset');
+  if (eSel) {
+    const prev = preselectedSet || eSel.value || 'all';
+    eSel.innerHTML = '<option value="all">All Uploaded Sets</option>';
+    sets.forEach(s => {
+      eSel.innerHTML += `<option value="${s}">${s}</option>`;
+    });
+    if (sets.includes(prev) || prev === 'all') eSel.value = prev;
+  }
+
+  // 3. WhatsApp Dropdown
+  const wSel = document.getElementById('wa-filter-testset');
+  if (wSel) {
+    const prev = preselectedSet || wSel.value || 'all';
+    wSel.innerHTML = '<option value="all">All Sets</option>';
+    sets.forEach(s => {
+      wSel.innerHTML += `<option value="${s}">${s}</option>`;
+    });
+    if (sets.includes(prev) || prev === 'all') wSel.value = prev;
+  }
+
+  // 4. Render Test Sets Pill Container
+  renderTestSetsPillBar(preselectedSet || currentActiveTestSet);
+}
+
+function renderTestSetsPillBar(activeSet = 'all') {
+  const container = document.getElementById('test-sets-pill-container');
+  const activeLabel = document.getElementById('active-test-set-name');
+  if (!container) return;
+
+  currentActiveTestSet = activeSet;
+  if (activeLabel) {
+    activeLabel.innerText = activeSet === 'all' ? 'All Uploaded Sets' : activeSet;
+  }
+
+  const sets = (typeof getAllTestSets === 'function') ? getAllTestSets() : [];
+
+  if (sets.length === 0) {
+    container.innerHTML = `
+      <span class="text-xs font-bold text-slate-400 italic">No test sets uploaded yet. Upload an Excel to create your first test set.</span>
+    `;
+    return;
+  }
+
+  let html = `
+    <button type="button" onclick="selectActiveTestSet('all')" 
+      class="test-set-pill px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${activeSet === 'all' ? 'bg-indigo-600 text-white shadow-indigo-500/25 ring-2 ring-indigo-300' : 'bg-white hover:bg-indigo-50 text-slate-700 border border-slate-200'}">
+      <i class="fa-solid fa-${activeSet === 'all' ? 'check-circle' : 'layer-group'}"></i>
+      <span>All Sets</span>
+      <span class="text-[10px] px-1.5 py-0.2 rounded-md ${activeSet === 'all' ? 'bg-indigo-700/80 text-white' : 'bg-slate-100 text-slate-600'}">${DB.marks ? DB.marks.length : 0} marks</span>
+    </button>
+  `;
+
+  sets.forEach(s => {
+    const count = (DB.marks || []).filter(m => m.testSet === s || m.exam === s).length;
+    const isAct = activeSet === s;
+    html += `
+      <button type="button" onclick="selectActiveTestSet('${s.replace(/'/g, "\\'")}')" 
+        class="test-set-pill px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${isAct ? 'bg-indigo-600 text-white shadow-indigo-500/25 ring-2 ring-indigo-300' : 'bg-white hover:bg-indigo-50 text-slate-700 border border-slate-200'}">
+        <i class="fa-solid fa-${isAct ? 'check-circle' : 'file-circle-check'}"></i>
+        <span>${s}</span>
+        <span class="text-[10px] px-1.5 py-0.2 rounded-md ${isAct ? 'bg-indigo-700/80 text-white' : 'bg-slate-100 text-slate-600'}">${count} marks</span>
+      </button>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function selectActiveTestSet(setName) {
+  currentActiveTestSet = setName;
+
+  // Sync Report Cards PDF Dropdown & Exam Title
+  const rSel = document.getElementById('report-filter-testset');
+  if (rSel) rSel.value = setName;
+  const rEx = document.getElementById('report-exam-type');
+  if (rEx && setName !== 'all') rEx.value = setName;
+
+  // Sync Master Excel Dropdown
+  const eSel = document.getElementById('excel-filter-testset');
+  if (eSel) eSel.value = setName;
+
+  // Sync WhatsApp Dropdown & Exam Title
+  const wSel = document.getElementById('wa-filter-testset');
+  if (wSel) wSel.value = setName;
+  const wEx = document.getElementById('wa-exam-name');
+  if (wEx && setName !== 'all') wEx.value = setName;
+
+  // Re-render pill bar
+  renderTestSetsPillBar(setName);
+
+  if (window.showToast && setName !== 'all') {
+    window.showToast(`Selected test set: "${setName}". Reports & exports synced to this set.`, 'info');
+  }
+}
+
+function onReportTestSetChange(val) {
+  selectActiveTestSet(val);
+}
+
+function onExcelTestSetChange(val) {
+  selectActiveTestSet(val);
+}
+
+function onWaTestSetChange(val) {
+  selectActiveTestSet(val);
+}
+
 function printBulkReportCards() {
   if (!DB.students || DB.students.length === 0) {
     if (window.showToast) window.showToast('No students enrolled to print report cards.', 'warning');
@@ -908,7 +1037,8 @@ function printBulkReportCards() {
   const fStd = document.getElementById('report-filter-std') ? document.getElementById('report-filter-std').value.toString().toLowerCase().trim() : '';
   const fStudent = document.getElementById('report-filter-student') ? document.getElementById('report-filter-student').value.toLowerCase().trim() : '';
   const fSub = document.getElementById('report-filter-subject') ? document.getElementById('report-filter-subject').value.trim() : '';
-  const fEx = (document.getElementById('report-exam-type') ? document.getElementById('report-exam-type').value.trim() : '') || 'FIRST TERM ASSESSMENT';
+  const fTestSet = document.getElementById('report-filter-testset') ? document.getElementById('report-filter-testset').value : 'all';
+  const fEx = (document.getElementById('report-exam-type') ? document.getElementById('report-exam-type').value.trim() : '') || (fTestSet !== 'all' ? fTestSet : 'FIRST TERM ASSESSMENT');
 
   const targetStudents = DB.students.filter(s => {
     const matchStd = !fStd || fStd === 'all' || (s.std && s.std.toString().toLowerCase() === fStd);
@@ -941,6 +1071,9 @@ function printBulkReportCards() {
       (!m.section || String(m.section).trim().toUpperCase() === String(stu.section || 'A').trim().toUpperCase()) &&
       parseInt(m.roll) === parseInt(stu.roll)
     );
+    if (fTestSet && fTestSet !== 'all') {
+      mks = mks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+    }
     if (fSub) {
       const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
       mks = mks.filter(m => (typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject).toLowerCase() : m.subject.toLowerCase()) === cleanFSub);
@@ -994,6 +1127,7 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
   }
 
   const fSub = document.getElementById('report-filter-subject') ? document.getElementById('report-filter-subject').value.trim() : '';
+  const fTestSet = document.getElementById('report-filter-testset') ? document.getElementById('report-filter-testset').value : 'all';
 
   // Sort students cleanly by Class, Section, and Roll
   const sortedStudents = [...targetStudents].sort((a, b) => {
@@ -1021,6 +1155,9 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
           (!m.section || String(m.section).trim().toUpperCase() === String(stu.section || 'A').trim().toUpperCase()) &&
           parseInt(m.roll) === parseInt(stu.roll)
         );
+        if (fTestSet && fTestSet !== 'all') {
+          mks = mks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+        }
         if (fSub) {
           const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
           mks = mks.filter(m => (typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject).toLowerCase() : m.subject.toLowerCase()) === cleanFSub);
@@ -1057,7 +1194,8 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
           container.style.cssText = 'display: none;';
           container.innerHTML = '';
 
-          pdf.save(`Glorious_School_Report_Cards_${classLabel || ''}${Date.now()}.pdf`);
+          const setSuffix = (fTestSet && fTestSet !== 'all') ? `_${fTestSet.replace(/\s+/g, '_')}` : '';
+          pdf.save(`Glorious_School_Report_Cards_${classLabel || ''}${setSuffix}_${Date.now()}.pdf`);
           if (window.showToast) window.showToast('Report Cards PDF downloaded successfully!', 'success');
           return;
         }
@@ -1085,6 +1223,9 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
           (!m.section || String(m.section).trim().toUpperCase() === String(stu.section || 'A').trim().toUpperCase()) &&
           parseInt(m.roll) === parseInt(stu.roll)
         );
+        if (fTestSet && fTestSet !== 'all') {
+          mks = mks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+        }
         if (fSub) {
           const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
           mks = mks.filter(m => (typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject).toLowerCase() : m.subject.toLowerCase()) === cleanFSub);
@@ -1095,7 +1236,8 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
       });
 
       if (pageAdded) {
-        doc.save(`Glorious_School_Report_Cards_${classLabel || ''}${Date.now()}.pdf`);
+        const setSuffix = (fTestSet && fTestSet !== 'all') ? `_${fTestSet.replace(/\s+/g, '_')}` : '';
+        doc.save(`Glorious_School_Report_Cards_${classLabel || ''}${setSuffix}_${Date.now()}.pdf`);
         if (window.showToast) window.showToast('Marksheet PDF downloaded successfully!', 'success');
         return;
       }
@@ -1115,6 +1257,9 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
   let htmlAll = '';
   sortedStudents.forEach(stu => {
     let mks = DB.marks.filter(m => (m.std ? String(m.std).trim() === String(stu.std).trim() : true) && parseInt(m.roll) === parseInt(stu.roll));
+    if (fTestSet && fTestSet !== 'all') {
+      mks = mks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+    }
     htmlAll += generateEnglishReportCardHTML(stu.roll, stu.std, examType, mks, stu.section || 'A');
   });
   container.innerHTML = htmlAll;
@@ -1135,7 +1280,8 @@ function generateBulkPDF() {
 
   const fStd = document.getElementById('report-filter-std') ? document.getElementById('report-filter-std').value.toString().toLowerCase().trim() : '';
   const fStudent = document.getElementById('report-filter-student') ? document.getElementById('report-filter-student').value.toLowerCase().trim() : '';
-  const fEx = (document.getElementById('report-exam-type') ? document.getElementById('report-exam-type').value.trim() : '') || 'FIRST TERM ASSESSMENT';
+  const fTestSet = document.getElementById('report-filter-testset') ? document.getElementById('report-filter-testset').value : 'all';
+  const fEx = (document.getElementById('report-exam-type') ? document.getElementById('report-exam-type').value.trim() : '') || (fTestSet !== 'all' ? fTestSet : 'FIRST TERM ASSESSMENT');
 
   const targetStudents = DB.students.filter(s => {
     const matchStd = !fStd || fStd === 'all' || (s.std && s.std.toString().toLowerCase() === fStd);
@@ -1164,6 +1310,7 @@ function generateBulkExcel() {
 
   const fStd = document.getElementById('excel-filter-std') ? document.getElementById('excel-filter-std').value.toString().trim() : 'all';
   const fSource = document.getElementById('excel-filter-source') ? document.getElementById('excel-filter-source').value : 'excel';
+  const fTestSet = document.getElementById('excel-filter-testset') ? document.getElementById('excel-filter-testset').value : 'all';
   const fDate = document.getElementById('excel-filter-fdate') ? document.getElementById('excel-filter-fdate').value : null;
   const tDate = document.getElementById('excel-filter-tdate') ? document.getElementById('excel-filter-tdate').value : null;
 
@@ -1173,13 +1320,14 @@ function generateBulkExcel() {
       const src = m.source || 'excel';
       if (src !== fSource) return false;
     }
+    if (fTestSet && fTestSet !== 'all' && m.testSet !== fTestSet && m.exam !== fTestSet) return false;
     if (fDate && m.date < fDate) return false;
     if (tDate && m.date > tDate) return false;
     return true;
   });
 
   if (filteredMarks.length === 0) {
-    if (window.showToast) window.showToast('No records found matching the current class and date filters.', 'warning');
+    if (window.showToast) window.showToast('No records found matching the current class and test set filters.', 'warning');
     return;
   }
 
@@ -1191,6 +1339,7 @@ function generateBulkExcel() {
     wsData.push([
       'Generated On:', new Date().toLocaleString(), '', 
       'Class Filter:', fStd === 'all' ? 'All Classes' : `Class ${fStd}`, '',
+      'Test Set Filter:', fTestSet === 'all' ? 'All Test Sets' : fTestSet, '',
       'Data Source:', fSource === 'all' ? 'All Records' : (fSource === 'excel' ? 'Excel Uploads Only' : 'Manual Entries'), '',
       'Date Range:', fDate || 'Beginning', 'to', tDate || 'Today'
     ]);
@@ -1234,7 +1383,7 @@ function generateBulkExcel() {
         wsData.push([
           typeof formatDateSlash === 'function' ? formatDateSlash(m.date) : (window.formatDateSlash ? window.formatDateSlash(m.date) : m.date),
           typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : (window.cleanSubjectName ? window.cleanSubjectName(m.subject) : m.subject),
-          m.topic,
+          m.testSet || m.topic,
           m.total,
           m.isAbsent ? 'AB' : m.marks,
           m.isAbsent ? '-' : `${pct.toFixed(2)}%`,
@@ -1256,7 +1405,8 @@ function generateBulkExcel() {
 
     const todayStr = new Date().toISOString().split('T')[0];
     const classLabel = (fStd && fStd !== 'all') ? `Class_${fStd}_` : '';
-    XLSX.writeFile(workbook, `Glorious_Public_School_Master_Data_${classLabel}${todayStr}.xlsx`);
+    const setSuffix = (fTestSet && fTestSet !== 'all') ? `_${fTestSet.replace(/\s+/g, '_')}` : '';
+    XLSX.writeFile(workbook, `Glorious_Public_School_Master_Data_${classLabel}${setSuffix}_${todayStr}.xlsx`);
     if (window.showToast) window.showToast('Master Excel Export Successful!', 'success');
   }, 700);
 }
@@ -1267,9 +1417,10 @@ function generateBulkExcel() {
 
 function loadWhatsAppQueue() {
   const std = document.getElementById('wa-filter-std') ? document.getElementById('wa-filter-std').value : 'all';
+  const fTestSet = document.getElementById('wa-filter-testset') ? document.getElementById('wa-filter-testset').value : 'all';
   const stuQuery = document.getElementById('wa-filter-student') ? document.getElementById('wa-filter-student').value.trim().toLowerCase() : '';
   const sub = document.getElementById('wa-filter-subject') ? document.getElementById('wa-filter-subject').value.trim().toLowerCase() : '';
-  const exam = (document.getElementById('wa-exam-name') ? document.getElementById('wa-exam-name').value.trim() : '') || 'Assessments';
+  const exam = (document.getElementById('wa-exam-name') ? document.getElementById('wa-exam-name').value.trim() : '') || (fTestSet !== 'all' ? fTestSet : 'Assessments');
   const fDate = document.getElementById('wa-filter-fdate') ? document.getElementById('wa-filter-fdate').value : '';
   const tDate = document.getElementById('wa-filter-tdate') ? document.getElementById('wa-filter-tdate').value : '';
 
@@ -1282,7 +1433,8 @@ function loadWhatsAppQueue() {
   waDispatchQueue = [];
 
   validStudents.forEach(stu => {
-    let stuMarks = DB.marks.filter(m => m.roll === stu.roll);
+    let stuMarks = DB.marks.filter(m => m.roll === stu.roll && (!stu.std || !m.std || String(m.std) === String(stu.std)));
+    if (fTestSet && fTestSet !== 'all') stuMarks = stuMarks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
     if (sub) stuMarks = stuMarks.filter(m => m.subject.toLowerCase().includes(sub));
     if (fDate) stuMarks = stuMarks.filter(m => m.date >= fDate);
     if (tDate) stuMarks = stuMarks.filter(m => m.date <= tDate);
@@ -1290,7 +1442,7 @@ function loadWhatsAppQueue() {
     if (stuMarks.length > 0) {
       let totalObt = 0;
       let totalMax = 0;
-      const details = stuMarks.slice(0, 6).map(m => {
+      const details = stuMarks.slice(0, 8).map(m => {
         if (!m.isAbsent) {
           totalObt += m.marks;
           totalMax += m.total;
@@ -1300,9 +1452,11 @@ function loadWhatsAppQueue() {
 
       const u = new URL(window.location.href);
       u.searchParams.set('student', stu.roll);
+      if (stu.std) u.searchParams.set('std', stu.std);
 
+      const targetExamTitle = (fTestSet && fTestSet !== 'all') ? fTestSet : exam;
       const overall = totalMax > 0 ? ((totalObt / totalMax) * 100).toFixed(1) : '0';
-      const msg = `*Glorious Public School - Performance Report*\n\nStudent: *${stu.name}*\nRoll No: ${stu.roll} (Class ${stu.std || '-'})\nPeriod/Exam: ${exam}\n\n*Scores:*\n${details}\n\n*Overall Average: ${overall}%*\n\nView official digital scorecard: ${u.toString()}`;
+      const msg = `*Glorious Public School - Performance Report*\n\nStudent: *${stu.name}*\nRoll No: ${stu.roll} (Class ${stu.std || '-'})\nPeriod/Exam: ${targetExamTitle}\n\n*Scores:*\n${details}\n\n*Overall Average: ${overall}%*\n\nView official digital scorecard: ${u.toString()}`;
 
       waDispatchQueue.push({
         roll: stu.roll,
@@ -1400,3 +1554,11 @@ window.loadWhatsAppQueue = loadWhatsAppQueue;
 window.loadCustomWhatsAppQueue = loadCustomWhatsAppQueue;
 window.renderWaQueue = renderWaQueue;
 window.sendNextWhatsApp = sendNextWhatsApp;
+
+// Test Set Selection & Sync Symbols
+window.populateReportsFilters = populateReportsFilters;
+window.renderTestSetsPillBar = renderTestSetsPillBar;
+window.selectActiveTestSet = selectActiveTestSet;
+window.onReportTestSetChange = onReportTestSetChange;
+window.onExcelTestSetChange = onExcelTestSetChange;
+window.onWaTestSetChange = onWaTestSetChange;

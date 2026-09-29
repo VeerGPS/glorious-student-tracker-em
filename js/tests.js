@@ -802,7 +802,13 @@ function handleExcelUpload(event, explicitStd = null) {
         window.showToast("Note: File contains question marks. Please save as a standard Excel Workbook (.xlsx).", 'warning');
       }
 
-      processParsedExcelMarks(rows, targetStd);
+      window.pendingExcelUpload = {
+        rows: rows,
+        targetStd: targetStd,
+        fileName: file.name
+      };
+
+      openExcelTestSetModal(file.name, targetStd, rows);
     } catch (err) {
       console.error('Excel parse error:', err);
       if (window.showToast) window.showToast('Failed to read Excel file. Please ensure valid .xlsx/.csv format.', 'error');
@@ -812,6 +818,114 @@ function handleExcelUpload(event, explicitStd = null) {
 
   reader.readAsArrayBuffer(file);
 }
+
+// -------------------------------------------------------------
+// EXCEL TEST-SET NAMING MODAL CONTROLS
+// -------------------------------------------------------------
+
+window.pendingExcelUpload = null;
+
+function openExcelTestSetModal(fileName, targetStd, rows) {
+  const modal = document.getElementById('excel-test-set-modal');
+  if (!modal) {
+    // Fallback if modal DOM element is not found
+    processParsedExcelMarks(rows, targetStd, 'Assessment Upload');
+    return;
+  }
+
+  const fnEl = document.getElementById('excel-test-set-filename');
+  if (fnEl) fnEl.innerText = fileName || 'Uploaded File';
+
+  const stdEl = document.getElementById('excel-test-set-std');
+  if (stdEl) stdEl.innerText = `Class ${targetStd}`;
+
+  const cntEl = document.getElementById('excel-test-set-count');
+  if (cntEl) cntEl.innerText = `${Math.max(0, rows.length - 1)} student rows`;
+
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const curMonth = monthNames[new Date().getMonth()];
+
+  let suggested = `${curMonth} Round-1`;
+  if (fileName) {
+    let clean = fileName.replace(/\.[^/.]+$/, '');
+    clean = clean.replace(/^(?:class[_\-\s]*\d+[_\-\s]*|report[_\-\s]*card[_\-\s]*|marks[_\-\s]*|template[_\-\s]*)+/i, '');
+    clean = clean.replace(/[_\-]+/g, ' ').trim();
+    if (clean.length >= 3 && clean.length <= 40) {
+      suggested = clean;
+    }
+  }
+
+  const inputEl = document.getElementById('excel-test-set-name-input');
+  if (inputEl) {
+    inputEl.value = suggested;
+  }
+
+  const presetsContainer = document.getElementById('excel-test-set-presets');
+  if (presetsContainer) {
+    const suggestions = [
+      `${curMonth} Round-1`,
+      `${curMonth} Round-2`,
+      `Unit Test 1`,
+      `Unit Test 2`,
+      `First Term Assessment`,
+      `Preliminary Exam`
+    ];
+    presetsContainer.innerHTML = suggestions.map(s => `
+      <button type="button" onclick="setExcelTestSetInput('${s}')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 text-[11px] font-bold text-slate-600 transition-all border border-slate-200">
+        ${s}
+      </button>
+    `).join('');
+  }
+
+  modal.classList.remove('hidden');
+  setTimeout(() => {
+    if (inputEl) {
+      inputEl.focus();
+      inputEl.select();
+    }
+  }, 120);
+}
+
+function setExcelTestSetInput(name) {
+  const inputEl = document.getElementById('excel-test-set-name-input');
+  if (inputEl) {
+    inputEl.value = name;
+    inputEl.focus();
+  }
+}
+
+function closeExcelTestSetModal() {
+  const modal = document.getElementById('excel-test-set-modal');
+  if (modal) modal.classList.add('hidden');
+  window.pendingExcelUpload = null;
+}
+
+function confirmAndSaveExcelTestSet() {
+  if (!window.pendingExcelUpload || !window.pendingExcelUpload.rows) {
+    if (window.showToast) window.showToast('No pending Excel file to save.', 'warning');
+    closeExcelTestSetModal();
+    return;
+  }
+
+  const inputEl = document.getElementById('excel-test-set-name-input');
+  const rawName = inputEl ? inputEl.value.trim() : '';
+  if (!rawName) {
+    if (window.showToast) window.showToast('Please enter a set name to save.', 'warning');
+    if (inputEl) inputEl.focus();
+    return;
+  }
+
+  const setName = rawName;
+  const { rows, targetStd } = window.pendingExcelUpload;
+
+  closeExcelTestSetModal();
+  processParsedExcelMarks(rows, targetStd, setName);
+}
+
+window.openExcelTestSetModal = openExcelTestSetModal;
+window.setExcelTestSetInput = setExcelTestSetInput;
+window.closeExcelTestSetModal = closeExcelTestSetModal;
+window.confirmAndSaveExcelTestSet = confirmAndSaveExcelTestSet;
 
 // Normalize date to YYYY-MM-DD for standard in-memory storage
 function normalizeDateYMD(dateStr) {
@@ -965,7 +1079,7 @@ function isDedicatedMetaCol(header) {
 }
 window.isDedicatedMetaCol = isDedicatedMetaCol;
 
-function processParsedExcelMarks(rows, explicitTargetStd = null) {
+function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
   const toEngDigits = (str) => {
     if (str === null || str === undefined) return '';
     const s = str.toString();
@@ -1009,7 +1123,7 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
   const defaultStd = toEngDigits(rawDefaultStd);
 
   const defaultSubject = 'Mathematics';
-  const defaultTopic = 'Unit Assessment';
+  const defaultTopic = setName || 'Unit Assessment';
   const defaultDate = new Date().toISOString().split('T')[0];
   const defaultTotal = 50;
 
@@ -1093,15 +1207,15 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
               const denom = parseFloat(rawStr.split('/')[1].trim());
               if (!isNaN(denom) && denom > 0) targetTotal = denom;
             }
-            const targetTopic = defaultTopic;
+            const targetTopic = setName || defaultTopic;
 
-            // Upsert mark record with CLASS SCOPING: match roll AND std
+            // Upsert mark record with CLASS & TEST-SET SCOPING
             const cleanTargetSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(sc.subject) : sc.subject;
             const ex = DB.marks.find(m => 
               (m.std ? m.std.toString() === rowStd.toString() : true) &&
               (m.roll === targetRoll || (grNo && m.grNo && String(m.grNo).trim() === String(grNo).trim())) && 
               (m.subject === cleanTargetSub || (typeof cleanSubjectName === 'function' && cleanSubjectName(m.subject) === cleanTargetSub)) && 
-              (m.date === targetDate || m.date === defaultDate)
+              (setName ? (m.testSet === setName || m.exam === setName) : (m.date === targetDate || m.date === defaultDate))
             );
 
             if (ex) {
@@ -1112,6 +1226,11 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
               ex.isAbsent = isAb;
               ex.std = rowStd.toString();
               ex.source = 'excel';
+              if (setName) {
+                ex.testSet = setName;
+                ex.exam = setName;
+                ex.topic = setName;
+              }
               if (grNo) ex.grNo = grNo;
               updatedCount++;
             } else {
@@ -1122,6 +1241,8 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
                 std: rowStd.toString(),
                 subject: cleanTargetSub,
                 topic: targetTopic,
+                testSet: setName || '',
+                exam: setName || '',
                 marks: marks,
                 total: targetTotal,
                 date: targetDate,
@@ -1170,7 +1291,7 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
         rowStd = (matchedStu && matchedStu.std) ? matchedStu.std.toString() : defaultStd;
       }
       let subject = subjIdx !== -1 && row[subjIdx] ? row[subjIdx].toString().trim() : defaultSubject;
-      const topic = topIdx !== -1 && row[topIdx] ? row[topIdx].toString().trim() : defaultTopic;
+      const topic = setName || (topIdx !== -1 && row[topIdx] ? row[topIdx].toString().trim() : defaultTopic);
       let date = dateIdx !== -1 && row[dateIdx] ? row[dateIdx].toString().trim() : defaultDate;
       let total = totalIdx !== -1 && row[totalIdx] ? parseFloat(toEngDigits(row[totalIdx])) : defaultTotal;
 
@@ -1204,7 +1325,7 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
           (m.std ? m.std.toString() === rowStd.toString() : true) &&
           (m.roll === targetRoll || (grNo && m.grNo && String(m.grNo).trim() === String(grNo).trim())) && 
           (m.subject === cleanSub || (typeof cleanSubjectName === 'function' && cleanSubjectName(m.subject) === cleanSub)) && 
-          (m.date === date || m.topic === topic)
+          (setName ? (m.testSet === setName || m.exam === setName) : (m.date === date || m.topic === topic))
         );
 
         if (ex) {
@@ -1215,6 +1336,11 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
           ex.isAbsent = isAb;
           ex.std = rowStd.toString();
           ex.source = 'excel';
+          if (setName) {
+            ex.testSet = setName;
+            ex.exam = setName;
+            ex.topic = setName;
+          }
           if (grNo) ex.grNo = grNo;
           updatedCount++;
         } else {
@@ -1225,6 +1351,8 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
             std: rowStd.toString(),
             subject: cleanSub,
             topic: topic,
+            testSet: setName || '',
+            exam: setName || '',
             marks: marks,
             total: total,
             date: date,
@@ -1243,17 +1371,41 @@ function processParsedExcelMarks(rows, explicitTargetStd = null) {
     DB.marks = DB.marks.filter(m => m && m.subject && !isDedicatedMetaCol(m.subject));
   }
 
+  // Register named test-set in DB.testSets registry
+  if (setName) {
+    DB.testSets = DB.testSets || [];
+    const existingSetIdx = DB.testSets.findIndex(s => s.name.toLowerCase() === setName.toLowerCase() && String(s.std) === String(defaultStd));
+    const setObj = {
+      id: existingSetIdx >= 0 ? DB.testSets[existingSetIdx].id : 'set_' + Date.now(),
+      name: setName,
+      std: defaultStd,
+      date: new Date().toISOString(),
+      count: addedCount + updatedCount
+    };
+    if (existingSetIdx >= 0) {
+      DB.testSets[existingSetIdx] = setObj;
+    } else {
+      DB.testSets.push(setObj);
+    }
+  }
+
   if (typeof healStudentRollsAndMarks === 'function') {
     healStudentRollsAndMarks();
   }
 
   saveDatabase();
+
   if (window.showToast) {
     if (addedCount === 0 && updatedCount === 0) {
       window.showToast(`Excel read for Class ${defaultStd}, but 0 marks were found in score columns. If this is a downloaded template, please fill in student scores first.`, 'warning');
     } else {
-      window.showToast(`Report Card Excel processed for Class ${defaultStd}: ${addedCount} added, ${updatedCount} updated!`, 'success');
+      const setLabel = setName ? ` [Set: "${setName}"]` : '';
+      window.showToast(`Report Card Excel processed for Class ${defaultStd}${setLabel}: ${addedCount} added, ${updatedCount} updated!`, 'success');
     }
+  }
+
+  if (typeof populateReportsFilters === 'function') {
+    populateReportsFilters(setName || null);
   }
   if (window.populateDashFilters) window.populateDashFilters();
   if (window.updateDashboard) window.updateDashboard();

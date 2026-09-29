@@ -178,16 +178,41 @@ window.addEventListener('DOMContentLoaded', () => {
   applyAppLanguage('en');
 });
 
+window.isParentLocked = false;
+
+function isParentModeLocked() {
+  if (window.isParentLocked) return true;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('student') || params.get('roll')) {
+      window.isParentLocked = true;
+      return true;
+    }
+    if (sessionStorage.getItem('gps_parent_lock') === 'true') {
+      window.isParentLocked = true;
+      return true;
+    }
+  } catch (e) {}
+  return false;
+}
+window.isParentModeLocked = isParentModeLocked;
+
 // Routing and Role Navigation
 function checkUrlRouting() {
   const params = new URLSearchParams(window.location.search);
-  const rollParam = params.get('student');
+  const rollParam = params.get('student') || params.get('roll');
   const stdParam = params.get('std');
 
   if (rollParam) {
+    window.isParentLocked = true;
+    try { sessionStorage.setItem('gps_parent_lock', 'true'); } catch (e) {}
     showParentPortalView(parseInt(rollParam), stdParam);
     return;
   }
+
+  // Clear parent lock when not accessing via student parameter
+  window.isParentLocked = false;
+  try { sessionStorage.removeItem('gps_parent_lock'); } catch (e) {}
 
   // Check existing session
   if (DB.activeSession) {
@@ -221,12 +246,14 @@ function hideAllViews() {
 }
 
 function showRoleSelectionView() {
+  if (isParentModeLocked()) return;
   hideAllViews();
   const el = document.getElementById('role-selection-view');
   if (el) el.classList.remove('hidden');
 }
 
 function selectRole(role) {
+  if (isParentModeLocked()) return;
   hideAllViews();
   const authView = document.getElementById('auth-view');
   if (!authView) return;
@@ -493,6 +520,7 @@ function handleManagementLogin(e) {
 // -------------------------------------------------------------
 
 function showTeacherSetupView() {
+  if (isParentModeLocked()) return;
   hideAllViews();
   const el = document.getElementById('teacher-setup-view');
   if (el) el.classList.remove('hidden');
@@ -692,6 +720,7 @@ function finishTeacherSetup() {
 // -------------------------------------------------------------
 
 function showTeacherDashboard() {
+  if (isParentModeLocked()) return;
   hideAllViews();
   const dash = document.getElementById('teacher-dashboard-view');
   if (!dash) return;
@@ -1027,6 +1056,8 @@ function syncAllClassDropdownsAndCards() {
 
 // Horizontal Tab Switcher
 function switchTab(tabId) {
+  if (isParentModeLocked()) return;
+
   // Hide all tab content panes
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   const targetContent = document.getElementById(tabId);
@@ -1085,6 +1116,9 @@ function switchTab(tabId) {
     populateAnalyticsSelect();
   } else if (tabId === 'communications') {
     renderCommunications();
+    if (typeof populateReportsFilters === 'function') {
+      populateReportsFilters();
+    }
     // Populate WA Standard Dropdown
     const stdSel = document.getElementById('wa-filter-std');
     if (stdSel) {
@@ -1169,6 +1203,7 @@ function scrollPageNavigator(offset) {
 }
 
 function openPageDrawer() {
+  if (isParentModeLocked()) return;
   const drawer = document.getElementById('page-navigator-drawer');
   if (drawer) drawer.classList.remove('hidden');
 }
@@ -2384,6 +2419,7 @@ let mgmtSubjectChartInst = null;
 let mgmtGradeDistChartInst = null;
 
 function showManagementDashboard() {
+  if (isParentModeLocked()) return;
   hideAllViews();
   const el = document.getElementById('management-dashboard-view');
   if (!el) return;
@@ -3719,6 +3755,28 @@ function showParentPortalView(roll, std) {
   if (!pp) return;
   pp.classList.remove('hidden');
 
+  // Strict parent mode lock controls
+  const retBtn = document.getElementById('pp-return-btn');
+  const lockBadge = document.getElementById('pp-lock-badge');
+  if (isParentModeLocked()) {
+    if (retBtn) {
+      retBtn.classList.add('hidden');
+      retBtn.style.display = 'none';
+    }
+    if (lockBadge) lockBadge.classList.remove('hidden');
+    if (typeof closePageDrawer === 'function') closePageDrawer();
+    const navDrawer = document.getElementById('page-navigator-drawer');
+    if (navDrawer) navDrawer.classList.add('hidden');
+    const mobileNav = document.getElementById('mobile-nav');
+    if (mobileNav) mobileNav.classList.add('hidden');
+  } else {
+    if (retBtn) {
+      retBtn.classList.remove('hidden');
+      retBtn.style.display = '';
+    }
+    if (lockBadge) lockBadge.classList.add('hidden');
+  }
+
   let student = null;
   if (typeof findStudentByRoll === 'function') {
     student = findStudentByRoll(roll, std);
@@ -3727,14 +3785,27 @@ function showParentPortalView(roll, std) {
   }
 
   if (!student) {
-    pp.innerHTML = `
-      <div class="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <i class="fa-solid fa-link-slash text-6xl text-rose-400 mb-4"></i>
-        <h1 class="text-3xl font-black text-slate-800 mb-2">Student Link Not Found</h1>
-        <p class="text-slate-500 font-medium mb-6">No student record registered under Roll No ${roll}${std ? ` in Class ${std}` : ''}.</p>
-        <button type="button" onclick="showRoleSelectionView()" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-lg cursor-pointer transition-all">Return to School Portal</button>
-      </div>
-    `;
+    if (isParentModeLocked()) {
+      pp.innerHTML = `
+        <div class="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+          <i class="fa-solid fa-link-slash text-6xl text-rose-400 mb-4"></i>
+          <h1 class="text-3xl font-black text-slate-800 mb-2">Student Link Not Found</h1>
+          <p class="text-slate-500 font-medium mb-4">No student record registered under Roll No ${roll}${std ? ` in Class ${std}` : ''}.</p>
+          <div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold">
+            <i class="fa-solid fa-circle-exclamation text-amber-600"></i> Please contact the school administration if you believe this is an error.
+          </div>
+        </div>
+      `;
+    } else {
+      pp.innerHTML = `
+        <div class="min-h-screen flex flex-col items-center justify-center p-6 text-center">
+          <i class="fa-solid fa-link-slash text-6xl text-rose-400 mb-4"></i>
+          <h1 class="text-3xl font-black text-slate-800 mb-2">Student Link Not Found</h1>
+          <p class="text-slate-500 font-medium mb-6">No student record registered under Roll No ${roll}${std ? ` in Class ${std}` : ''}.</p>
+          <button type="button" onclick="showRoleSelectionView()" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-lg cursor-pointer transition-all">Return to School Portal</button>
+        </div>
+      `;
+    }
     return;
   }
 

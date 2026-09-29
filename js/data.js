@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   MARKS: 'gps_em_marks_v1',
   ATTENDANCE: 'gps_em_attendance_v1',
   UPCOMING_TESTS: 'gps_em_upcoming_tests_v1',
+  TEST_SETS: 'gps_em_test_sets_v1',
   ACTIVE_SESSION: 'gps_em_active_session_v1'
 };
 
@@ -26,6 +27,7 @@ let DB = {
   marks: [],
   attendance: [],
   upcomingTests: [],
+  testSets: [],
   activeSession: null
 };
 
@@ -72,6 +74,7 @@ function saveTeacherData(teacherId) {
     localStorage.setItem(getTeacherStorageKey(teacherId, 'marks'), JSON.stringify(DB.marks));
     localStorage.setItem(getTeacherStorageKey(teacherId, 'attendance'), JSON.stringify(DB.attendance));
     localStorage.setItem(getTeacherStorageKey(teacherId, 'upcoming_tests'), JSON.stringify(DB.upcomingTests));
+    localStorage.setItem(getTeacherStorageKey(teacherId, 'test_sets'), JSON.stringify(DB.testSets || []));
     if (typeof CloudDB !== 'undefined' && typeof CloudDB.syncToCloud === 'function') {
       CloudDB.syncToCloud(teacherId);
     }
@@ -86,6 +89,7 @@ function switchTeacherContext(teacherId, isBrandNew = false) {
     DB.marks = [];
     DB.attendance = [];
     DB.upcomingTests = [];
+    DB.testSets = [];
     return;
   }
 
@@ -95,6 +99,7 @@ function switchTeacherContext(teacherId, isBrandNew = false) {
     DB.marks = [];
     DB.attendance = [];
     DB.upcomingTests = [];
+    DB.testSets = [];
     saveTeacherData(teacherId);
     return;
   }
@@ -103,6 +108,7 @@ function switchTeacherContext(teacherId, isBrandNew = false) {
   const rawMks = localStorage.getItem(getTeacherStorageKey(teacherId, 'marks'));
   const rawAtt = localStorage.getItem(getTeacherStorageKey(teacherId, 'attendance'));
   const rawUpc = localStorage.getItem(getTeacherStorageKey(teacherId, 'upcoming_tests'));
+  const rawSets = localStorage.getItem(getTeacherStorageKey(teacherId, 'test_sets'));
 
   if (rawStu !== null) {
     // Existing saved data for this teacher
@@ -111,12 +117,14 @@ function switchTeacherContext(teacherId, isBrandNew = false) {
       DB.marks = rawMks ? JSON.parse(rawMks) : [];
       DB.attendance = rawAtt ? JSON.parse(rawAtt) : [];
       DB.upcomingTests = rawUpc ? JSON.parse(rawUpc) : [];
+      DB.testSets = rawSets ? JSON.parse(rawSets) : [];
     } catch (e) {
       console.error('Error parsing teacher dataset:', e);
       DB.students = [];
       DB.marks = [];
       DB.attendance = [];
       DB.upcomingTests = [];
+      DB.testSets = [];
     }
   } else {
     // Custom/new teacher accounts: start with 100% empty rosters until they upload tally excel!
@@ -124,6 +132,7 @@ function switchTeacherContext(teacherId, isBrandNew = false) {
     DB.marks = [];
     DB.attendance = [];
     DB.upcomingTests = [];
+    DB.testSets = [];
     saveTeacherData(teacherId);
   }
 }
@@ -279,6 +288,7 @@ function saveDatabase(triggerCloud = true) {
     localStorage.setItem(STORAGE_KEYS.MARKS, JSON.stringify(DB.marks));
     localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(DB.attendance));
     localStorage.setItem(STORAGE_KEYS.UPCOMING_TESTS, JSON.stringify(DB.upcomingTests));
+    localStorage.setItem(STORAGE_KEYS.TEST_SETS, JSON.stringify(DB.testSets || []));
     if (DB.activeSession) {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_SESSION, JSON.stringify(DB.activeSession));
       if (DB.activeSession.role === 'teacher' && DB.activeSession.teacher) {
@@ -301,6 +311,20 @@ function saveDatabase(triggerCloud = true) {
   }
 }
 
+// Retrieve all unique test sets (combines DB.testSets registry and marks tags)
+function getAllTestSets(std = null) {
+  const markSets = (DB.marks || [])
+    .filter(m => (!std || std === 'all' || String(m.std) === String(std)))
+    .map(m => m.testSet || m.exam)
+    .filter(Boolean);
+  const dbSets = (DB.testSets || [])
+    .filter(s => (!std || std === 'all' || String(s.std) === String(std)))
+    .map(s => s.name)
+    .filter(Boolean);
+  return [...new Set([...markSets, ...dbSets])].filter(s => s !== 'Unit Assessment');
+}
+window.getAllTestSets = getAllTestSets;
+
 // Factory Reset & Data Management
 function factoryResetData(mode = 'wipe') {
   if (mode === 'wipe') {
@@ -309,6 +333,7 @@ function factoryResetData(mode = 'wipe') {
     DB.marks = [];
     DB.attendance = [];
     DB.upcomingTests = [];
+    DB.testSets = [];
 
     const activeTId = getActiveTeacherId ? getActiveTeacherId() : (DB.activeSession && DB.activeSession.teacher ? DB.activeSession.teacher.id : null);
     if (activeTId) saveTeacherData(activeTId);
