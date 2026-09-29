@@ -595,6 +595,22 @@ function processParsedStudentTallyRows(rows, explicitStd = null) {
     }
   }
 
+  // Auto-register uploaded class into active teacher profile
+  if (DB.activeSession && DB.activeSession.teacher) {
+    const t = DB.activeSession.teacher;
+    t.classrooms = t.classrooms || [];
+    if (!t.classrooms.some(c => String(c.classNumber || c) === String(targetStd))) {
+      t.classrooms.push({ classNumber: String(targetStd), sections: ['A'] });
+      const foundInList = (DB.teachers || []).find(x => x.id === t.id);
+      if (foundInList) {
+        foundInList.classrooms = t.classrooms;
+      }
+    }
+    if (typeof saveTeacherData === 'function') {
+      saveTeacherData(t.id);
+    }
+  }
+
   saveDatabase();
   if (window.showToast) {
     window.showToast(`Student Tally for Class ${targetStd}: ${addedCount} enrolled, ${updatedCount} updated!`, 'success');
@@ -1394,6 +1410,12 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
   }
 
   saveDatabase();
+
+  if (DB.activeSession && DB.activeSession.role === 'teacher' && DB.activeSession.teacher) {
+    if (typeof saveTeacherData === 'function') {
+      saveTeacherData(DB.activeSession.teacher.id);
+    }
+  }
 
   if (window.showToast) {
     if (addedCount === 0 && updatedCount === 0) {

@@ -493,22 +493,15 @@ function handleManagementLogin(e) {
   e.preventDefault();
   const pass = (document.getElementById('management-pass').value || '').trim();
   if (pass === 'gps369' || pass === 'admin123' || pass === 'glorious2026') {
-    const addedTeacher = (typeof getAddedTeacherAccount === 'function') ? getAddedTeacherAccount() : null;
     DB.activeSession = {
       role: 'management',
-      name: 'School Management Board',
-      connectedTeacherId: addedTeacher ? addedTeacher.id : null,
-      connectedTeacherName: addedTeacher ? addedTeacher.name : null
+      name: 'School Management Board'
     };
-    if (addedTeacher && typeof switchTeacherContext === 'function') {
-      switchTeacherContext(addedTeacher.id, false);
+    if (typeof loadManagementSchoolData === 'function') {
+      loadManagementSchoolData();
     }
     saveDatabase();
-    if (addedTeacher) {
-      showToast(`Management logged in with passcode! Connected to teacher: ${addedTeacher.name}`);
-    } else {
-      showToast('Management logged in successfully!');
-    }
+    showToast('Management logged in successfully!');
     showManagementDashboard();
   } else {
     showToast('Incorrect Management Passcode. Passcode: gps369', 'error');
@@ -2425,18 +2418,18 @@ function showManagementDashboard() {
   if (!el) return;
   el.classList.remove('hidden');
 
-  // Update connected teacher badge in header
+  // Load and consolidate whole school data across all faculty and classrooms
+  if (typeof loadManagementSchoolData === 'function') {
+    loadManagementSchoolData();
+  }
+
+  // Update whole school oversight badge in header
   const badge = document.getElementById('mgmt-connected-teacher-badge');
   if (badge) {
-    const teacherName = (DB.activeSession && DB.activeSession.connectedTeacherName)
-      ? DB.activeSession.connectedTeacherName
-      : ((typeof getAddedTeacherAccount === 'function' && getAddedTeacherAccount()) ? getAddedTeacherAccount().name : null);
-    if (teacherName) {
-      badge.textContent = `Connected: ${teacherName}`;
-      badge.classList.remove('hidden');
-    } else {
-      badge.classList.add('hidden');
-    }
+    const totalStu = DB.students ? DB.students.length : 0;
+    const tCount = DB.teachers ? DB.teachers.length : 0;
+    badge.textContent = `Whole School Oversight (${totalStu} Students • ${tCount} Faculty)`;
+    badge.classList.remove('hidden');
   }
 
   renderManagementClassroomBar();

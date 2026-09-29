@@ -83,6 +83,244 @@ function saveTeacherData(teacherId) {
   }
 }
 
+// Consolidate full school-wide dataset across global storage and all faculty accounts
+function loadManagementSchoolData() {
+  let allStudents = [];
+  let allMarks = [];
+  let allAttendance = [];
+  let allTestSets = [];
+  let allUpcomingTests = [];
+
+  // 1. Read global storage keys first
+  try {
+    const rawGlobalStu = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+    if (rawGlobalStu) {
+      const parsed = JSON.parse(rawGlobalStu);
+      if (Array.isArray(parsed)) allStudents.push(...parsed);
+    }
+    const rawGlobalMks = localStorage.getItem(STORAGE_KEYS.MARKS);
+    if (rawGlobalMks) {
+      const parsed = JSON.parse(rawGlobalMks);
+      if (Array.isArray(parsed)) allMarks.push(...parsed);
+    }
+    const rawGlobalAtt = localStorage.getItem(STORAGE_KEYS.ATTENDANCE);
+    if (rawGlobalAtt) {
+      const parsed = JSON.parse(rawGlobalAtt);
+      if (Array.isArray(parsed)) allAttendance.push(...parsed);
+    }
+    const rawGlobalSets = localStorage.getItem(STORAGE_KEYS.TEST_SETS);
+    if (rawGlobalSets) {
+      const parsed = JSON.parse(rawGlobalSets);
+      if (Array.isArray(parsed)) allTestSets.push(...parsed);
+    }
+    const rawGlobalUpc = localStorage.getItem(STORAGE_KEYS.UPCOMING_TESTS);
+    if (rawGlobalUpc) {
+      const parsed = JSON.parse(rawGlobalUpc);
+      if (Array.isArray(parsed)) allUpcomingTests.push(...parsed);
+    }
+  } catch (e) {
+    console.warn('Error reading global storage:', e);
+  }
+
+  // 2. Scan every registered teacher in DB.teachers
+  if (Array.isArray(DB.teachers)) {
+    DB.teachers.forEach(t => {
+      if (!t || !t.id) return;
+      try {
+        const tStu = localStorage.getItem(getTeacherStorageKey(t.id, 'students'));
+        if (tStu) {
+          const parsed = JSON.parse(tStu);
+          if (Array.isArray(parsed)) allStudents.push(...parsed);
+        }
+        const tMks = localStorage.getItem(getTeacherStorageKey(t.id, 'marks'));
+        if (tMks) {
+          const parsed = JSON.parse(tMks);
+          if (Array.isArray(parsed)) allMarks.push(...parsed);
+        }
+        const tAtt = localStorage.getItem(getTeacherStorageKey(t.id, 'attendance'));
+        if (tAtt) {
+          const parsed = JSON.parse(tAtt);
+          if (Array.isArray(parsed)) allAttendance.push(...parsed);
+        }
+        const tSets = localStorage.getItem(getTeacherStorageKey(t.id, 'test_sets'));
+        if (tSets) {
+          const parsed = JSON.parse(tSets);
+          if (Array.isArray(parsed)) allTestSets.push(...parsed);
+        }
+        const tUpc = localStorage.getItem(getTeacherStorageKey(t.id, 'upcoming_tests'));
+        if (tUpc) {
+          const parsed = JSON.parse(tUpc);
+          if (Array.isArray(parsed)) allUpcomingTests.push(...parsed);
+        }
+      } catch (e) {}
+    });
+  }
+
+  // 3. Scan ALL localStorage keys matching gps_t_* to rescue any orphan or legacy teacher uploads
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (key.startsWith('gps_t_') && key.endsWith('_students')) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) allStudents.push(...parsed);
+          }
+        } catch (e) {}
+      } else if (key.startsWith('gps_t_') && key.endsWith('_marks')) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) allMarks.push(...parsed);
+          }
+        } catch (e) {}
+      } else if (key.startsWith('gps_t_') && key.endsWith('_attendance')) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) allAttendance.push(...parsed);
+          }
+        } catch (e) {}
+      } else if (key.startsWith('gps_t_') && key.endsWith('_test_sets')) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) allTestSets.push(...parsed);
+          }
+        } catch (e) {}
+      }
+    }
+  } catch (e) {}
+
+  // 4. Also incorporate any in-memory items
+  if (Array.isArray(DB.students) && DB.students.length > 0) {
+    allStudents.push(...DB.students);
+  }
+  if (Array.isArray(DB.marks) && DB.marks.length > 0) {
+    allMarks.push(...DB.marks);
+  }
+
+  // 5. Deduplicate Students by (std, section, roll) and GR number
+  const studentMap = new Map();
+  allStudents.forEach(stu => {
+    if (!stu || stu.roll === undefined || stu.roll === null) return;
+    const std = String(stu.std || '9').trim();
+    const sec = String(stu.section || 'A').trim().toUpperCase();
+    const roll = parseInt(stu.roll);
+    if (isNaN(roll)) return;
+
+    const key = `${std}_${sec}_${roll}`;
+    const grKey = stu.grNo ? `GR_${String(stu.grNo).trim()}` : null;
+
+    const existing = studentMap.get(key) || (grKey ? studentMap.get(grKey) : null);
+    if (existing) {
+      if (!existing.name || (existing.name.startsWith('Student ') && stu.name && !stu.name.startsWith('Student '))) {
+        existing.name = stu.name;
+      }
+      if (!existing.mobile && stu.mobile) existing.mobile = stu.mobile;
+      if (!existing.grNo && stu.grNo) existing.grNo = stu.grNo;
+      if (!existing.section && stu.section) existing.section = stu.section;
+    } else {
+      const record = {
+        id: stu.id || Date.now() + Math.floor(Math.random() * 1000000),
+        grNo: stu.grNo || `GR-${new Date().getFullYear()}-${std}-${String(roll).padStart(3, '0')}`,
+        roll: roll,
+        name: stu.name || `Student ${roll}`,
+        std: std,
+        section: sec,
+        mobile: stu.mobile || ''
+      };
+      studentMap.set(key, record);
+      if (grKey) studentMap.set(grKey, record);
+    }
+  });
+
+  const uniqueStudents = Array.from(new Set(studentMap.values()));
+  uniqueStudents.sort((a, b) => {
+    const stdDiff = (parseInt(a.std) || 0) - (parseInt(b.std) || 0);
+    if (stdDiff !== 0) return stdDiff;
+    return (parseInt(a.roll) || 0) - (parseInt(b.roll) || 0);
+  });
+
+  // 6. Deduplicate Marks by (std, roll, subject, testSet/topic/exam, date)
+  const marksMap = new Map();
+  allMarks.forEach(m => {
+    if (!m || m.roll === undefined || m.roll === null) return;
+    const std = String(m.std || '9').trim();
+    const roll = parseInt(m.roll);
+    if (isNaN(roll)) return;
+    const sub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : String(m.subject || '').trim();
+    if (!sub) return;
+    const setKey = String(m.testSet || m.exam || m.topic || 'Assessment').trim();
+    const date = String(m.date || '').trim();
+    const key = `${std}_${roll}_${sub}_${setKey}_${date}`;
+
+    if (!marksMap.has(key)) {
+      marksMap.set(key, {
+        id: m.id || 'm_' + Math.random().toString(36).substr(2, 9),
+        roll: roll,
+        std: std,
+        subject: sub,
+        topic: m.topic || setKey,
+        testSet: m.testSet || (setKey !== 'Assessment' ? setKey : ''),
+        exam: m.exam || (setKey !== 'Assessment' ? setKey : ''),
+        marks: m.marks !== undefined ? m.marks : 0,
+        total: m.total || 50,
+        date: date || new Date().toISOString().split('T')[0],
+        isAbsent: Boolean(m.isAbsent),
+        source: m.source || 'excel',
+        grNo: m.grNo || ''
+      });
+    }
+  });
+  const uniqueMarks = Array.from(marksMap.values());
+
+  // 7. Deduplicate Attendance
+  const attMap = new Map();
+  allAttendance.forEach(a => {
+    if (!a || !a.date || a.roll === undefined) return;
+    const key = `${a.date}_${a.std || '9'}_${a.roll}`;
+    if (!attMap.has(key)) attMap.set(key, a);
+  });
+  const uniqueAttendance = Array.from(attMap.values());
+
+  // 8. Deduplicate Test Sets
+  const testSetMap = new Map();
+  allTestSets.forEach(s => {
+    if (!s || !s.name) return;
+    const key = `${s.name.toLowerCase()}_${s.std || 'all'}`;
+    if (!testSetMap.has(key)) testSetMap.set(key, s);
+  });
+  const uniqueTestSets = Array.from(testSetMap.values());
+
+  // Set consolidated data in DB
+  DB.students = uniqueStudents;
+  DB.marks = uniqueMarks;
+  DB.attendance = uniqueAttendance;
+  DB.testSets = uniqueTestSets;
+
+  // Persist consolidated school records to global storage
+  try {
+    localStorage.setItem(STORAGE_KEYS.STUDENTS, JSON.stringify(DB.students));
+    localStorage.setItem(STORAGE_KEYS.MARKS, JSON.stringify(DB.marks));
+    localStorage.setItem(STORAGE_KEYS.ATTENDANCE, JSON.stringify(DB.attendance));
+    localStorage.setItem(STORAGE_KEYS.TEST_SETS, JSON.stringify(DB.testSets));
+  } catch (e) {}
+
+  return {
+    students: uniqueStudents,
+    marks: uniqueMarks,
+    attendance: uniqueAttendance,
+    testSets: uniqueTestSets
+  };
+}
+window.loadManagementSchoolData = loadManagementSchoolData;
+
 function switchTeacherContext(teacherId, isBrandNew = false) {
   if (!teacherId) {
     DB.students = [];
@@ -126,10 +364,37 @@ function switchTeacherContext(teacherId, isBrandNew = false) {
       DB.upcomingTests = [];
       DB.testSets = [];
     }
+    // If teacher storage has 0 students, attempt sync from school database for teacher's assigned classes
+    if (DB.students.length === 0) {
+      try {
+        const rawGlobal = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+        const globalStudents = rawGlobal ? JSON.parse(rawGlobal) : [];
+        const teacher = (DB.teachers || []).find(t => t.id === teacherId);
+        if (globalStudents.length > 0 && teacher && teacher.classrooms && teacher.classrooms.length > 0) {
+          const assigned = teacher.classrooms.map(c => String(c.classNumber || c));
+          DB.students = globalStudents.filter(s => assigned.includes(String(s.std)));
+          const rawGlobalMks = localStorage.getItem(STORAGE_KEYS.MARKS);
+          const globalMarks = rawGlobalMks ? JSON.parse(rawGlobalMks) : [];
+          DB.marks = globalMarks.filter(m => assigned.includes(String(m.std)));
+          saveTeacherData(teacherId);
+        }
+      } catch (e) {}
+    }
   } else {
-    // Custom/new teacher accounts: start with 100% empty rosters until they upload tally excel!
-    DB.students = [];
-    DB.marks = [];
+    // Check if the school already has students enrolled in STORAGE_KEYS.STUDENTS
+    const rawGlobal = localStorage.getItem(STORAGE_KEYS.STUDENTS);
+    const globalStudents = rawGlobal ? JSON.parse(rawGlobal) : [];
+    const teacher = (DB.teachers || []).find(t => t.id === teacherId);
+    if (globalStudents.length > 0 && teacher && teacher.classrooms && teacher.classrooms.length > 0) {
+      const assigned = teacher.classrooms.map(c => String(c.classNumber || c));
+      DB.students = globalStudents.filter(s => assigned.includes(String(s.std)));
+      const rawGlobalMks = localStorage.getItem(STORAGE_KEYS.MARKS);
+      const globalMarks = rawGlobalMks ? JSON.parse(rawGlobalMks) : [];
+      DB.marks = globalMarks.filter(m => assigned.includes(String(m.std)));
+    } else {
+      DB.students = [];
+      DB.marks = [];
+    }
     DB.attendance = [];
     DB.upcomingTests = [];
     DB.testSets = [];
@@ -199,42 +464,23 @@ function initDatabase() {
         }
       }
 
-      // Self-clean any students, marks, or attendance belonging to classes NOT selected by this teacher!
+      // Auto-expand teacher classrooms to cover any classes present in their student roster
       const teacherObj = DB.activeSession.teacher;
-      if (teacherObj && teacherObj.classrooms && Array.isArray(teacherObj.classrooms) && teacherObj.classrooms.length > 0) {
-        const validClasses = teacherObj.classrooms.map(c => String(c.classNumber || c));
-        const initialStuCount = DB.students.length;
-        const initialMarksCount = DB.marks.length;
-        DB.students = DB.students.filter(s => validClasses.includes(String(s.std)));
-        DB.marks = DB.marks.filter(m => validClasses.includes(String(m.std)));
-        DB.attendance = DB.attendance.filter(a => validClasses.includes(String(a.std)));
-        if (DB.students.length !== initialStuCount || DB.marks.length !== initialMarksCount) {
-          console.log(`Cleaned unassigned class records for teacher ${activeTId}: kept only classes`, validClasses);
-          saveTeacherData(activeTId);
-        }
+      if (teacherObj) {
+        teacherObj.classrooms = teacherObj.classrooms || [];
+        const presentClasses = [...new Set((DB.students || []).map(s => String(s.std)))].filter(Boolean);
+        presentClasses.forEach(c => {
+          if (!teacherObj.classrooms.some(cr => String(cr.classNumber || cr) === c)) {
+            teacherObj.classrooms.push({ classNumber: c, sections: ['A'] });
+          }
+        });
       }
 
     } else if (DB.activeSession && DB.activeSession.role === 'management') {
-      const targetTeacherId = DB.activeSession.connectedTeacherId || (getAddedTeacherAccount() ? getAddedTeacherAccount().id : null);
-      if (targetTeacherId) {
-        switchTeacherContext(targetTeacherId, false);
-      } else {
-        DB.students = [];
-        DB.marks = [];
-        DB.attendance = [];
-        DB.upcomingTests = [];
-      }
+      loadManagementSchoolData();
     } else {
-      // If no active teacher session, load first teacher account if exists, else keep clean empty state
-      const firstT = DB.teachers && DB.teachers.length > 0 ? DB.teachers[0].id : null;
-      if (firstT) {
-        switchTeacherContext(firstT, false);
-      } else {
-        DB.students = [];
-        DB.marks = [];
-        DB.attendance = [];
-        DB.upcomingTests = [];
-      }
+      // If no active teacher session, consolidate and load the whole-school dataset
+      loadManagementSchoolData();
     }
 
     // Auto-migrate marks: ensure 'std' and 'source' are present on each mark
