@@ -66,6 +66,7 @@ function applyAppLanguage(lang = 'en') {
     'data-entry': 'Result Generator',
     'students': 'Student Directory',
     'records': 'Records',
+    'test-sets': 'Manage Sets',
     'analytics': 'AI Insights',
     'communications': 'Reports & Export'
   };
@@ -220,6 +221,8 @@ function checkUrlRouting() {
       showTeacherDashboard();
     } else if (DB.activeSession.role === 'management') {
       showManagementDashboard();
+    } else if (DB.activeSession.role === 'parent' && DB.activeSession.roll) {
+      showParentPortalView(DB.activeSession.roll, DB.activeSession.std);
     }
   } else {
     showRoleSelectionView();
@@ -331,6 +334,12 @@ function handleParentLoginFormSubmit(event) {
   }
 
   showToast(`Welcome! Loading Academic Progress Report for ${student.name}...`, 'success');
+  DB.activeSession = {
+    role: 'parent',
+    roll: student.roll,
+    std: student.std
+  };
+  saveDatabase();
   showParentPortalView(student.roll, student.std);
 }
 
@@ -712,20 +721,25 @@ function showTeacherDashboard() {
   if (!dash) return;
   dash.classList.remove('hidden');
 
-  const teacher = (DB.activeSession && DB.activeSession.teacher) ? DB.activeSession.teacher : DB.teachers[0];
+  const teacher = (DB.activeSession && DB.activeSession.teacher) ? DB.activeSession.teacher : (DB.teachers && DB.teachers.length > 0 ? DB.teachers[0] : null);
+  if (!teacher) {
+    if (window.showToast) window.showToast('Please sign in or select your role to proceed.', 'info');
+    showRoleSelectionView();
+    return;
+  }
 
   // Update Header Elements
   const nameEl = document.getElementById('dash-teacher-name');
   const detailsEl = document.getElementById('dash-teacher-details');
   const badgeEl = document.getElementById('dash-teacher-badge');
 
-  if (nameEl) nameEl.innerText = teacher.name;
+  if (nameEl) nameEl.innerText = teacher.name || 'Faculty Member';
   if (detailsEl) {
     const subjectsStr = (teacher.subjects || []).join(', ');
     const classesStr = (teacher.classrooms || []).map(c => `Class ${c.classNumber || c} (${(c.sections || ['A']).join(',')})`).join(' • ');
     detailsEl.innerText = `${subjectsStr} | ${classesStr}`;
   }
-  if (badgeEl) badgeEl.innerText = `Teacher ID: ${teacher.id}`;
+  if (badgeEl) badgeEl.innerText = `Teacher ID: ${teacher.id || 'N/A'}`;
 
   // Set Current Date Display
   const dateEl = document.getElementById('current-date');
@@ -737,8 +751,12 @@ function showTeacherDashboard() {
   // Synchronize all class dropdowns, cards, filters, and workspace to active teacher's assigned classes
   syncAllClassDropdownsAndCards();
 
-  // Switch to Overview Tab initially
-  switchTab('dashboard');
+  // Restore previous active tab or default to dashboard
+  let savedTab = 'dashboard';
+  try { savedTab = localStorage.getItem('gps_em_active_tab') || 'dashboard'; } catch (e) {}
+  const validTabs = ['dashboard', 'attendance', 'upcoming-tests', 'data-entry', 'students', 'records', 'test-sets', 'analytics', 'communications'];
+  const targetTab = (savedTab && validTabs.includes(savedTab) && document.getElementById(savedTab)) ? savedTab : 'dashboard';
+  switchTab(targetTab);
 }
 
 
@@ -1044,6 +1062,8 @@ function syncAllClassDropdownsAndCards() {
 function switchTab(tabId) {
   if (isParentModeLocked()) return;
 
+  try { localStorage.setItem('gps_em_active_tab', tabId); } catch (e) {}
+
   // Hide all tab content panes
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   const targetContent = document.getElementById(tabId);
@@ -1098,6 +1118,10 @@ function switchTab(tabId) {
     renderStudentsTable();
   } else if (tabId === 'records') {
     renderRecordsTable();
+  } else if (tabId === 'test-sets') {
+    if (typeof renderTestSetsManager === 'function') {
+      renderTestSetsManager();
+    }
   } else if (tabId === 'analytics') {
     populateAnalyticsSelect();
   } else if (tabId === 'communications') {
@@ -4094,6 +4118,7 @@ function logoutSession() {
       }
     }
     DB.activeSession = null;
+    try { localStorage.removeItem('gps_em_active_tab'); } catch (e) {}
     saveDatabase();
     showRoleSelectionView();
     showToast('Logged out successfully.');

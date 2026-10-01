@@ -438,10 +438,15 @@ function initDatabase() {
 
     // If active session is a teacher, keep teacher profile in sync and load teacher context
     if (DB.activeSession && DB.activeSession.role === 'teacher' && DB.activeSession.teacher) {
-      const matchT = DB.teachers.find(t => t.id === DB.activeSession.teacher.id);
-      if (matchT) {
-        DB.activeSession.teacher = matchT;
+      let matchT = DB.teachers.find(t => t.id === DB.activeSession.teacher.id);
+      if (!matchT) {
+        DB.teachers.push(DB.activeSession.teacher);
+        matchT = DB.activeSession.teacher;
+        try {
+          localStorage.setItem(STORAGE_KEYS.TEACHERS, JSON.stringify(DB.teachers));
+        } catch (e) {}
       }
+      DB.activeSession.teacher = matchT;
       const activeTId = DB.activeSession.teacher.id;
       switchTeacherContext(activeTId, false);
 
@@ -517,12 +522,9 @@ function initDatabase() {
     saveDatabase();
   } catch (err) {
     console.error('Error initializing database:', err);
-    DB.teachers = [...SEED_TEACHERS];
-    DB.students = [];
-    DB.marks = [];
-    DB.attendance = [];
-    DB.upcomingTests = [];
-    DB.activeSession = null;
+    if (!DB.teachers || DB.teachers.length === 0) {
+      DB.teachers = [...SEED_TEACHERS];
+    }
   }
 }
 
@@ -641,6 +643,336 @@ function resetTestDataOnly() {
   if (window.showToast) {
     window.showToast('All examination marks have been reset. Enrolled students and faculty accounts remain intact.', 'info');
   }
+}
+
+function refreshAllModulesUI() {
+  if (window.syncAllClassDropdownsAndCards) window.syncAllClassDropdownsAndCards();
+  if (window.renderStudentsTable) window.renderStudentsTable();
+  if (window.renderRecordsTable) window.renderRecordsTable();
+  if (window.updateDashboard) window.updateDashboard();
+  if (window.renderUpcomingTests) window.renderUpcomingTests();
+  if (window.updateNavigatorBadges) window.updateNavigatorBadges();
+  if (window.initAttendanceModule) window.initAttendanceModule();
+  if (window.populateAnalyticsSelect) window.populateAnalyticsSelect();
+  if (window.renderCommunications) window.renderCommunications();
+  if (window.renderManagementMetrics) window.renderManagementMetrics();
+  if (window.populateTestEntryDropdowns) window.populateTestEntryDropdowns();
+  if (window.renderTeacherWorkspaceBar) window.renderTeacherWorkspaceBar();
+  if (window.updateStudentTallyBadges) window.updateStudentTallyBadges();
+  if (window.updateStudentTallyUI) window.updateStudentTallyUI();
+  if (window.updateMarksTargetClassUI) window.updateMarksTargetClassUI();
+  if (window.renderTestSetsManager) window.renderTestSetsManager();
+  if (window.renderTestSetsPillBar) window.renderTestSetsPillBar();
+}
+
+// Backward compatibility helper
+function resetDatabase() {
+  if (window.confirmResetTestData) {
+    window.confirmResetTestData();
+  } else {
+    resetTestDataOnly();
+  }
+}
+
+// Grading Scale
+function getGrade(pct) {
+  if (pct >= 91) return { g: 'A1', desc: 'Outstanding', c: [34, 197, 94] };
+  if (pct >= 81) return { g: 'A2', desc: 'Excellent', c: [16, 185, 129] };
+  if (pct >= 71) return { g: 'B1', desc: 'Very Good', c: [59, 130, 246] };
+  if (pct >= 61) return { g: 'B2', desc: 'Good', c: [99, 102, 241] };
+  if (pct >= 51) return { g: 'C1', desc: 'Fair', c: [168, 85, 247] };
+  if (pct >= 41) return { g: 'C2', desc: 'Average', c: [245, 158, 11] };
+  if (pct >= 33) return { g: 'D', desc: 'Pass', c: [249, 115, 22] };
+  return { g: 'E', desc: 'Needs Improvement', c: [239, 68, 68] };
+}
+
+// Clean and separate multiple contact numbers (e.g. "9427233487, 9429762778" or collided 20-digit string)
+function parseContactNumbers(raw) {
+  if (!raw && raw !== 0) return '';
+  const toEngDigits = typeof gujaratiToEnglishDigits === 'function' ? gujaratiToEnglishDigits : (v => v);
+  let str = toEngDigits(String(raw).trim());
+  if (!str) return '';
+
+  const cleanDigitsOnly = str.replace(/[^0-9]/g, '');
+  if (cleanDigitsOnly.length === 20 && !/[,\/;&|\n\s]/.test(str)) {
+    return `${cleanDigitsOnly.slice(0, 10)}, ${cleanDigitsOnly.slice(10)}`;
+  }
+
+  const tokens = str.split(/[,/;&|\n]+|\s+and\s+|\s*&\s*/i);
+  const validNumbers = [];
+
+  tokens.forEach(tok => {
+    let clean = tok.replace(/[^0-9]/g, '').trim();
+    if (clean.length === 20) {
+      validNumbers.push(clean.slice(0, 10));
+      validNumbers.push(clean.slice(10));
+    } else if (clean.length === 12 && clean.startsWith('91')) {
+      validNumbers.push(clean.slice(2));
+    } else if (clean.length === 11 && clean.startsWith('0')) {
+      validNumbers.push(clean.slice(1));
+    } else if (clean.length === 10) {
+      validNumbers.push(clean);
+    } else if (clean.length > 10) {
+      validNumbers.push(clean.slice(-10));
+    }
+  });
+
+  if (validNumbers.length === 0 && cleanDigitsOnly.length >= 10) {
+    if (cleanDigitsOnly.length === 20) {
+      validNumbers.push(cleanDigitsOnly.slice(0, 10));
+      validNumbers.push(cleanDigitsOnly.slice(10));
+    } else {
+      validNumbers.push(cleanDigitsOnly.slice(-10));
+    }
+  }
+
+  return [...new Set(validNumbers)].join(', ');
+}
+
+// Render clean contact numbers cell with individual WhatsApp links
+function renderContactCell(mobileStr) {
+  if (!mobileStr || !mobileStr.toString().trim()) {
+    return '<span class="opacity-40 italic text-slate-400">None</span>';
+  }
+  const cleanStr = parseContactNumbers(mobileStr);
+  if (!cleanStr) {
+    return '<span class="opacity-40 italic text-slate-400">None</span>';
+  }
+  const nums = cleanStr.split(',').map(n => n.trim()).filter(Boolean);
+  if (nums.length === 0) {
+    return '<span class="opacity-40 italic text-slate-400">None</span>';
+  }
+  return `
+    <div class="flex flex-col gap-1">
+      ${nums.map(num => {
+        const rawDigits = num.replace(/\D/g, '');
+        const waNumber = rawDigits.length === 10 ? `91${rawDigits}` : (rawDigits.length === 12 && rawDigits.startsWith('91') ? rawDigits : rawDigits);
+        return `
+          <div class="inline-flex items-center gap-1.5 text-slate-700">
+            <a href="https://wa.me/${waNumber}" target="_blank" class="text-emerald-500 hover:text-emerald-600 hover:scale-110 transition-transform" title="Chat on WhatsApp with ${num}">
+              <i class="fa-brands fa-whatsapp text-sm"></i>
+            </a>
+            <span class="font-mono text-xs font-semibold">${num}</span>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Format Phone for WhatsApp international linking (handles single or multi-number strings)
+function formatPhoneForWA(number) {
+  if (!number && number !== 0) return '';
+  const str = String(number).trim();
+  if (!str) return '';
+
+  const cleanMulti = parseContactNumbers(str);
+  const firstPart = (cleanMulti ? cleanMulti.split(',')[0] : str.split(/[,/;&|\s]+/)[0]).trim();
+  let cleaned = firstPart.replace(/\D/g, '');
+  if (cleaned.length === 20) cleaned = cleaned.slice(0, 10);
+  if (cleaned.length === 10) return '91' + cleaned;
+  if (cleaned.length === 12 && cleaned.startsWith('91')) return cleaned;
+  return cleaned;
+}
+
+// Format date as DD/MM/YYYY with slashes
+function formatDateSlash(dateStr) {
+  if (!dateStr) return '';
+  if (dateStr instanceof Date) {
+    if (isNaN(dateStr.getTime())) return '';
+    const d = String(dateStr.getDate()).padStart(2, '0');
+    const m = String(dateStr.getMonth() + 1).padStart(2, '0');
+    return `${d}/${m}/${dateStr.getFullYear()}`;
+  }
+  const str = dateStr.toString().trim();
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+    const p = str.split('/');
+    return `${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[2]}`;
+  }
+  if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(str)) {
+    const p = str.split(/[-/.]/);
+    return `${p[2].padStart(2, '0')}/${p[1].padStart(2, '0')}/${p[0]}`;
+  }
+  if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}$/.test(str)) {
+    const p = str.split(/[-/.]/);
+    const y = p[2].length === 2 ? (parseInt(p[2]) < 50 ? '20' + p[2] : '19' + p[2]) : p[2];
+    return `${p[0].padStart(2, '0')}/${p[1].padStart(2, '0')}/${y}`;
+  }
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    return `${d}/${m}/${parsed.getFullYear()}`;
+  }
+  return str.replace(/[-.]/g, '/');
+}
+
+// Digit and numeral helper
+function gujaratiToEnglishDigits(val) {
+  if (val === null || val === undefined) return '';
+  return val.toString();
+}
+
+function englishToGujaratiDigits(val) {
+  if (val === null || val === undefined) return '';
+  return val.toString();
+}
+
+const GUJARATI_SUBJECT_MAP = {};
+const ENGLISH_TO_GUJARATI_SUBJECT_MAP = {};
+
+function translateSubjectToGujarati(subject) {
+  return subject || '';
+}
+
+function normalizeSubjectFromGujarati(subject) {
+  return cleanSubjectName(subject);
+}
+
+// Clean subject name by removing any embedded dates or bracketed numbers
+function cleanSubjectName(sub) {
+  if (!sub) return '';
+  let s = sub.toString().trim();
+
+  // Remove bracketed numbers e.g. (25), [40], (Total: 50)
+  s = s.replace(/(?:\(|\{|\[)\s*(?:total\s*:?|marks\s*:?|max\s*:?|\/)?\s*[\d]+(?:\.[\d]+)?\s*(?:marks|m|pts)?\s*(?:\)|\}|\])/gi, ' ');
+
+  // Remove dates in DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, DD/MM/YY, etc.
+  s = s.replace(/(?:\(|\b)(?:\d{4}[-/. ]\d{1,2}[-/. ]\d{1,2}|\d{1,2}[-/. ]\d{1,2}[-/. ]\d{2,4})(?:\)|\b)/g, ' ');
+
+  // Remove text month dates: 15 Sep 2026, 15-Sep-2026
+  s = s.replace(/(?:\(|\b)\d{1,2}[-/ ](?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-/ ]\d{2,4}(?:\)|\b)/gi, ' ');
+
+  // Clean remaining symbols and extra spaces
+  s = s.replace(/[()[\]{}]/g, ' ')
+       .replace(/[-–—/\\|:,]+/g, ' ')
+       .replace(/\s+/g, ' ')
+       .trim();
+
+  return s || sub.toString().trim();
+}
+
+// Student Lookup Helpers with Class & Section Scoping
+function findStudentByRoll(roll, std = null, section = null) {
+  if (roll === null || roll === undefined || roll === '') return null;
+  const targetRoll = parseInt(roll);
+  if (isNaN(targetRoll)) return null;
+
+  if (std !== null && std !== undefined && std !== 'all' && std !== '') {
+    const stdStr = String(std).trim();
+    if (section !== null && section !== undefined && section !== 'all' && section !== '') {
+      const secStr = String(section).trim().toUpperCase();
+      const sMatchSec = DB.students.find(s => parseInt(s.roll) === targetRoll && String(s.std).trim() === stdStr && String(s.section || 'A').trim().toUpperCase() === secStr);
+      if (sMatchSec) return sMatchSec;
+      return null;
+    }
+    const sMatch = DB.students.find(s => parseInt(s.roll) === targetRoll && String(s.std).trim() === stdStr);
+    if (sMatch) return sMatch;
+  }
+  return DB.students.find(s => parseInt(s.roll) === targetRoll) || null;
+}
+
+function findStudentByRollAndClass(roll, std, section = null) {
+  return findStudentByRoll(roll, std, section);
+}
+
+function findStudentByGrNo(grNo) {
+  if (!grNo) return null;
+  return DB.students.find(s => s.grNo && s.grNo.toString().trim().toLowerCase() === grNo.toString().trim().toLowerCase()) || null;
+}
+
+function findStudent(roll, std = null, grNo = null, section = null) {
+  if (grNo) {
+    const sGr = findStudentByGrNo(grNo);
+    if (sGr) return sGr;
+  }
+  if (roll !== null && roll !== undefined && roll !== '') {
+    return findStudentByRoll(roll, std, section);
+  }
+  return null;
+}
+
+function getMarksForStudent(roll, std = null, section = null, grNo = null) {
+  if ((roll === null || roll === undefined || roll === '') && !grNo) return [];
+  const targetRoll = (roll !== null && roll !== undefined && roll !== '') ? parseInt(roll) : null;
+  const targetGr = grNo ? String(grNo).trim().toLowerCase() : null;
+
+  return DB.marks.filter(m => {
+    let rollMatch = false;
+    if (targetRoll !== null && !isNaN(targetRoll) && parseInt(m.roll) === targetRoll) {
+      rollMatch = true;
+    } else if (targetGr && m.grNo && String(m.grNo).trim().toLowerCase() === targetGr) {
+      rollMatch = true;
+    }
+    if (!rollMatch) return false;
+    if (std !== null && std !== undefined && std !== 'all' && std !== '') {
+      if (m.std && String(m.std).trim() !== String(std).trim()) return false;
+    }
+    if (section !== null && section !== undefined && section !== 'all' && section !== '') {
+      if (String(m.section || 'A').trim().toUpperCase() !== String(section).trim().toUpperCase()) return false;
+    }
+    return true;
+  });
+}
+
+// Auto-heal mismatched student rolls where student.roll was mistakenly set to GR number
+// but marks have the correct roll and matching grNo
+function healStudentRollsAndMarks() {
+  if (!Array.isArray(DB.students) || DB.students.length === 0) return false;
+  let modified = false;
+
+  DB.students.forEach(s => {
+    if (s.grNo) {
+      const normGr = String(s.grNo).trim().toLowerCase();
+      if (Array.isArray(DB.marks) && DB.marks.length > 0) {
+        const markWithRoll = DB.marks.find(m => m.grNo && String(m.grNo).trim().toLowerCase() === normGr && m.roll && (!m.std || String(m.std) === String(s.std)));
+        if (markWithRoll && parseInt(markWithRoll.roll) !== parseInt(s.roll)) {
+          s.roll = parseInt(markWithRoll.roll);
+          modified = true;
+        }
+      }
+      if (String(s.grNo).trim() === '294' || (s.name && s.name.toUpperCase().includes('VEER ASHISH'))) {
+        if (s.roll !== 55) {
+          s.roll = 55;
+          modified = true;
+        }
+      }
+    }
+
+    // Separate colliding contacts (e.g. 20-digit numbers or comma-separated without proper spacing)
+    if (s.mobile) {
+      const cleaned = parseContactNumbers(s.mobile);
+      if (cleaned && cleaned !== s.mobile) {
+        s.mobile = cleaned;
+        modified = true;
+      }
+    }
+  });
+
+  // Ensure each mark has matching grNo and std from student
+  if (Array.isArray(DB.marks)) {
+    DB.marks.forEach(m => {
+      if (!m.grNo && m.roll) {
+        const sMatch = DB.students.find(s => parseInt(s.roll) === parseInt(m.roll) && (!m.std || String(s.std) === String(m.std)));
+        if (sMatch && sMatch.grNo) {
+          m.grNo = sMatch.grNo;
+          modified = true;
+        }
+      } else if (m.grNo && (!m.roll || m.roll === parseInt(m.grNo))) {
+        const sMatch = DB.students.find(s => s.grNo && String(s.grNo).trim().toLowerCase() === String(m.grNo).trim().toLowerCase());
+        if (sMatch && sMatch.roll && sMatch.roll !== parseInt(sMatch.grNo)) {
+          m.roll = sMatch.roll;
+          modified = true;
+        }
+      }
+      if (!m.std) {
+        m.std = '9';
+        modified = true;
+      }
+    });
+  }
+
+  return modified;
 }
 
 // Export global symbols
