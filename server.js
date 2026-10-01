@@ -58,7 +58,9 @@ async function connectToMongo(uri) {
 
     const client = new MongoClient(uri, {
       serverSelectionTimeoutMS: 7000,
-      connectTimeoutMS: 10000
+      connectTimeoutMS: 10000,
+      heartbeatFrequencyMS: 15000, // Heartbeat every 15s to detect disconnects fast
+      maxIdleTimeMS: 0,            // Never close idle connections
     });
 
     await client.connect();
@@ -76,6 +78,18 @@ async function connectToMongo(uri) {
       fs.writeFileSync(CONFIG_FILE, JSON.stringify({ uri: activeUri, updatedAt: new Date().toISOString() }, null, 2));
     } catch (e) {}
 
+    // Monitor for connection loss and auto-reconnect
+    client.on('close', () => {
+      console.warn('⚠ MongoDB connection closed. Attempting auto-reconnect...');
+      mongoStatus = 'error';
+      mongoConnectWithRetry(uri);
+    });
+
+    client.on('error', (err) => {
+      console.error('⚠ MongoDB client error:', err.message);
+      mongoStatus = 'error';
+    });
+
     return { success: true, message: 'Connected to MongoDB Atlas (English Medium)' };
   } catch (err) {
     let msg = err.message || '';
@@ -88,10 +102,44 @@ async function connectToMongo(uri) {
   }
 }
 
-// Auto-connect on startup if URI is available
-if (activeUri) {
-  connectToMongo(activeUri);
+// Auto-reconnect with exponential backoff (max 3 retries, 5s apart)
+async function mongoConnectWithRetry(uri, maxRetries = 5, delayMs = 5000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`🔄 MongoDB reconnect attempt ${attempt}/${maxRetries}...`);
+    const result = await connectToMongo(uri);
+    if (result.success) {
+      console.log(`✔ MongoDB reconnected on attempt ${attempt}`);
+      return;
+    }
+    if (attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+  console.error('❌ MongoDB failed to reconnect after ' + maxRetries + ' attempts. Will retry on next request.');
 }
+
+// Auto-connect on startup (ALWAYS — uses .env URI)
+if (activeUri) {
+  mongoConnectWithRetry(activeUri);
+}
+
+// Keepalive ping every 30 seconds to prevent idle disconnection
+setInterval(async () => {
+  if (mongoStatus === 'connected' && mongoClient) {
+    try {
+      await mongoClient.db('admin').command({ ping: 1 });
+    } catch (err) {
+      console.warn('⚠ MongoDB keepalive ping failed:', err.message);
+      mongoStatus = 'error';
+      if (activeUri) {
+        mongoConnectWithRetry(activeUri);
+      }
+    }
+  } else if (mongoStatus !== 'connecting' && activeUri) {
+    // Not connected but have URI — try to reconnect
+    mongoConnectWithRetry(activeUri, 2, 3000);
+  }
+}, 30000);
 
 // -------------------------------------------------------------
 // API Endpoints for MongoDB Atlas Database
@@ -184,6 +232,22 @@ app.post('/api/db/sync', async (req, res) => {
 
   try {
     const { teachers, students, marks, attendance, upcomingTests, activeTeacherId } = req.body;
+
+    // SAFEGUARD: Prevent accidental data wipe — don't overwrite existing cloud data with empty arrays
+    const incomingHasStudents = Array.isArray(students) && students.length > 0;
+    const incomingHasMarks = Array.isArray(marks) && marks.length > 0;
+    const incomingHasTeachers = Array.isArray(teachers) && teachers.length > 0;
+
+    if (!incomingHasStudents && !incomingHasMarks && !incomingHasTeachers) {
+      // Check if cloud already has data — if yes, reject the empty push
+      const collection = mongoDb.collection('school_data');
+      const existing = await collection.findOne({ _id: 'glorious_public_school' });
+      if (existing && Array.isArray(existing.students) && existing.students.length > 0) {
+        console.log('⚠ [Sync] Rejected empty data push — cloud has ' + existing.students.length + ' students. Preventing accidental wipe.');
+        return res.json({ success: true, message: 'Sync skipped — cloud data preserved (empty push blocked)', lastSyncTime: new Date().toLocaleTimeString(), lastSyncTimestamp: Date.now() });
+      }
+    }
+
     const collection = mongoDb.collection('school_data');
 
     const updateDoc = {

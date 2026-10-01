@@ -310,6 +310,19 @@ const CloudDB = {
       if (resp.ok && resp.data && resp.data.success && resp.data.data) {
         const cloudDoc = resp.data.data;
 
+        // DEMO_SYNC_FILTER_ACTIVE: Never allow demo students into local database from cloud
+        const DEMO_SYNC_NAMES = new Set(["Aditya Dave","Bhavna Rathod","Chirag Solanki","Deepika Iyer","Eshaan Gupta","Aarav Patel","Priya Shah","Rohan Mehta","Ananya Joshi","Kabir Singhania","Sneha Kulkarni","Devendra Dave","Isha Trivedi","Aryan Bhatt","Diya Parikh","Manav Desai","Tanvi Panchal","Harshvardhan Rana","Janvi Bhatt","Kunal Kapoor","Lipika Sen","Mohit Rawat","આદિત્ય દવે","ભાવના રાઠોડ","ચિરાગ સોલંકી","દીપિકા ઐયર","ઈશાન ગુપ્તા","આરવ પટેલ","પ્રિયા શાહ","રોહન મહેતા","અનન્યા જોશી","કબીર સિંઘાનિયા","સ્નેહા કુલકર્ણી","દેવેન્દ્ર દવે","ઈશા ત્રિવેદી","આર્યન ભટ્ટ","દિયા પરીખ","માનવ દેસાઈ","તન્વી પંચાલ","હર્ષવર્ધન રાણા","જાનવી ભટ્ટ","કૃણાલ કપૂર","લિપિકા સેન","મોહિત રાવત","દિયા મહેતા","કૃણાલ પંડ્યા","માનસી સોની","પૂજા ચોકસી","વિવેક ઠાકોર","નિધિ પંચાલ","યશ પારેખ","તનિષ્ક જૈન","ખુશી બારોટ","હેત શાહ","દિશા રાવલ","ઓમ સોલંકી","રિદ્ધિ પટેલ","તન્વી દેસાઈ","જય શાહ","ભાવેશ જોશી"]);
+        if (cloudDoc.students && Array.isArray(cloudDoc.students)) {
+          cloudDoc.students = cloudDoc.students.filter(s => {
+            if (!s || !s.name) return false;
+            const nm = s.name.trim();
+            if (DEMO_SYNC_NAMES.has(nm)) return false;
+            if (s.grNo && (s.grNo.startsWith('GR-2024-08') || s.grNo.startsWith('GR-2024-00') || s.grNo.startsWith('GR-2024-10'))) return false;
+            return true;
+          });
+        }
+
+
         if (cloudDoc.teachers && Array.isArray(cloudDoc.teachers)) {
           DB.teachers = cloudDoc.teachers;
         }
@@ -508,95 +521,10 @@ const CloudDB = {
 
   // Update Header Badges & Modal Elements
   updateBadgeUI() {
+    // Cloud DB UI badges and buttons permanently removed
     if (typeof document === 'undefined') return;
-
     const badges = document.querySelectorAll('.cloud-db-badge-el');
-    badges.forEach(badge => {
-      if (this.status === 'connected') {
-        badge.innerHTML = `
-          <button type="button" onclick="openCloudDbModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 hover:text-white border border-emerald-400/40 shadow-sm transition-all hover:scale-[1.03]" title="Connected to MongoDB Atlas">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span>MongoDB: Connected</span>
-            <i class="fa-solid fa-database ml-0.5 text-xs text-emerald-300"></i>
-          </button>
-        `;
-      } else if (this.status === 'connecting') {
-        badge.innerHTML = `
-          <button type="button" onclick="openCloudDbModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 hover:text-white border border-amber-400/40 shadow-sm transition-all hover:scale-[1.03]">
-            <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-            <span>MongoDB: Connecting...</span>
-          </button>
-        `;
-      } else if (this.status === 'error') {
-        badge.innerHTML = `
-          <button type="button" onclick="openCloudDbModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-rose-500/20 text-rose-300 hover:text-white border border-rose-400/40 shadow-sm transition-all hover:scale-[1.03]" title="MongoDB Connection Issue">
-            <span class="w-2 h-2 rounded-full bg-rose-400"></span>
-            <span>MongoDB: Error</span>
-          </button>
-        `;
-      } else {
-        badge.innerHTML = `
-          <button type="button" onclick="openCloudDbModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black bg-white/10 hover:bg-white/20 text-teal-200 hover:text-white border border-teal-400/30 shadow-sm transition-all hover:scale-[1.03]">
-            <i class="fa-solid fa-database text-teal-300 text-xs"></i>
-            <span>Connect MongoDB</span>
-          </button>
-        `;
-      }
-    });
-
-    // Update modal elements if present
-    const statusText = document.getElementById('cloud-modal-status-text');
-    if (statusText) {
-      if (this.status === 'connected') {
-        statusText.innerHTML = '<span class="text-emerald-600 font-bold flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> MongoDB Atlas Connected & Syncing</span>';
-      } else if (this.status === 'connecting') {
-        statusText.innerHTML = '<span class="text-amber-600 font-bold flex items-center gap-1"><i class="fa-solid fa-spinner fa-spin"></i> Connecting to Atlas...</span>';
-      } else if (this.status === 'error') {
-        const errDetail = this.lastError ? `<div class="text-[10px] text-rose-500 font-normal mt-0.5">${this.lastError}</div>` : '';
-        statusText.innerHTML = `<span class="text-rose-600 font-bold flex items-center gap-1"><i class="fa-solid fa-circle-exclamation"></i> Connection Issue</span>${errDetail}`;
-      } else {
-        statusText.innerHTML = '<span class="text-slate-500 font-bold flex items-center gap-1"><i class="fa-solid fa-circle-pause"></i> Local Storage Mode (Not connected)</span>';
-      }
-    }
-
-    const projectText = document.getElementById('cloud-modal-project-text');
-    if (projectText) {
-      projectText.innerText = this.status === 'connected' ? 'MongoDB Atlas (glorious_public_school)' : 'Local Storage Mode';
-    }
-
-    const syncText = document.getElementById('cloud-modal-sync-text');
-    if (syncText) {
-      syncText.innerText = this.lastSyncTime ? `Last synced: ${this.lastSyncTime}` : 'Not synced yet';
-    }
-
-    const liveLinkInput = document.getElementById('cloud-modal-live-link');
-    if (liveLinkInput) {
-      liveLinkInput.value = this.getLiveLink();
-    }
-
-    // QR Code for Mobile Scanning
-    const qrImg = document.getElementById('cloud-modal-qr-code');
-    if (qrImg) {
-      const mobileUrl = this.getLiveLink();
-      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(mobileUrl)}`;
-    }
-
-    // Backend Bridge UI elements
-    const backendBadge = document.getElementById('cloud-modal-backend-badge');
-    const backendUrlEl = document.getElementById('cloud-modal-backend-url');
-    if (backendBadge) {
-      if (this.apiAvailable) {
-        backendBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700';
-        backendBadge.innerHTML = '<i class="fa-solid fa-check text-[9px] mr-1"></i>Server Online';
-      } else {
-        backendBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700';
-        backendBadge.innerHTML = '<i class="fa-solid fa-circle-exclamation text-[9px] mr-1"></i>Server Offline';
-      }
-    }
-    if (backendUrlEl) {
-      const activeEndpoint = this.apiBaseUrl || (typeof window !== 'undefined' && window.location && window.location.origin ? window.location.origin : 'http://localhost:5000');
-      backendUrlEl.textContent = activeEndpoint;
-    }
+    badges.forEach(b => { b.innerHTML = ''; });
   }
 };
 
