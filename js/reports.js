@@ -56,11 +56,11 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
   // High Quality Multi-border Frame
   doc.setLineWidth(1);
   doc.setDrawColor(220, 38, 38); // Crimson outer
-  doc.rect(5, 5, 200, 287);
+  doc.rect(6, 6, 198, 285);
 
   doc.setLineWidth(0.5);
   doc.setDrawColor(37, 99, 235); // Royal blue middle
-  doc.rect(7, 7, 196, 283);
+  doc.rect(7.5, 7.5, 195, 282);
 
   doc.setLineWidth(0.2);
   doc.setDrawColor(16, 185, 129); // Emerald inner
@@ -148,8 +148,8 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
 
         doc.addPage();
         // Redraw frame
-        doc.setLineWidth(1); doc.setDrawColor(220, 38, 38); doc.rect(5, 5, 200, 287);
-        doc.setLineWidth(0.5); doc.setDrawColor(37, 99, 235); doc.rect(7, 7, 196, 283);
+        doc.setLineWidth(1); doc.setDrawColor(220, 38, 38); doc.rect(6, 6, 198, 285);
+        doc.setLineWidth(0.5); doc.setDrawColor(37, 99, 235); doc.rect(7.5, 7.5, 195, 282);
         doc.setLineWidth(0.2); doc.setDrawColor(16, 185, 129); doc.rect(9, 9, 192, 279);
         y = 20;
         tableStartY = y;
@@ -301,8 +301,8 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
   if (studentSubs.length > 0) {
     if (y > 185) {
       doc.addPage();
-      doc.setLineWidth(1); doc.setDrawColor(220, 38, 38); doc.rect(5, 5, 200, 287);
-      doc.setLineWidth(0.5); doc.setDrawColor(37, 99, 235); doc.rect(7, 7, 196, 283);
+      doc.setLineWidth(1); doc.setDrawColor(220, 38, 38); doc.rect(6, 6, 198, 285);
+      doc.setLineWidth(0.5); doc.setDrawColor(37, 99, 235); doc.rect(7.5, 7.5, 195, 282);
       doc.setLineWidth(0.2); doc.setDrawColor(16, 185, 129); doc.rect(9, 9, 192, 279);
       y = 18;
     }
@@ -734,18 +734,18 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
 
     return `
       <tr style="background-color: ${isEven ? '#f8fafc' : '#ffffff'}; border-bottom: 1px solid #e2e8f0;">
-        <td style="padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 600; color: #475569;">${idx + 1}</td>
-        <td style="padding: 7px 8px; text-align: center; font-size: 11px; font-weight: 600; color: #475569;">${rowDateStr}</td>
-        <td style="padding: 7px 10px; font-size: 12px; font-weight: 700; color: #0f172a;">${m.subject}</td>
-        <td style="padding: 7px 10px; font-size: 11px; color: #334155;">${(m.topic || 'Unit Assessment').substring(0, 30)}</td>
-        <td style="padding: 7px 8px; text-align: right; font-size: 11px; font-weight: 600; color: #334155;">${sMax}</td>
-        <td style="padding: 7px 8px; text-align: right; font-size: 12px; font-weight: 700; color: ${m.isAbsent ? '#dc2626' : (sObt < Math.ceil(sMax * 0.33) ? '#dc2626' : '#0f172a')};">
-          ${m.isAbsent ? '<span style="color:#dc2626; font-weight: 800;">ABSENT</span>' : sObt}
+        <td style="padding: 6px 3px; text-align: center; font-size: 10.5px; font-weight: 600; color: #475569; box-sizing: border-box;">${idx + 1}</td>
+        <td style="padding: 6px 4px; text-align: center; font-size: 10.5px; font-weight: 600; color: #475569; white-space: nowrap; overflow: hidden; box-sizing: border-box;">${rowDateStr}</td>
+        <td style="padding: 6px 6px; font-size: 11px; font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-sizing: border-box;" title="${m.subject}">${m.subject}</td>
+        <td style="padding: 6px 6px; font-size: 10.5px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-sizing: border-box;" title="${m.topic || 'Unit Assessment'}">${(m.topic || 'Unit Assessment').substring(0, 26)}</td>
+        <td style="padding: 6px 4px; text-align: right; font-size: 10.5px; font-weight: 600; color: #334155; box-sizing: border-box;">${sMax}</td>
+        <td style="padding: 6px 4px; text-align: right; font-size: 11px; font-weight: 700; color: ${m.isAbsent ? '#dc2626' : (sObt < Math.ceil(sMax * 0.33) ? '#dc2626' : '#0f172a')}; box-sizing: border-box;">
+          ${m.isAbsent ? '<span style="color:#dc2626; font-weight: 800; font-size: 9.5px;">ABSENT</span>' : sObt}
         </td>
-        <td style="padding: 7px 8px; text-align: right; font-size: 11px; font-weight: 600; color: #334155;">
+        <td style="padding: 6px 4px; text-align: right; font-size: 10.5px; font-weight: 600; color: #334155; box-sizing: border-box;">
           ${m.isAbsent ? '-' : pct.toFixed(0) + '%'}
         </td>
-        <td style="padding: 7px 8px; text-align: right; font-size: 11px; font-weight: 700; color: #2563eb;">
+        <td style="padding: 6px 4px; text-align: right; font-size: 10.5px; font-weight: 700; color: #2563eb; box-sizing: border-box;">
           ${m.isAbsent ? '-' : sRank}
         </td>
       </tr>
@@ -773,12 +773,12 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
   const issueDateStr = typeof formatDateSlash === 'function' ? formatDateSlash(new Date()) : new Date().toLocaleDateString('en-GB');
 
   return `
-    <div class="em-scorecard-page" style="width: 210mm; min-height: 297mm; padding: 6mm; box-sizing: border-box; background: #ffffff; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; color: #0f172a; position: relative;">
+    <div class="em-scorecard-page" style="width: 100%; max-width: 198mm; min-height: 287mm; margin: 0 auto; padding: 3mm; box-sizing: border-box; background: #ffffff; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; color: #0f172a; position: relative;">
       
       <!-- Multi-border Official Frame -->
-      <div style="border: 3px solid #dc2626; padding: 2px; box-sizing: border-box; background: #ffffff;">
-        <div style="border: 2px solid #2563eb; padding: 2px; box-sizing: border-box; background: #ffffff;">
-          <div style="border: 1.5px solid #10b981; padding: 12px; box-sizing: border-box; background: #ffffff; min-height: 275mm; display: flex; flex-direction: column; justify-content: space-between;">
+      <div style="border: 2.5px solid #dc2626; padding: 2px; box-sizing: border-box; background: #ffffff; width: 100%;">
+        <div style="border: 1.5px solid #2563eb; padding: 2px; box-sizing: border-box; background: #ffffff; width: 100%;">
+          <div style="border: 1.2px solid #10b981; padding: 10px; box-sizing: border-box; background: #ffffff; min-height: 272mm; display: flex; flex-direction: column; justify-content: space-between; width: 100%;">
             
             <div>
               <!-- Header Banner -->
@@ -817,25 +817,25 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
                 </div>
               </div>
 
-              <!-- Marks Table -->
-              <div style="margin-top: 12px; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden;">
-                <table style="width: 100%; border-collapse: collapse; text-align: left;">
+              <!-- Marks Table (Shortened width with proportional columns) -->
+              <div style="margin: 12px auto; width: 95%; max-width: 95%; border: 1px solid #cbd5e1; border-radius: 6px; overflow: hidden; box-sizing: border-box; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+                <table style="width: 100%; table-layout: fixed; border-collapse: collapse; text-align: left; box-sizing: border-box;">
                   <thead>
                     <tr style="background: #0ea5e9; color: #ffffff;">
-                      <th style="padding: 8px; font-size: 11px; font-weight: 800; text-align: center; width: 35px;">SR.</th>
-                      <th style="padding: 8px; font-size: 11px; font-weight: 800; text-align: center; width: 75px;">DATE</th>
-                      <th style="padding: 8px 10px; font-size: 11px; font-weight: 800; width: 140px;">SUBJECT</th>
-                      <th style="padding: 8px 10px; font-size: 11px; font-weight: 800;">TOPIC / CHAPTER</th>
-                      <th style="padding: 8px; font-size: 11px; font-weight: 800; text-align: right; width: 60px;">MAX MARKS</th>
-                      <th style="padding: 8px; font-size: 11px; font-weight: 800; text-align: right; width: 75px;">OBTAINED</th>
-                      <th style="padding: 8px; font-size: 11px; font-weight: 800; text-align: right; width: 55px;">PCT (%)</th>
-                      <th style="padding: 8px; font-size: 11px; font-weight: 800; text-align: right; width: 65px;">RANK</th>
+                      <th style="padding: 6px 3px; font-size: 10px; font-weight: 800; text-align: center; width: 6%; box-sizing: border-box;">SR.</th>
+                      <th style="padding: 6px 4px; font-size: 10px; font-weight: 800; text-align: center; width: 13%; box-sizing: border-box;">DATE</th>
+                      <th style="padding: 6px 6px; font-size: 10px; font-weight: 800; width: 22%; box-sizing: border-box;">SUBJECT</th>
+                      <th style="padding: 6px 6px; font-size: 10px; font-weight: 800; width: 23%; box-sizing: border-box;">TOPIC / CHAPTER</th>
+                      <th style="padding: 6px 4px; font-size: 10px; font-weight: 800; text-align: right; width: 10%; box-sizing: border-box;">MAX</th>
+                      <th style="padding: 6px 4px; font-size: 10px; font-weight: 800; text-align: right; width: 10%; box-sizing: border-box;">OBT</th>
+                      <th style="padding: 6px 4px; font-size: 10px; font-weight: 800; text-align: right; width: 8%; box-sizing: border-box;">PCT</th>
+                      <th style="padding: 6px 4px; font-size: 10px; font-weight: 800; text-align: right; width: 8%; box-sizing: border-box;">RANK</th>
                     </tr>
                   </thead>
                   <tbody>
                     ${marks.length > 0 ? tableRowsHTML : `
                       <tr>
-                        <td colspan="8" style="padding: 25px; text-align: center; font-size: 12px; color: #64748b;">No evaluation records available for this student.</td>
+                        <td colspan="8" style="padding: 20px; text-align: center; font-size: 11px; color: #64748b;">No evaluation records available for this student.</td>
                       </tr>
                     `}
                   </tbody>
@@ -1167,7 +1167,7 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
 
       if (htmlAll) {
         // Temporarily render container offscreen with real layout dimensions so html2canvas can measure & render elements!
-        container.style.cssText = 'position: fixed; left: -9999px; top: 0; width: 210mm; min-height: 297mm; display: block !important; visibility: visible !important; z-index: -9999; background: #ffffff;';
+        container.style.cssText = 'position: fixed; left: -9999px; top: 0; width: 198mm; min-height: 287mm; display: block !important; visibility: visible !important; z-index: -9999; background: #ffffff;';
         container.innerHTML = htmlAll;
 
         if (window.showToast) window.showToast('Generating high-resolution Report Card PDF...', 'info');
@@ -1188,7 +1188,7 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
             });
 
             const imgData = canvas.toDataURL('image/jpeg', 0.95);
-            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+            pdf.addImage(imgData, 'JPEG', 5, 5, 200, 287);
           }
 
           container.style.cssText = 'display: none;';

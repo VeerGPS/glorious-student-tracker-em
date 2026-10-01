@@ -536,9 +536,10 @@ body {
 
   .em-scorecard-page {
     width: 100% !important;
-    max-width: 210mm !important;
+    max-width: 198mm !important;
     margin: 0 auto !important;
-    padding: 4mm !important;
+    padding: 2mm !important;
+    box-sizing: border-box !important;
     page-break-after: always !important;
     break-after: page !important;
     background: #ffffff !important;
@@ -548,7 +549,7 @@ body {
 
   @page {
     size: A4 portrait;
-    margin: 6mm;
+    margin: 4mm;
   }
 }
 
