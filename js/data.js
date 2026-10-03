@@ -851,15 +851,15 @@ function cleanSubjectName(sub) {
 
   // Canonical subject abbreviation normalization
   const lower = s.toLowerCase();
-  if (lower === 'sci' || lower === 'science' || lower === 'vigyan') return 'Science';
-  if (lower === 'ss' || lower === 's.s' || lower === 's.s.' || lower === 'social sci' || lower === 'social science' || lower === 'social studies' || lower === 'samajik vigyan') return 'Social Science';
-  if (lower === 'eng' || lower === 'english' || lower === 'angreji') return 'English';
-  if (lower === 'math' || lower === 'maths' || lower === 'mathematics' || lower === 'ganit') return 'Mathematics';
-  if (lower === 'comp' || lower === 'computer' || lower === 'cs' || lower === 'it') return 'Computer';
-  if (lower === 'guj' || lower === 'gujarati') return 'Gujarati';
-  if (lower === 'hin' || lower === 'hindi') return 'Hindi';
-  if (lower === 'sans' || lower === 'skt' || lower === 'sanskrit') return 'Sanskrit';
-  if (lower === 'evs' || lower === 'env' || lower === 'environmental') return 'EVS';
+  if (lower === 'sci' || lower === 'science' || lower === 'vigyan' || lower.startsWith('sci ') || lower.startsWith('science ')) return 'Science';
+  if (lower === 'ss' || lower === 's.s' || lower === 's.s.' || lower === 'social sci' || lower === 'social science' || lower === 'social studies' || lower === 'samajik vigyan' || lower.startsWith('ss ') || lower.startsWith('social ')) return 'Social Science';
+  if (lower === 'eng' || lower === 'english' || lower === 'angreji' || lower.startsWith('eng ') || lower.startsWith('english ')) return 'English';
+  if (lower === 'math' || lower === 'maths' || lower === 'mathematics' || lower === 'ganit' || lower.startsWith('math ') || lower.startsWith('maths ')) return 'Mathematics';
+  if (lower === 'comp' || lower === 'computer' || lower === 'cs' || lower === 'it' || lower.startsWith('comp ') || lower.startsWith('computer ')) return 'Computer';
+  if (lower === 'guj' || lower === 'gujarati' || lower.startsWith('guj ') || lower.startsWith('gujarati ')) return 'Gujarati';
+  if (lower === 'hin' || lower === 'hindi' || lower.startsWith('hin ') || lower.startsWith('hindi ')) return 'Hindi';
+  if (lower === 'sans' || lower === 'skt' || lower === 'sanskrit' || lower.startsWith('sans ') || lower.startsWith('skt ')) return 'Sanskrit';
+  if (lower === 'evs' || lower === 'env' || lower === 'environmental' || lower.startsWith('evs ') || lower.startsWith('env ')) return 'EVS';
   if (lower === 'pe' || lower === 'pt' || lower === 'physical education') return 'Physical Education';
   if (lower === 'draw' || lower === 'drawing' || lower === 'art') return 'Drawing';
 

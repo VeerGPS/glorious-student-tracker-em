@@ -854,13 +854,14 @@ function parseFlexibleDate(dateVal, fallbackDate = '') {
     }
   }
 
-  // Handle Excel serial date number
-  if (typeof dateVal === 'number' && dateVal > 20000 && dateVal < 70000) {
-    const epoch = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+  // Handle Excel serial date number (both number and numeric string e.g. 46225, "46239")
+  const numSerial = typeof dateVal === 'number' ? dateVal : (typeof dateVal === 'string' && /^\d{5}(?:\.\d+)?$/.test(dateVal.trim()) ? parseFloat(dateVal.trim()) : NaN);
+  if (!isNaN(numSerial) && numSerial >= 30000 && numSerial <= 65000) {
+    const epoch = new Date(Math.round((numSerial - 25569) * 86400 * 1000));
     if (!isNaN(epoch.getTime())) {
-      const y = epoch.getFullYear();
-      const m = String(epoch.getMonth() + 1).padStart(2, '0');
-      const d = String(epoch.getDate()).padStart(2, '0');
+      const y = epoch.getUTCFullYear();
+      const m = String(epoch.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(epoch.getUTCDate()).padStart(2, '0');
       return `${y}-${m}-${d}`;
     }
   }
@@ -1018,7 +1019,7 @@ function detectExcelMarksLayout(rows) {
       if (idx === rollCol || idx === nameCol) return;
       if (!c) return;
       const cStr = c.toString().trim();
-      if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(cStr) || /^\d{1,2}[-/.]\d{1,2}[-/.]\w+$/.test(cStr)) {
+      if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(cStr) || /^\d{1,2}[-/.]\d{1,2}[-/.]\w+$/.test(cStr) || /^\d{5}$/.test(cStr)) {
         dateColsCount++;
       }
     });
@@ -1116,7 +1117,27 @@ function handleExcelUpload(event, explicitStd = null) {
 
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+      const formattedRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+
+      // Merge raw date serials into formatted rows for lossless date parsing
+      const rows = formattedRows.map((row, rIdx) => {
+        const rawRow = rawRows[rIdx] || [];
+        return row.map((cell, cIdx) => {
+          const rawCell = rawRow[cIdx];
+          // For header/metadata rows (first 6 rows), convert Excel date serials (30000-65000) to ISO YYYY-MM-DD
+          if (rIdx < 6 && typeof rawCell === 'number' && rawCell >= 30000 && rawCell <= 65000) {
+            const epoch = new Date(Math.round((rawCell - 25569) * 86400 * 1000));
+            if (!isNaN(epoch.getTime())) {
+              const y = epoch.getUTCFullYear();
+              const m = String(epoch.getUTCMonth() + 1).padStart(2, '0');
+              const d = String(epoch.getUTCDate()).padStart(2, '0');
+              return `${y}-${m}-${d}`;
+            }
+          }
+          return cell;
+        });
+      });
 
       if (!rows || rows.length <= 1) {
         if (window.showToast) window.showToast('The uploaded Excel file is empty.', 'warning');
@@ -1368,8 +1389,8 @@ function parseSubjectHeader(headerStr, fallbackDate = '', fallbackTotal = 50) {
   let extractedTotal = null;
   let extractedDate = null;
 
-  // Step A: Extract bracketed total marks: (25), [50], {100}, (Total: 40), (40 Marks), (/25)
-  const bracketRegex = /(?:\(|\{|\[)\s*(?:total\s*(?:marks?)?\s*[:=-]?|max\s*(?:marks?)?\s*[:=-]?|marks?\s*[:=-]?|out\s*of\s*[:=-]?|\/)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:marks?|m|pts?)?\s*(?:\)|\}|\])/i;
+  // Step A: Extract bracketed total marks: (25), 30), [50], {100}, (Total: 40), (40 Marks), (/25)
+  const bracketRegex = /(?:\(|\{|\[)?\s*(?:total\s*(?:marks?)?\s*[:=-]?|max\s*(?:marks?)?\s*[:=-]?|marks?\s*[:=-]?|out\s*of\s*[:=-]?|\/)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:marks?|m|pts?)?\s*(?:\)|\}|\])/i;
   const bracketMatch = str.match(bracketRegex);
   if (bracketMatch) {
     const val = parseFloat(bracketMatch[1]);
@@ -1393,7 +1414,7 @@ function parseSubjectHeader(headerStr, fallbackDate = '', fallbackTotal = 50) {
   if (textMatch) {
     const d = textMatch[1].padStart(2, '0');
     const mStr = textMatch[2].toLowerCase().slice(0, 3);
-    let y = textMatch[3];
+    let y = textMonthMatch ? textMonthMatch[3] : textMatch[3];
     if (y.length === 2) y = parseInt(y) < 50 ? '20' + y : '19' + y;
     const m = monthsMap[mStr];
     if (m) {
@@ -1453,7 +1474,8 @@ function isDedicatedMetaCol(header) {
   const norm = lower.replace(/[()[\]{}:;.\-_/\\# ]+/g, '');
   
   const metaExactTokens = [
-    'gr', 'grno', 'grnum', 'generalreg', 'sr', 'srno', 'srnum', 'serial', 'serialno', 'seatno',
+    'no', 'no.', 'nr', 'num', 'number', 'sr', 'sr.', 'srno', 'srnum', 'serial', 'serialno', 'seatno',
+    'gr', 'grno', 'grnum', 'generalreg',
     'roll', 'rollno', 'rollnum', 'rollnumber', 'rno', 'rno.', 'r.no', 'roll#',
     'name', 'studentname', 'fullname', 'candidate', 'student',
     'class', 'std', 'standard', 'grade',
@@ -1469,10 +1491,11 @@ function isDedicatedMetaCol(header) {
     'મોબાઈલ', 'ફોન', 'સંપર્ક', 'તારીખ', 'કુલ', 'ટકા', 'પરિણામ', 'ગ્રેડ', 'નંબર'
   ];
 
-  if (metaExactTokens.includes(norm)) return true;
+  if (metaExactTokens.includes(norm) || metaExactTokens.includes(lower)) return true;
 
   // Pattern matches
   if (/\b(?:roll|roll\s*no\.?|roll\s*number|r\.?\s*no\.?|sr\.?\s*no\.?|serial\s*no\.?|gr\.?\s*no\.?|g\.?\s*r\.?|student\s*name|full\s*name)\b/i.test(lower)) return true;
+  if (/^(?:no\.?|sr\.?|roll\.?|#)$/i.test(raw)) return true;
   if (/\b(?:total\s*marks?|max\s*marks?|marks?\s*obtained|percentage|percent|rank|grade|result|attendance)\b/i.test(lower)) return true;
   if (lower.includes('રોલ') || lower.includes('જી.આર') || lower.includes('અનુક્રમ')) return true;
 
@@ -1537,7 +1560,7 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
         rawDate: dCell,
         subject: subDetails.subject,
         total: subDetails.total,
-        topic: subDetails.topic || setName || defaultTopic,
+        topic: subDetails.topic,
         date: parsedDate
       });
     }
@@ -1546,6 +1569,28 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
       if (window.showToast) window.showToast('No valid test columns found in Excel sheet.', 'error');
       return { addedCount: 0, updatedCount: 0 };
     }
+
+    // Disambiguate topics for multiple tests of the same subject (e.g. 2 Science tests)
+    const subjectCounts = {};
+    testCols.forEach(tc => {
+      subjectCounts[tc.subject] = (subjectCounts[tc.subject] || 0) + 1;
+    });
+
+    const subjectSeen = {};
+    testCols.forEach(tc => {
+      const isMulti = (subjectCounts[tc.subject] || 0) > 1;
+      if (isMulti) {
+        subjectSeen[tc.subject] = (subjectSeen[tc.subject] || 0) + 1;
+        const testNum = subjectSeen[tc.subject];
+        if (!tc.topic) {
+          tc.topic = `Test ${testNum}`;
+        }
+      } else {
+        if (!tc.topic) {
+          tc.topic = setName || defaultTopic;
+        }
+      }
+    });
 
     // Auto-register uploaded class into active teacher profile
     if (DB.activeSession && DB.activeSession.teacher) {
@@ -1574,6 +1619,9 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
       ensureStudentRecord(roll, grNo, name, defaultStd);
       const targetRoll = roll || (name ? getRollByName(name, defaultStd) : 0);
 
+      // Claim set for this student row to prevent multiple tests of same subject colliding
+      const claimedMarkIds = new Set();
+
       // Process each test column
       testCols.forEach(tc => {
         const rawScore = row[tc.colIndex];
@@ -1594,15 +1642,25 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
           const targetTopic = tc.topic || setName || defaultTopic;
           const cleanTargetSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(tc.subject) : tc.subject;
 
-          // Match mark strictly by class, student, subject and test date
+          // Match mark strictly:
+          // 1. Must not be claimed by another column in this import row
+          // 2. Class, student roll/gr match
+          // 3. Subject match
+          // 4. Exact test column match OR (same date AND same topic/setName)
           const ex = DB.marks.find(m => 
+            !claimedMarkIds.has(m.id) &&
             (m.std ? m.std.toString() === defaultStd.toString() : true) &&
             (m.roll === targetRoll || (grNo && m.grNo && String(m.grNo).trim() === String(grNo).trim())) && 
             (m.subject === cleanTargetSub || (typeof cleanSubjectName === 'function' && cleanSubjectName(m.subject) === cleanTargetSub)) && 
-            m.date === tc.date
+            (
+              (m.testColIndex !== undefined && m.testColIndex === tc.colIndex && (setName ? m.testSet === setName : true)) ||
+              (m.date === tc.date && (!tc.topic || m.topic === tc.topic) && (setName ? m.testSet === setName : true)) ||
+              (m.date === tc.date)
+            )
           );
 
           if (ex) {
+            claimedMarkIds.add(ex.id);
             ex.subject = cleanTargetSub;
             ex.date = tc.date;
             ex.total = targetTotal;
@@ -1610,6 +1668,8 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
             ex.isAbsent = isAb;
             ex.std = defaultStd.toString();
             ex.source = 'excel';
+            ex.testColIndex = tc.colIndex;
+            ex.rawSubject = tc.rawSubject;
             if (setName) {
               ex.testSet = setName;
               ex.exam = setName;
@@ -1618,8 +1678,10 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
             if (grNo) ex.grNo = grNo;
             updatedCount++;
           } else {
+            const newId = Date.now() + Math.floor(Math.random() * 1000000);
+            claimedMarkIds.add(newId);
             DB.marks.push({
-              id: Date.now() + Math.floor(Math.random() * 1000000),
+              id: newId,
               grNo: grNo || `GR-${new Date().getFullYear()}-${defaultStd}-${String(targetRoll).padStart(3, '0')}`,
               roll: targetRoll,
               std: defaultStd.toString(),
@@ -1632,6 +1694,8 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
               date: tc.date,
               isAbsent: isAb,
               source: 'excel',
+              testColIndex: tc.colIndex,
+              rawSubject: tc.rawSubject,
               importedAt: new Date().toISOString()
             });
             addedCount++;
@@ -1759,6 +1823,23 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
       });
     });
 
+    // Disambiguate topics for multiple tests of the same subject (e.g. 2 Science tests)
+    const format1SubCounts = {};
+    subjectCols.forEach(sc => {
+      format1SubCounts[sc.subject] = (format1SubCounts[sc.subject] || 0) + 1;
+    });
+
+    const format1SubSeen = {};
+    subjectCols.forEach(sc => {
+      const isMulti = (format1SubCounts[sc.subject] || 0) > 1;
+      if (isMulti) {
+        format1SubSeen[sc.subject] = (format1SubSeen[sc.subject] || 0) + 1;
+        sc.topic = `Test ${format1SubSeen[sc.subject]}`;
+      } else {
+        sc.topic = setName || defaultTopic;
+      }
+    });
+
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r];
       if (!row || row.length === 0) continue;
@@ -1795,6 +1876,9 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
       // Ensure student exists in directory scoped to rowStd
       ensureStudentRecord(roll, grNo, name, rowStd);
 
+      // Claim set for this student row to prevent multiple tests of same subject colliding
+      const claimedMarkIds = new Set();
+
       // Process each subject column
       subjectCols.forEach(sc => {
         const rawScore = row[sc.index];
@@ -1813,18 +1897,23 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
               const denom = parseFloat(rawStr.split('/')[1].trim());
               if (!isNaN(denom) && denom > 0) targetTotal = denom;
             }
-            const targetTopic = setName || defaultTopic;
-
-            // Upsert mark record with CLASS & TEST-SET SCOPING
+            const targetTopic = sc.topic || setName || defaultTopic;
             const cleanTargetSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(sc.subject) : sc.subject;
+
+            // Upsert mark record with CLASS & TEST-SET SCOPING and collision protection
             const ex = DB.marks.find(m => 
+              !claimedMarkIds.has(m.id) &&
               (m.std ? m.std.toString() === rowStd.toString() : true) &&
               (m.roll === targetRoll || (grNo && m.grNo && String(m.grNo).trim() === String(grNo).trim())) && 
               (m.subject === cleanTargetSub || (typeof cleanSubjectName === 'function' && cleanSubjectName(m.subject) === cleanTargetSub)) && 
-              (setName ? (m.testSet === setName || m.exam === setName) : (m.date === targetDate || m.date === defaultDate))
+              (
+                (m.testColIndex !== undefined && m.testColIndex === sc.index && (setName ? m.testSet === setName : true)) ||
+                (setName ? ((m.testSet === setName || m.exam === setName) && (!sc.topic || m.topic === sc.topic)) : (m.date === targetDate || m.date === defaultDate))
+              )
             );
 
             if (ex) {
+              claimedMarkIds.add(ex.id);
               ex.subject = cleanTargetSub;
               ex.date = targetDate;
               ex.total = targetTotal;
@@ -1832,16 +1921,20 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
               ex.isAbsent = isAb;
               ex.std = rowStd.toString();
               ex.source = 'excel';
+              ex.testColIndex = sc.index;
+              ex.rawSubject = sc.rawHeader;
               if (setName) {
                 ex.testSet = setName;
                 ex.exam = setName;
-                ex.topic = setName;
               }
+              if (targetTopic) ex.topic = targetTopic;
               if (grNo) ex.grNo = grNo;
               updatedCount++;
             } else {
+              const newId = Date.now() + Math.floor(Math.random() * 1000000);
+              claimedMarkIds.add(newId);
               DB.marks.push({
-                id: Date.now() + Math.floor(Math.random() * 100000),
+                id: newId,
                 grNo: grNo,
                 roll: targetRoll,
                 std: rowStd.toString(),
@@ -1854,6 +1947,8 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
                 date: targetDate,
                 isAbsent: isAb,
                 source: 'excel',
+                testColIndex: sc.index,
+                rawSubject: sc.rawHeader,
                 importedAt: new Date().toISOString()
               });
               addedCount++;

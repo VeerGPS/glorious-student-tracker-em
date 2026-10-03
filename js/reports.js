@@ -183,16 +183,28 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
       totalMax += sMax;
       totalObt += sObt;
 
-      // Subject Peer Rank within their own classroom
+      // Subject Peer Rank within their own classroom (scoped to specific test instance)
       let sRank = "-";
       if (!m.isAbsent) {
         const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
         const subScores = DB.marks
-          .filter(x => (x.std ? String(x.std).trim() === studentStd : true) && 
-                       (!x.section || String(x.section).trim().toUpperCase() === studentSec) &&
-                       peerRolls.includes(parseInt(x.roll)) && 
-                       ((typeof cleanSubjectName === 'function' ? cleanSubjectName(x.subject) : x.subject) === cleanSub) && 
-                       !x.isAbsent)
+          .filter(x => {
+            if (x.std && String(x.std).trim() !== studentStd) return false;
+            if (x.section && String(x.section).trim().toUpperCase() !== studentSec) return false;
+            if (!peerRolls.includes(parseInt(x.roll))) return false;
+            if (x.isAbsent) return false;
+            const xSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(x.subject) : x.subject;
+            if (xSub !== cleanSub) return false;
+            if (m.testColIndex !== undefined && x.testColIndex !== undefined) {
+              if (x.testColIndex !== m.testColIndex) return false;
+              if (m.testSet && x.testSet && m.testSet !== x.testSet) return false;
+              return true;
+            }
+            if (m.date && x.date && m.date !== x.date) return false;
+            if (m.testSet && x.testSet && m.testSet !== x.testSet) return false;
+            if (m.topic && x.topic && m.topic !== x.topic) return false;
+            return true;
+          })
           .map(x => x.marks)
           .sort((a, b) => b - a);
         const rIdx = subScores.indexOf(m.marks);
@@ -284,19 +296,67 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
   y += 24;
 
   // --- Student-Wise Performance Bar Chart ---
-  const subjectMap = {};
+  // When marks are 10 or fewer, or when multiple tests exist for the same subject,
+  // display each test distinctly so all tests (e.g. Science 1 & Science 2) have their own bar.
+  const subCounts = {};
   marks.forEach(m => {
     const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
-    if (!subjectMap[cleanSub]) {
-      subjectMap[cleanSub] = { subject: cleanSub, obt: 0, max: 0, isAbsent: true };
-    }
-    const sMax = m.total || 50;
-    const sObt = m.isAbsent ? 0 : (m.marks || 0);
-    subjectMap[cleanSub].max += sMax;
-    subjectMap[cleanSub].obt += sObt;
-    if (!m.isAbsent) subjectMap[cleanSub].isAbsent = false;
+    subCounts[cleanSub] = (subCounts[cleanSub] || 0) + 1;
   });
-  const studentSubs = Object.values(subjectMap);
+
+  const hasDuplicateSubs = Object.values(subCounts).some(c => c > 1);
+
+  let studentSubs = [];
+  if (marks.length <= 10 || hasDuplicateSubs) {
+    const subSeen = {};
+    studentSubs = marks.map((m, idx) => {
+      const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+      const count = subCounts[cleanSub] || 1;
+      const sMax = m.total || 50;
+      const sObt = m.isAbsent ? 0 : (m.marks || 0);
+
+      let displaySub = cleanSub;
+      let shortLabel = cleanSub;
+
+      if (count > 1) {
+        subSeen[cleanSub] = (subSeen[cleanSub] || 0) + 1;
+        const testNum = subSeen[cleanSub];
+        const topicTag = (m.topic && m.topic.length <= 8 && !m.topic.toLowerCase().includes('round') && !m.topic.toLowerCase().includes('assessment'))
+          ? m.topic
+          : `T${testNum}`;
+        displaySub = `${cleanSub} (${topicTag})`;
+        const abbr = cleanSub === 'Social Science' ? 'SS' : (cleanSub === 'Mathematics' ? 'Math' : cleanSub.substring(0, 4));
+        shortLabel = `${abbr} (${topicTag})`;
+      } else {
+        const abbr = cleanSub === 'Social Science' ? 'SS' : (cleanSub === 'Mathematics' ? 'Math' : cleanSub);
+        shortLabel = abbr;
+      }
+
+      return {
+        subject: displaySub,
+        shortLabel: shortLabel,
+        obt: sObt,
+        max: sMax,
+        isAbsent: Boolean(m.isAbsent),
+        date: m.date
+      };
+    });
+  } else {
+    // Cumulative aggregation across long periods / many tests (>10 tests)
+    const subjectMap = {};
+    marks.forEach(m => {
+      const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+      if (!subjectMap[cleanSub]) {
+        subjectMap[cleanSub] = { subject: cleanSub, shortLabel: cleanSub === 'Social Science' ? 'SS' : cleanSub.substring(0, 7), obt: 0, max: 0, isAbsent: true };
+      }
+      const sMax = m.total || 50;
+      const sObt = m.isAbsent ? 0 : (m.marks || 0);
+      subjectMap[cleanSub].max += sMax;
+      subjectMap[cleanSub].obt += sObt;
+      if (!m.isAbsent) subjectMap[cleanSub].isAbsent = false;
+    });
+    studentSubs = Object.values(subjectMap);
+  }
 
   if (studentSubs.length > 0) {
     if (y > 185) {
@@ -435,7 +495,7 @@ function addStudentScorecardToDoc(doc, roll, isFirstPage, passedMarks = null, ex
       doc.setFontSize(6.5);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(30, 41, 59);
-      const subLabel = (sub.subject || '').substring(0, 8);
+      const subLabel = sub.shortLabel || (sub.subject || '').substring(0, 10);
       doc.text(subLabel, cX, graphBottom + 3.8, { align: "center" });
 
       doc.setFontSize(5.5);
@@ -692,19 +752,67 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
   let totalObt = 0;
 
   // Group by Subject for student-wise bar chart
-  const subjectMap = {};
+  // When marks are 10 or fewer, or when multiple tests exist for the same subject,
+  // display each test distinctly so all tests (e.g. Science 1 & Science 2) have their own bar.
+  const subCounts = {};
   marks.forEach(m => {
     const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
-    if (!subjectMap[cleanSub]) {
-      subjectMap[cleanSub] = { subject: cleanSub, obt: 0, max: 0, isAbsent: true };
-    }
-    const sMax = m.total || 50;
-    const sObt = m.isAbsent ? 0 : (m.marks || 0);
-    subjectMap[cleanSub].max += sMax;
-    subjectMap[cleanSub].obt += sObt;
-    if (!m.isAbsent) subjectMap[cleanSub].isAbsent = false;
+    subCounts[cleanSub] = (subCounts[cleanSub] || 0) + 1;
   });
-  const studentSubjects = Object.values(subjectMap);
+
+  const hasDuplicateSubs = Object.values(subCounts).some(c => c > 1);
+
+  let studentSubjects = [];
+  if (marks.length <= 10 || hasDuplicateSubs) {
+    const subSeen = {};
+    studentSubjects = marks.map((m, idx) => {
+      const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+      const count = subCounts[cleanSub] || 1;
+      const sMax = m.total || 50;
+      const sObt = m.isAbsent ? 0 : (m.marks || 0);
+
+      let displaySub = cleanSub;
+      let shortLabel = cleanSub;
+
+      if (count > 1) {
+        subSeen[cleanSub] = (subSeen[cleanSub] || 0) + 1;
+        const testNum = subSeen[cleanSub];
+        const topicTag = (m.topic && m.topic.length <= 8 && !m.topic.toLowerCase().includes('round') && !m.topic.toLowerCase().includes('assessment'))
+          ? m.topic
+          : `T${testNum}`;
+        displaySub = `${cleanSub} (${topicTag})`;
+        const abbr = cleanSub === 'Social Science' ? 'SS' : (cleanSub === 'Mathematics' ? 'Math' : cleanSub.substring(0, 4));
+        shortLabel = `${abbr} (${topicTag})`;
+      } else {
+        const abbr = cleanSub === 'Social Science' ? 'SS' : (cleanSub === 'Mathematics' ? 'Math' : cleanSub);
+        shortLabel = abbr;
+      }
+
+      return {
+        subject: displaySub,
+        shortLabel: shortLabel,
+        obt: sObt,
+        max: sMax,
+        isAbsent: Boolean(m.isAbsent),
+        date: m.date
+      };
+    });
+  } else {
+    // Cumulative aggregation across long periods / many tests (>10 tests)
+    const subjectMap = {};
+    marks.forEach(m => {
+      const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
+      if (!subjectMap[cleanSub]) {
+        subjectMap[cleanSub] = { subject: cleanSub, shortLabel: cleanSub === 'Social Science' ? 'SS' : cleanSub.substring(0, 7), obt: 0, max: 0, isAbsent: true };
+      }
+      const sMax = m.total || 50;
+      const sObt = m.isAbsent ? 0 : (m.marks || 0);
+      subjectMap[cleanSub].max += sMax;
+      subjectMap[cleanSub].obt += sObt;
+      if (!m.isAbsent) subjectMap[cleanSub].isAbsent = false;
+    });
+    studentSubjects = Object.values(subjectMap);
+  }
 
   // Calculate peer ranks for each mark row
   const tableRowsHTML = marks.map((m, idx) => {
@@ -718,11 +826,23 @@ function generateEnglishReportCardHTML(roll, targetStd = null, examType = "FIRST
     if (!m.isAbsent) {
       const cleanSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject;
       const subScores = DB.marks
-        .filter(x => (x.std ? String(x.std).trim() === studentStd : true) && 
-                     (!x.section || String(x.section).trim().toUpperCase() === studentSec) &&
-                     peerRolls.includes(parseInt(x.roll)) && 
-                     (typeof cleanSubjectName === 'function' ? cleanSubjectName(x.subject) : x.subject) === cleanSub && 
-                     !x.isAbsent)
+        .filter(x => {
+          if (x.std && String(x.std).trim() !== studentStd) return false;
+          if (x.section && String(x.section).trim().toUpperCase() !== studentSec) return false;
+          if (!peerRolls.includes(parseInt(x.roll))) return false;
+          if (x.isAbsent) return false;
+          const xSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(x.subject) : x.subject;
+          if (xSub !== cleanSub) return false;
+          if (m.testColIndex !== undefined && x.testColIndex !== undefined) {
+            if (x.testColIndex !== m.testColIndex) return false;
+            if (m.testSet && x.testSet && m.testSet !== x.testSet) return false;
+            return true;
+          }
+          if (m.date && x.date && m.date !== x.date) return false;
+          if (m.testSet && x.testSet && m.testSet !== x.testSet) return false;
+          if (m.topic && x.topic && m.topic !== x.topic) return false;
+          return true;
+        })
         .map(x => x.marks)
         .sort((a, b) => b - a);
       const rIdx = subScores.indexOf(m.marks);
