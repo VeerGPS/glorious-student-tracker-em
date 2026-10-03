@@ -892,14 +892,30 @@ function parseFlexibleDate(dateVal, fallbackDate = '') {
 
     if (p0Clean.length === 4) {
       const y = p0Clean;
-      const m = p1Clean.padStart(2, '0');
-      const d = p2Clean.padStart(2, '0');
+      let m = p1Clean.padStart(2, '0');
+      let d = p2Clean.padStart(2, '0');
+      if (parseInt(m, 10) > 12 && parseInt(d, 10) <= 12) {
+        const tmp = m; m = d; d = tmp;
+      }
       return `${y}-${m}-${d}`;
     } else if (p2Clean.length === 2 || p2Clean.length === 4) {
-      const d = p0Clean.padStart(2, '0');
-      const m = p1Clean.padStart(2, '0');
       let y = p2Clean;
       if (y.length === 2) y = parseInt(y) < 50 ? '20' + y : '19' + y;
+      const n0 = parseInt(p0Clean, 10);
+      const n1 = parseInt(p1Clean, 10);
+      let d, m;
+      if (n0 <= 12 && n1 > 12) {
+        // e.g. 7/22/26 -> Month 7, Day 22
+        m = String(n0).padStart(2, '0');
+        d = String(n1).padStart(2, '0');
+      } else if (n0 > 12 && n1 <= 12) {
+        // e.g. 14/8/26 -> Day 14, Month 8
+        d = String(n0).padStart(2, '0');
+        m = String(n1).padStart(2, '0');
+      } else {
+        d = String(n0).padStart(2, '0');
+        m = String(n1).padStart(2, '0');
+      }
       return `${y}-${m}-${d}`;
     }
   }
@@ -984,17 +1000,17 @@ function detectExcelMarksLayout(rows) {
 
   // Look for 2-row header: subject row followed by date + student header row
   for (let r = 0; r < Math.min(8, rows.length - 1); r++) {
-    const sRow = rows[r] || [];
-    const dRow = rows[r + 1] || [];
+    const sRow = Array.from(rows[r] || []);
+    const dRow = Array.from(rows[r + 1] || []);
 
     // Check dRow for student columns: Roll / No and Name
-    const dHeaders = dRow.map(c => (c ? c.toString().trim().toLowerCase() : ''));
+    const dHeaders = dRow.map(c => (c != null ? c.toString().trim().toLowerCase() : ''));
     let rollCol = dHeaders.findIndex(h => {
       if (!h) return false;
       if (h.includes('gr') || h.includes('mobile') || h.includes('phone') || h.includes('name')) return false;
       return h === 'no.' || h === 'no' || h === 'roll' || h === 'roll no' || h === 'rollno' || h === 'sr' || h === 'sr no' || h === 'sr.' || h === 'seat no' || h === '#' || h.includes('રોલ') || /\b(?:no\.?|nr\.?|num|number)\b/i.test(h);
     });
-    let nameCol = dHeaders.findIndex(h => h.includes('name') || h.includes('student') || h.includes('નામ'));
+    let nameCol = dHeaders.findIndex(h => h && (h.includes('name') || h.includes('student') || h.includes('નામ')));
 
     // Check if dRow has date cells in other columns
     let dateColsCount = 0;
@@ -1023,7 +1039,7 @@ function detectExcelMarksLayout(rows) {
       let detectedStd = null;
       let detectedSchool = '';
       for (let prevR = 0; prevR <= r; prevR++) {
-        const pRow = rows[prevR] || [];
+        const pRow = Array.from(rows[prevR] || []);
         for (const cell of pRow) {
           if (!cell) continue;
           const cStr = cell.toString().trim();
@@ -1055,7 +1071,7 @@ function detectExcelMarksLayout(rows) {
         dataStartIdx: r + 2,
         rollColIdx: rollCol,
         nameColIdx: nameCol,
-        grColIdx: dHeaders.findIndex(h => h.includes('gr')),
+        grColIdx: dHeaders.findIndex(h => h && h.includes('gr')),
         std: detectedStd,
         school: detectedSchool,
         studentCount: studentRowsCount
@@ -1064,8 +1080,8 @@ function detectExcelMarksLayout(rows) {
   }
 
   // Format 1 checks
-  const row0Headers = (rows[0] || []).map(c => (c ? c.toString().trim().toLowerCase() : ''));
-  const isSingleTest = row0Headers.some(h => h.includes('subject')) && (row0Headers.some(h => h.includes('topic')) || row0Headers.some(h => h.includes('mark')));
+  const row0Headers = Array.from(rows[0] || []).map(c => (c != null ? c.toString().trim().toLowerCase() : ''));
+  const isSingleTest = row0Headers.some(h => h && h.includes('subject')) && (row0Headers.some(h => h && h.includes('topic')) || row0Headers.some(h => h && h.includes('mark')));
   if (isSingleTest) {
     return { type: 'single-test', headerRowIdx: 0, dataStartIdx: 1 };
   }
@@ -1628,11 +1644,11 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
   // Normalize header row
 
   // Normalize header row
-  const rawHeaders = rows[0].map(h => (h ? h.toString().trim().toLowerCase() : ''));
+  const rawHeaders = Array.from(rows[0] || []).map(h => (h != null ? h.toString().trim().toLowerCase() : ''));
   
   // Find key column indexes (standard English & Gujarati)
-  let grIdx = rawHeaders.findIndex(h => h.includes('gr') || h.includes('g.r') || h.includes('reg') || h.includes('register') || h.includes('જીઆર') || h.includes('જી.આર'));
-  let nameIdx = rawHeaders.findIndex(h => h.includes('name') || h.includes('student') || h.includes('નામ') || h.includes('વિદ્યાર્થી'));
+  let grIdx = rawHeaders.findIndex(h => h && (h.includes('gr') || h.includes('g.r') || h.includes('reg') || h.includes('register') || h.includes('જીઆર') || h.includes('જી.આર')));
+  let nameIdx = rawHeaders.findIndex(h => h && (h.includes('name') || h.includes('student') || h.includes('નામ') || h.includes('વિદ્યાર્થી')));
   
   // Find rollIdx with strict precision (NEVER match 'no' alone as it collides with 'gr no', 'sr no', 'economics', etc.)
   let rollIdx = rawHeaders.findIndex(h => {
@@ -1651,8 +1667,8 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
     });
   }
 
-  let secIdx = rawHeaders.findIndex(h => h.includes('sec') || h.includes('division') || h.includes('section') || h.includes('વર્ગ') || h.includes('વિભાગ'));
-  let stdIdx = rawHeaders.findIndex((h, idx) => idx !== secIdx && (h.includes('class') || h.includes('std') || h.includes('grade') || h.includes('standard') || h.includes('ધોરણ')));
+  let secIdx = rawHeaders.findIndex(h => h && (h.includes('sec') || h.includes('division') || h.includes('section') || h.includes('વર્ગ') || h.includes('વિભાગ')));
+  let stdIdx = rawHeaders.findIndex((h, idx) => idx !== secIdx && h && (h.includes('class') || h.includes('std') || h.includes('grade') || h.includes('standard') || h.includes('ધોરણ')));
 
   if (rollIdx === -1 && nameIdx === -1 && grIdx === -1) {
     if (window.showToast) window.showToast("Excel must contain at least 'Roll No' or 'Student Name' or 'GR No.'", 'error');
@@ -1669,7 +1685,7 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
   const defaultTotal = 50;
 
   // Check if this is the multi-subject format: Gr No. | Name | Roll No | [Subject columns...]
-  const isMultiSubject = !rawHeaders.some(h => h.includes('subject')) && !rawHeaders.some(h => h.includes('topic'));
+  const isMultiSubject = !rawHeaders.some(h => h && h.includes('subject')) && !rawHeaders.some(h => h && h.includes('topic'));
 
   let addedCount = 0;
   let updatedCount = 0;
@@ -1799,11 +1815,11 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
     }
   } else {
     // Single test format with explicit Subject/Topic columns
-    const subjIdx = rawHeaders.findIndex(h => h.includes('subject'));
-    const topIdx = rawHeaders.findIndex(h => h.includes('topic') || h.includes('chapter') || h.includes('unit'));
-    const dateIdx = rawHeaders.findIndex(h => h.includes('date'));
-    const marksIdx = rawHeaders.findIndex(h => h.includes('mark') || h.includes('obt') || h.includes('score'));
-    const totalIdx = rawHeaders.findIndex(h => h.includes('total') || h.includes('max') || h.includes('out of'));
+    const subjIdx = rawHeaders.findIndex(h => h && h.includes('subject'));
+    const topIdx = rawHeaders.findIndex(h => h && (h.includes('topic') || h.includes('chapter') || h.includes('unit')));
+    const dateIdx = rawHeaders.findIndex(h => h && h.includes('date'));
+    const marksIdx = rawHeaders.findIndex(h => h && (h.includes('mark') || h.includes('obt') || h.includes('score')));
+    const totalIdx = rawHeaders.findIndex(h => h && (h.includes('total') || h.includes('max') || h.includes('out of')));
 
     for (let r = 1; r < rows.length; r++) {
       const row = rows[r];
