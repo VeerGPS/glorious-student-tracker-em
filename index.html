@@ -3396,6 +3396,52 @@
     </div>
   </div>
 
+  <!-- Delete Test Set Confirmation Modal -->
+  <div id="delete-test-set-modal" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-[130] hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white animate-pop-in">
+      <div class="bg-gradient-to-r from-rose-600 to-red-600 text-white p-5 flex justify-between items-center">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-white text-base">
+            <i class="fa-solid fa-trash-can"></i>
+          </div>
+          <div>
+            <h3 class="font-black text-lg">Delete Test Set</h3>
+            <p class="text-[11px] text-rose-100 font-semibold">Remove assessment set from system</p>
+          </div>
+        </div>
+        <button onclick="closeDeleteTestSetModal()" class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-4">
+        <div>
+          <div id="delete-set-name-badge" class="font-black text-slate-800 text-base mb-1"></div>
+          <p id="delete-set-info-text" class="text-xs text-slate-600 font-medium leading-relaxed"></p>
+        </div>
+
+        <div id="delete-set-warning-box" class="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-900 flex items-start gap-2">
+          <i class="fa-solid fa-triangle-exclamation text-rose-600 mt-0.5 shrink-0"></i>
+          <span id="delete-set-warning-text">This action cannot be undone. Please choose how you want to handle linked marks:</span>
+        </div>
+
+        <div class="pt-3 border-t border-slate-100 space-y-2">
+          <button id="delete-set-btn-all" onclick="executeDeleteTestSet(true)" type="button" class="w-full py-3 px-4 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-xl text-xs font-black shadow-md shadow-rose-500/25 transition-all cursor-pointer flex items-center justify-center gap-2">
+            <i class="fa-solid fa-trash-can"></i> Delete Set & All Associated Marks
+          </button>
+          
+          <button id="delete-set-btn-tag-only" onclick="executeDeleteTestSet(false)" type="button" class="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2">
+            <i class="fa-solid fa-tag"></i> Delete Set Tag Only (Preserve Marks)
+          </button>
+
+          <button onclick="closeDeleteTestSetModal()" type="button" class="w-full py-2 px-4 text-slate-500 hover:text-slate-700 text-xs font-semibold transition-all cursor-pointer text-center">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- WhatsApp Web QR Code Linking Modal -->
   <div id="wa-qr-modal" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-[140] hidden flex items-center justify-center p-4">
     <div class="glass-card rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white animate-pop-in">

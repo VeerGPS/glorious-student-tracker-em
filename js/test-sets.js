@@ -157,10 +157,10 @@ function renderTestSetsManager() {
             </div>
             
             <div class="flex items-center gap-1 shrink-0">
-              <button onclick="openRenameTestSetModal('${s.name.replace(/'/g, "\\'")}', '${s.std || ''}')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-violet-100 text-slate-600 hover:text-violet-700 flex items-center justify-center transition-all cursor-pointer" title="Rename Set">
+              <button onclick="openRenameTestSetModal('${encodeURIComponent(s.name)}', '${encodeURIComponent(s.std || '')}')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-violet-100 text-slate-600 hover:text-violet-700 flex items-center justify-center transition-all cursor-pointer" title="Rename Set">
                 <i class="fa-solid fa-pen-to-square text-xs"></i>
               </button>
-              <button onclick="deleteTestSet('${s.name.replace(/'/g, "\\'")}', '${s.std || ''}')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 flex items-center justify-center transition-all cursor-pointer" title="Delete Set">
+              <button onclick="openDeleteTestSetModal('${encodeURIComponent(s.name)}', '${encodeURIComponent(s.std || '')}', '${s.id || ''}')" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-600 hover:text-rose-700 flex items-center justify-center transition-all cursor-pointer" title="Delete Set">
                 <i class="fa-solid fa-trash-can text-xs"></i>
               </button>
             </div>
@@ -302,10 +302,16 @@ function saveNewTestSet(e) {
 }
 
 // -------------------------------------------------------------
+// -------------------------------------------------------------
 // RENAME TEST SET MODAL
 // -------------------------------------------------------------
 
-function openRenameTestSetModal(setName, std) {
+function openRenameTestSetModal(setNameRaw, stdRaw = '') {
+  let setName = setNameRaw;
+  try { setName = decodeURIComponent(setNameRaw); } catch (e) {}
+  let std = stdRaw;
+  try { std = decodeURIComponent(stdRaw || ''); } catch (e) {}
+
   currentRenamingSet = { oldName: setName, std: std };
   const modal = document.getElementById('rename-test-set-modal');
   const currentLabel = document.getElementById('rename-set-current-label');
@@ -371,6 +377,9 @@ function saveRenameTestSet(e) {
   if (activeTId && typeof saveTeacherData === 'function') {
     saveTeacherData(activeTId);
   }
+  if (typeof CloudDB !== 'undefined' && typeof CloudDB.syncToCloud === 'function') {
+    CloudDB.syncToCloud();
+  }
 
   closeRenameTestSetModal();
   renderTestSetsManager();
@@ -387,47 +396,128 @@ function saveRenameTestSet(e) {
 }
 
 // -------------------------------------------------------------
-// DELETE TEST SET
+// DELETE TEST SET MODAL & ROBUST EXECUTION
 // -------------------------------------------------------------
 
-function deleteTestSet(setName, std) {
+let pendingDeleteSet = null;
+
+function openDeleteTestSetModal(setNameRaw, stdRaw = '', setId = '') {
+  let setName = setNameRaw;
+  try { setName = decodeURIComponent(setNameRaw); } catch (e) {}
+  let std = stdRaw;
+  try { std = decodeURIComponent(stdRaw || ''); } catch (e) {}
+
   const markCount = (DB.marks || []).filter(m => 
     (m.testSet === setName || m.exam === setName) && (!std || String(m.std) === String(std))
   ).length;
 
-  const promptMsg = markCount > 0 
-    ? `Are you sure you want to delete Test Set "${setName}" (Class ${std || 'All'})?\n\nThis will remove the set tag from ${markCount} marks records. Student scores will remain safely intact in Database Records.`
-    : `Are you sure you want to delete Test Set "${setName}"?`;
+  pendingDeleteSet = { name: setName, std: std, setId: setId, markCount: markCount };
 
-  if (!confirm(promptMsg)) return;
+  const modal = document.getElementById('delete-test-set-modal');
+  const badge = document.getElementById('delete-set-name-badge');
+  const info = document.getElementById('delete-set-info-text');
+  const tagOnlyBtn = document.getElementById('delete-set-btn-tag-only');
+  const deleteBtn = document.getElementById('delete-set-btn-all');
 
-  // Remove from DB.testSets
-  DB.testSets = (DB.testSets || []).filter(s => 
-    !(s.name.toLowerCase() === setName.toLowerCase() && (!std || String(s.std) === String(std)))
-  );
-
-  // Unlink in DB.marks (keeps score records, removes set tag)
-  (DB.marks || []).forEach(m => {
-    if ((m.testSet === setName || m.exam === setName) && (!std || String(m.std) === String(std))) {
-      m.testSet = '';
+  if (badge) badge.innerText = `Set: "${setName}" (${std ? `Class ${std}` : 'All Classes'})`;
+  if (info) {
+    if (markCount > 0) {
+      info.innerText = `This test set currently contains ${markCount} student mark record${markCount > 1 ? 's' : ''}. Choose how you would like to proceed:`;
+      if (tagOnlyBtn) tagOnlyBtn.classList.remove('hidden');
+      if (deleteBtn) deleteBtn.innerHTML = `<i class="fa-solid fa-trash-can mr-1"></i> Delete Set & All ${markCount} Marks`;
+    } else {
+      info.innerText = `This test set has no mark records linked.`;
+      if (tagOnlyBtn) tagOnlyBtn.classList.add('hidden');
+      if (deleteBtn) deleteBtn.innerHTML = `<i class="fa-solid fa-trash-can mr-1"></i> Delete Empty Set`;
     }
+  }
+
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeDeleteTestSetModal() {
+  const modal = document.getElementById('delete-test-set-modal');
+  if (modal) modal.classList.add('hidden');
+  pendingDeleteSet = null;
+}
+
+function executeDeleteTestSet(deleteMarksToo = true) {
+  if (!pendingDeleteSet) return;
+  const { name, std, setId, markCount } = pendingDeleteSet;
+
+  // 1. Remove from DB.testSets
+  DB.testSets = (DB.testSets || []).filter(s => {
+    if (setId && s.id === setId) return false;
+    if (s.name.toLowerCase() === name.toLowerCase() && (!std || String(s.std) === String(std))) return false;
+    return true;
   });
 
+  // 2. Remove or Untag marks
+  if (deleteMarksToo) {
+    // Permanently remove all marks records for this test set
+    DB.marks = (DB.marks || []).filter(m => 
+      !((m.testSet === name || m.exam === name) && (!std || String(m.std) === String(std)))
+    );
+  } else {
+    // Untag marks: MUST reset both testSet AND exam to avoid syncTestSetsRegistry reviving the set
+    (DB.marks || []).forEach(m => {
+      if ((m.testSet === name || m.exam === name) && (!std || String(m.std) === String(std))) {
+        m.testSet = '';
+        m.exam = 'Unit Assessment';
+        if (m.topic === name) m.topic = 'Assessment';
+      }
+    });
+  }
+
+  // 3. Reset active set if currently active in reports
+  if (typeof currentActiveTestSet !== 'undefined' && currentActiveTestSet === name) {
+    currentActiveTestSet = 'all';
+  }
+
+  // 4. Save to database & cloud
   saveDatabase();
 
   const activeTId = (typeof getActiveTeacherId === 'function') ? getActiveTeacherId() : null;
   if (activeTId && typeof saveTeacherData === 'function') {
     saveTeacherData(activeTId);
   }
+  if (typeof CloudDB !== 'undefined' && typeof CloudDB.syncToCloud === 'function') {
+    CloudDB.syncToCloud();
+  }
 
+  // 5. Close modal
+  closeDeleteTestSetModal();
+
+  // 6. Refresh all UI views
   renderTestSetsManager();
   if (typeof renderTestSetsPillBar === 'function') {
     renderTestSetsPillBar('all');
   }
+  if (typeof populateReportsFilters === 'function') {
+    populateReportsFilters('all');
+  }
+  if (typeof renderRecordsTable === 'function') {
+    renderRecordsTable();
+  }
+  if (typeof updateDashboard === 'function') {
+    updateDashboard();
+  }
+  if (typeof updateStudentTallyBadges === 'function') {
+    updateStudentTallyBadges();
+  }
 
   if (window.showToast) {
-    window.showToast(`Test Set "${setName}" deleted successfully.`, 'info');
+    if (deleteMarksToo && markCount > 0) {
+      window.showToast(`Test Set "${name}" and ${markCount} marks records permanently deleted.`, 'info');
+    } else {
+      window.showToast(`Test Set "${name}" deleted successfully.`, 'info');
+    }
   }
+}
+
+// Backward-compatible alias for deleteTestSet
+function deleteTestSet(setName, std, setId = '') {
+  openDeleteTestSetModal(encodeURIComponent(setName), encodeURIComponent(std || ''), setId || '');
 }
 
 // -------------------------------------------------------------
@@ -479,6 +569,9 @@ window.saveNewTestSet = saveNewTestSet;
 window.openRenameTestSetModal = openRenameTestSetModal;
 window.closeRenameTestSetModal = closeRenameTestSetModal;
 window.saveRenameTestSet = saveRenameTestSet;
+window.openDeleteTestSetModal = openDeleteTestSetModal;
+window.closeDeleteTestSetModal = closeDeleteTestSetModal;
+window.executeDeleteTestSet = executeDeleteTestSet;
 window.deleteTestSet = deleteTestSet;
 window.viewSetInRecords = viewSetInRecords;
 window.viewSetInReports = viewSetInReports;
