@@ -1206,12 +1206,36 @@ function openExcelTestSetModal(fileName, targetStd, rows, layout = null) {
   const curMonth = monthNames[new Date().getMonth()];
 
   let suggested = layout && layout.type === 'school-multi-test' ? `${curMonth} Periodic Tests` : `${curMonth} Round-1`;
-  if (fileName) {
+  if (window.targetUploadSetName) {
+    suggested = window.targetUploadSetName;
+  } else if (fileName) {
     let clean = fileName.replace(/\.[^/.]+$/, '');
     clean = clean.replace(/^(?:class[_\-\s]*\d+[_\-\s]*|report[_\-\s]*card[_\-\s]*|marks[_\-\s]*|template[_\-\s]*)+/i, '');
     clean = clean.replace(/[_\-]+/g, ' ').trim();
     if (clean.length >= 3 && clean.length <= 40) {
       suggested = clean;
+    }
+  }
+
+  // Populate existing test sets dropdown
+  const existingSelect = document.getElementById('excel-test-set-existing-select');
+  const existingSetsForStd = (DB.testSets || []).filter(s => typeof isSameStd === 'function' ? isSameStd(s.std, targetStd) : String(s.std) === String(targetStd));
+  if (existingSelect) {
+    existingSelect.innerHTML = '<option value="">-- Choose Existing Test Set (or enter new name) --</option>' +
+      existingSetsForStd.map(s => `<option value="${s.name}">${s.name} (Class ${s.std})</option>`).join('');
+
+    // Pre-select if there is an exact or empty set matching target
+    const candidateSet = (window.targetUploadSetName && existingSetsForStd.find(s => (typeof isSameTestSetName === 'function' ? isSameTestSetName(s.name, window.targetUploadSetName) : s.name === window.targetUploadSetName))) ||
+      existingSetsForStd.find(s => {
+        const markCount = (DB.marks || []).filter(m => (typeof isSameTestSetName === 'function' ? isSameTestSetName(m.testSet || m.exam, s.name) : m.testSet === s.name) && (typeof isSameStd === 'function' ? isSameStd(m.std, s.std) : String(m.std) === String(s.std))).length;
+        return markCount === 0;
+      });
+
+    if (candidateSet) {
+      existingSelect.value = candidateSet.name;
+      suggested = candidateSet.name;
+    } else {
+      existingSelect.value = '';
     }
   }
 
@@ -1222,7 +1246,8 @@ function openExcelTestSetModal(fileName, targetStd, rows, layout = null) {
 
   const presetsContainer = document.getElementById('excel-test-set-presets');
   if (presetsContainer) {
-    const suggestions = [
+    const existingNames = existingSetsForStd.map(s => s.name);
+    const standardSuggestions = [
       `${curMonth} Round-1`,
       `${curMonth} Round-2`,
       `Periodic Test 1`,
@@ -1231,11 +1256,17 @@ function openExcelTestSetModal(fileName, targetStd, rows, layout = null) {
       `Unit Test 2`,
       `First Term Assessment`
     ];
-    presetsContainer.innerHTML = suggestions.map(s => `
-      <button type="button" onclick="setExcelTestSetInput('${s}')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 text-[11px] font-bold text-slate-600 transition-all border border-slate-200">
-        ${s}
-      </button>
-    `).join('');
+    const combined = [...new Set([...existingNames, ...standardSuggestions])];
+    presetsContainer.innerHTML = combined.map(s => {
+      const isExisting = existingNames.includes(s);
+      const safeStr = s.replace(/'/g, "\\'");
+      return `
+        <button type="button" onclick="setExcelTestSetInput('${safeStr}')" 
+          class="px-2.5 py-1 rounded-lg ${isExisting ? 'bg-violet-100 hover:bg-violet-200 text-violet-900 border-violet-300 font-black' : 'bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 font-bold text-slate-600 border-slate-200'} text-[11px] transition-all border flex items-center gap-1 cursor-pointer">
+          ${isExisting ? '<i class="fa-solid fa-layer-group text-[9px] text-violet-600"></i>' : ''} ${s}
+        </button>
+      `;
+    }).join('');
   }
 
   modal.classList.remove('hidden');
@@ -1252,6 +1283,12 @@ function setExcelTestSetInput(name) {
   if (inputEl) {
     inputEl.value = name;
     inputEl.focus();
+  }
+  const existingSelect = document.getElementById('excel-test-set-existing-select');
+  if (existingSelect) {
+    const matchOpt = Array.from(existingSelect.options).find(o => o.value === name || (typeof isSameTestSetName === 'function' && isSameTestSetName(o.value, name)));
+    if (matchOpt) existingSelect.value = matchOpt.value;
+    else existingSelect.value = '';
   }
 }
 
@@ -1278,6 +1315,9 @@ function confirmAndSaveExcelTestSet() {
 
   const setName = rawName;
   const { rows, targetStd } = window.pendingExcelUpload;
+
+  window.targetUploadSetName = null;
+  window.targetUploadSetStd = null;
 
   closeExcelTestSetModal();
   processParsedExcelMarks(rows, targetStd, setName);
@@ -1448,6 +1488,15 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
   };
 
   const layout = detectExcelMarksLayout(rows);
+
+  // Canonicalize setName if it matches an existing set in this class
+  const targetStdToUse = explicitTargetStd || (layout && layout.std) || null;
+  if (setName && Array.isArray(DB.testSets)) {
+    const existing = DB.testSets.find(s => (typeof isSameTestSetName === 'function' ? isSameTestSetName(s.name, setName) : s.name.toLowerCase() === setName.toLowerCase()) && (typeof isSameStd === 'function' ? isSameStd(s.std, targetStdToUse) : true));
+    if (existing) {
+      setName = existing.name;
+    }
+  }
 
   // =========================================================================
   // FORMAT 2: Periodic Test Date-Header Format (Glorious Public School Multi-Test Format)

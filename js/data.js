@@ -865,6 +865,43 @@ function cleanSubjectName(sub) {
 
   return s || sub.toString().trim();
 }
+window.cleanSubjectName = cleanSubjectName;
+
+// Normalize test set names: standardizes unicode hyphens, en-dashes, em-dashes, and whitespace
+function normalizeTestSetName(name) {
+  if (!name) return '';
+  return String(name)
+    .trim()
+    .toLowerCase()
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212_]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+function isSameTestSetName(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  const nA = normalizeTestSetName(a);
+  const nB = normalizeTestSetName(b);
+  if (nA === nB) return true;
+  const noA = nA.replace(/[-\s]/g, '');
+  const noB = nB.replace(/[-\s]/g, '');
+  if (noA && noB && noA === noB) return true;
+  if (noA && noB && (noA.startsWith(noB) || noB.startsWith(noA))) return true;
+  return false;
+}
+
+function isSameStd(stdA, stdB) {
+  if (!stdA || !stdB) return true;
+  if (stdA === 'all' || stdB === 'all') return true;
+  const numA = String(stdA).replace(/[^0-9]/g, '');
+  const numB = String(stdB).replace(/[^0-9]/g, '');
+  if (numA && numB) return numA === numB;
+  return String(stdA).trim().toLowerCase() === String(stdB).trim().toLowerCase();
+}
+
+window.normalizeTestSetName = normalizeTestSetName;
+window.isSameTestSetName = isSameTestSetName;
+window.isSameStd = isSameStd;
 
 // Student Lookup Helpers with Class & Section Scoping
 function findStudentByRoll(roll, std = null, section = null) {

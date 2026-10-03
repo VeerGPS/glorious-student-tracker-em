@@ -2809,6 +2809,16 @@
       <!-- Input Form -->
       <div class="space-y-4 mb-6">
         <div>
+          <label for="excel-test-set-existing-select" class="block text-xs font-black uppercase text-slate-700 tracking-wider mb-1.5">
+            Select Existing Test Set (Or Type Below)
+          </label>
+          <select id="excel-test-set-existing-select" onchange="if(this.value) setExcelTestSetInput(this.value)"
+            class="w-full bg-slate-50 border-2 border-slate-200 focus:border-emerald-500 focus:bg-white rounded-2xl px-4 py-3 text-xs font-bold text-slate-800 outline-none transition-all cursor-pointer">
+            <option value="">-- Choose Existing Test Set (or enter new name) --</option>
+          </select>
+        </div>
+
+        <div>
           <label for="excel-test-set-name-input" class="block text-xs font-black uppercase text-slate-700 tracking-wider mb-1.5">
             Test-Set Name <span class="text-rose-500">*</span>
           </label>

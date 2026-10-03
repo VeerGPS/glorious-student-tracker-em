@@ -974,7 +974,7 @@ function renderTestSetsPillBar(activeSet = 'all') {
   `;
 
   sets.forEach(s => {
-    const count = (DB.marks || []).filter(m => m.testSet === s || m.exam === s).length;
+    const count = (DB.marks || []).filter(m => (typeof isSameTestSetName === 'function' ? (isSameTestSetName(m.testSet, s) || isSameTestSetName(m.exam, s)) : (m.testSet === s || m.exam === s))).length;
     const isAct = activeSet === s;
     html += `
       <button type="button" onclick="selectActiveTestSet('${s.replace(/'/g, "\\'")}')" 
@@ -1072,7 +1072,7 @@ function printBulkReportCards() {
       parseInt(m.roll) === parseInt(stu.roll)
     );
     if (fTestSet && fTestSet !== 'all') {
-      mks = mks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+      mks = mks.filter(m => (typeof isSameTestSetName === 'function' ? (isSameTestSetName(m.testSet, fTestSet) || isSameTestSetName(m.exam, fTestSet)) : (m.testSet === fTestSet || m.exam === fTestSet)));
     }
     if (fSub) {
       const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
@@ -1156,7 +1156,7 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
           parseInt(m.roll) === parseInt(stu.roll)
         );
         if (fTestSet && fTestSet !== 'all') {
-          mks = mks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+          mks = mks.filter(m => (typeof isSameTestSetName === 'function' ? (isSameTestSetName(m.testSet, fTestSet) || isSameTestSetName(m.exam, fTestSet)) : (m.testSet === fTestSet || m.exam === fTestSet)));
         }
         if (fSub) {
           const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
@@ -1224,7 +1224,7 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
           parseInt(m.roll) === parseInt(stu.roll)
         );
         if (fTestSet && fTestSet !== 'all') {
-          mks = mks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+          mks = mks.filter(m => (typeof isSameTestSetName === 'function' ? (isSameTestSetName(m.testSet, fTestSet) || isSameTestSetName(m.exam, fTestSet)) : (m.testSet === fTestSet || m.exam === fTestSet)));
         }
         if (fSub) {
           const cleanFSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(fSub).toLowerCase() : fSub.toLowerCase();
@@ -1258,7 +1258,7 @@ async function downloadEnglishPDF(targetStudents, examType, classLabel) {
   sortedStudents.forEach(stu => {
     let mks = DB.marks.filter(m => (m.std ? String(m.std).trim() === String(stu.std).trim() : true) && parseInt(m.roll) === parseInt(stu.roll));
     if (fTestSet && fTestSet !== 'all') {
-      mks = mks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+      mks = mks.filter(m => (typeof isSameTestSetName === 'function' ? (isSameTestSetName(m.testSet, fTestSet) || isSameTestSetName(m.exam, fTestSet)) : (m.testSet === fTestSet || m.exam === fTestSet)));
     }
     htmlAll += generateEnglishReportCardHTML(stu.roll, stu.std, examType, mks, stu.section || 'A');
   });
@@ -1581,8 +1581,8 @@ function loadWhatsAppQueue() {
   waDispatchQueue = [];
 
   validStudents.forEach(stu => {
-    let stuMarks = DB.marks.filter(m => m.roll === stu.roll && (!stu.std || !m.std || String(m.std) === String(stu.std)));
-    if (fTestSet && fTestSet !== 'all') stuMarks = stuMarks.filter(m => (m.testSet === fTestSet || m.exam === fTestSet));
+    let stuMarks = DB.marks.filter(m => m.roll === stu.roll && (!stu.std || !m.std || (typeof isSameStd === 'function' ? isSameStd(m.std, stu.std) : String(m.std) === String(stu.std))));
+    if (fTestSet && fTestSet !== 'all') stuMarks = stuMarks.filter(m => (typeof isSameTestSetName === 'function' ? (isSameTestSetName(m.testSet, fTestSet) || isSameTestSetName(m.exam, fTestSet)) : (m.testSet === fTestSet || m.exam === fTestSet)));
     if (sub) stuMarks = stuMarks.filter(m => m.subject.toLowerCase().includes(sub));
     if (fDate) stuMarks = stuMarks.filter(m => m.date >= fDate);
     if (tDate) stuMarks = stuMarks.filter(m => m.date <= tDate);

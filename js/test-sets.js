@@ -14,7 +14,7 @@ function syncTestSetsRegistry() {
     const sName = (m.testSet || m.exam || '').trim();
     if (sName && sName !== 'Unit Assessment') {
       const std = m.std || '9';
-      const exists = DB.testSets.some(s => s.name.toLowerCase() === sName.toLowerCase() && String(s.std) === String(std));
+      const exists = DB.testSets.some(s => (typeof isSameTestSetName === 'function' ? isSameTestSetName(s.name, sName) : s.name.toLowerCase() === sName.toLowerCase()) && (typeof isSameStd === 'function' ? isSameStd(s.std, std) : String(s.std) === String(std)));
       if (!exists) {
         DB.testSets.push({
           id: 'set_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
@@ -51,9 +51,9 @@ function renderTestSetsManager() {
 
   // Filter test sets
   let sets = (DB.testSets || []).filter(s => {
-    if (filterStd !== 'all' && String(s.std) !== String(filterStd)) return false;
+    if (filterStd !== 'all' && (typeof isSameStd === 'function' ? !isSameStd(s.std, filterStd) : String(s.std) !== String(filterStd))) return false;
     if (searchTerm) {
-      const matchName = (s.name || '').toLowerCase().includes(searchTerm);
+      const matchName = (s.name || '').toLowerCase().includes(searchTerm) || (typeof isSameTestSetName === 'function' && isSameTestSetName(s.name, searchTerm));
       const matchStd = String(s.std || '').includes(searchTerm);
       return matchName || matchStd;
     }
@@ -71,8 +71,8 @@ function renderTestSetsManager() {
 
   sets.forEach(s => {
     const marksForSet = (DB.marks || []).filter(m => 
-      (m.testSet === s.name || m.exam === s.name) && 
-      (filterStd === 'all' || String(m.std) === String(s.std))
+      (typeof isSameTestSetName === 'function' ? isSameTestSetName(m.testSet || m.exam, s.name) : (m.testSet === s.name || m.exam === s.name)) && 
+      (filterStd === 'all' || (typeof isSameStd === 'function' ? isSameStd(m.std, s.std) : String(m.std) === String(s.std)))
     );
     totalMarks += marksForSet.length;
     marksForSet.forEach(m => {
@@ -116,8 +116,8 @@ function renderTestSetsManager() {
   let cardsHtml = '';
   sets.forEach(s => {
     const setMarks = (DB.marks || []).filter(m => 
-      (m.testSet === s.name || m.exam === s.name) && 
-      (!s.std || String(m.std) === String(s.std))
+      (typeof isSameTestSetName === 'function' ? isSameTestSetName(m.testSet || m.exam, s.name) : (m.testSet === s.name || m.exam === s.name)) && 
+      (!s.std || (typeof isSameStd === 'function' ? isSameStd(m.std, s.std) : String(m.std) === String(s.std)))
     );
     const stuCount = new Set(setMarks.map(m => m.roll)).size;
     const subjects = [...new Set(setMarks.map(m => typeof cleanSubjectName === 'function' ? cleanSubjectName(m.subject) : m.subject))].filter(Boolean);
@@ -133,6 +133,9 @@ function renderTestSetsManager() {
     });
     const avgPct = totalMax > 0 ? ((totalObt / totalMax) * 100).toFixed(1) : null;
     const dateFormatted = typeof formatDateSlash === 'function' ? formatDateSlash(s.date) : s.date;
+
+    const otherClassMarks = (DB.marks || []).filter(m => typeof isSameStd === 'function' ? isSameStd(m.std, s.std) : String(m.std) === String(s.std));
+    const hasUnlinkedMarks = setMarks.length === 0 && otherClassMarks.length > 0;
 
     cardsHtml += `
       <div class="glass-card rounded-3xl p-6 border border-slate-200/80 hover:border-violet-300 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between group">
@@ -183,7 +186,7 @@ function renderTestSetsManager() {
           </div>
 
           <!-- Included Subjects -->
-          <div class="mb-5">
+          <div class="mb-4">
             <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider block mb-1.5">Subjects Covered</span>
             <div class="flex flex-wrap gap-1.5">
               ${subjects.length > 0 ? subjects.map(sub => `
@@ -193,6 +196,19 @@ function renderTestSetsManager() {
               `).join('') : '<span class="text-[11px] text-slate-400 italic">No mark records linked yet</span>'}
             </div>
           </div>
+
+          ${setMarks.length === 0 ? `
+            <div class="mb-4 pt-1">
+              <button onclick="openExcelUploadForSet('${encodeURIComponent(s.name)}', '${encodeURIComponent(s.std || '')}')" class="w-full py-2 px-3 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-violet-500/20 cursor-pointer">
+                <i class="fa-solid fa-file-arrow-up text-xs"></i> Upload Marks Excel into this Set
+              </button>
+              ${hasUnlinkedMarks ? `
+                <button onclick="autoLinkRecentMarksToSet('${encodeURIComponent(s.name)}', '${encodeURIComponent(s.std || '')}')" class="w-full mt-1.5 py-1.5 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 border border-amber-200 cursor-pointer">
+                  <i class="fa-solid fa-link text-xs text-amber-600"></i> Link Existing Class ${s.std} Marks (${otherClassMarks.length} records)
+                </button>
+              ` : ''}
+            </div>
+          ` : ''}
         </div>
 
         <!-- Card Action Buttons -->
@@ -354,7 +370,7 @@ function saveRenameTestSet(e) {
   // Update in DB.testSets
   let updatedInSets = 0;
   (DB.testSets || []).forEach(s => {
-    if (s.name.toLowerCase() === oldName.toLowerCase() && (!std || String(s.std) === String(std))) {
+    if ((typeof isSameTestSetName === 'function' ? isSameTestSetName(s.name, oldName) : s.name.toLowerCase() === oldName.toLowerCase()) && (!std || (typeof isSameStd === 'function' ? isSameStd(s.std, std) : String(s.std) === String(std)))) {
       s.name = newName;
       updatedInSets++;
     }
@@ -363,10 +379,10 @@ function saveRenameTestSet(e) {
   // Update in DB.marks
   let updatedMarks = 0;
   (DB.marks || []).forEach(m => {
-    if ((m.testSet === oldName || m.exam === oldName) && (!std || String(m.std) === String(std))) {
+    if ((typeof isSameTestSetName === 'function' ? isSameTestSetName(m.testSet || m.exam, oldName) : (m.testSet === oldName || m.exam === oldName)) && (!std || (typeof isSameStd === 'function' ? isSameStd(m.std, std) : String(m.std) === String(std)))) {
       m.testSet = newName;
       m.exam = newName;
-      if (m.topic === oldName) m.topic = newName;
+      if (typeof isSameTestSetName === 'function' ? isSameTestSetName(m.topic, oldName) : m.topic === oldName) m.topic = newName;
       updatedMarks++;
     }
   });
@@ -408,7 +424,7 @@ function openDeleteTestSetModal(setNameRaw, stdRaw = '', setId = '') {
   try { std = decodeURIComponent(stdRaw || ''); } catch (e) {}
 
   const markCount = (DB.marks || []).filter(m => 
-    (m.testSet === setName || m.exam === setName) && (!std || String(m.std) === String(std))
+    (typeof isSameTestSetName === 'function' ? isSameTestSetName(m.testSet || m.exam, setName) : (m.testSet === setName || m.exam === setName)) && (!std || (typeof isSameStd === 'function' ? isSameStd(m.std, std) : String(m.std) === String(std)))
   ).length;
 
   pendingDeleteSet = { name: setName, std: std, setId: setId, markCount: markCount };
@@ -448,7 +464,7 @@ function executeDeleteTestSet(deleteMarksToo = true) {
   // 1. Remove from DB.testSets
   DB.testSets = (DB.testSets || []).filter(s => {
     if (setId && s.id === setId) return false;
-    if (s.name.toLowerCase() === name.toLowerCase() && (!std || String(s.std) === String(std))) return false;
+    if ((typeof isSameTestSetName === 'function' ? isSameTestSetName(s.name, name) : s.name.toLowerCase() === name.toLowerCase()) && (!std || (typeof isSameStd === 'function' ? isSameStd(s.std, std) : String(s.std) === String(std)))) return false;
     return true;
   });
 
@@ -456,15 +472,15 @@ function executeDeleteTestSet(deleteMarksToo = true) {
   if (deleteMarksToo) {
     // Permanently remove all marks records for this test set
     DB.marks = (DB.marks || []).filter(m => 
-      !((m.testSet === name || m.exam === name) && (!std || String(m.std) === String(std)))
+      !((typeof isSameTestSetName === 'function' ? isSameTestSetName(m.testSet || m.exam, name) : (m.testSet === name || m.exam === name)) && (!std || (typeof isSameStd === 'function' ? isSameStd(m.std, std) : String(m.std) === String(std))))
     );
   } else {
     // Untag marks: MUST reset both testSet AND exam to avoid syncTestSetsRegistry reviving the set
     (DB.marks || []).forEach(m => {
-      if ((m.testSet === name || m.exam === name) && (!std || String(m.std) === String(std))) {
+      if ((typeof isSameTestSetName === 'function' ? isSameTestSetName(m.testSet || m.exam, name) : (m.testSet === name || m.exam === name)) && (!std || (typeof isSameStd === 'function' ? isSameStd(m.std, std) : String(m.std) === String(std)))) {
         m.testSet = '';
         m.exam = 'Unit Assessment';
-        if (m.topic === name) m.topic = 'Assessment';
+        if (typeof isSameTestSetName === 'function' ? isSameTestSetName(m.topic, name) : m.topic === name) m.topic = 'Assessment';
       }
     });
   }
@@ -520,6 +536,57 @@ function deleteTestSet(setName, std, setId = '') {
   openDeleteTestSetModal(encodeURIComponent(setName), encodeURIComponent(std || ''), setId || '');
 }
 
+// Upload marks directly into a specific test set
+function openExcelUploadForSet(setNameRaw, stdRaw) {
+  let setName = decodeURIComponent(setNameRaw);
+  let std = decodeURIComponent(stdRaw || '10');
+  window.targetUploadSetName = setName;
+  window.targetUploadSetStd = std;
+
+  let fileInput = document.getElementById('marks-excel-file');
+  if (!fileInput) fileInput = document.getElementById('setup-excel-upload');
+  if (fileInput) {
+    fileInput.click();
+  }
+}
+
+// 1-Click link unlinked or existing marks of the same class to this test set
+function autoLinkRecentMarksToSet(setNameRaw, stdRaw) {
+  let setName = decodeURIComponent(setNameRaw);
+  let std = decodeURIComponent(stdRaw || '10');
+
+  const classMarks = (DB.marks || []).filter(m => typeof isSameStd === 'function' ? isSameStd(m.std, std) : String(m.std) === String(std));
+  if (classMarks.length === 0) {
+    if (window.showToast) window.showToast(`No marks found in database for Class ${std}. Please upload an Excel sheet.`, 'warning');
+    return;
+  }
+
+  let linkedCount = 0;
+  classMarks.forEach(m => {
+    m.testSet = setName;
+    m.exam = setName;
+    if (!m.topic || m.topic === 'Unit Assessment' || m.topic === 'Assessment') {
+      m.topic = setName;
+    }
+    linkedCount++;
+  });
+
+  const setObj = (DB.testSets || []).find(s => (typeof isSameTestSetName === 'function' ? isSameTestSetName(s.name, setName) : s.name === setName) && (typeof isSameStd === 'function' ? isSameStd(s.std, std) : String(s.std) === String(std)));
+  if (setObj) setObj.count = linkedCount;
+
+  saveDatabase();
+  renderTestSetsManager();
+  if (typeof renderTestSetsPillBar === 'function') {
+    renderTestSetsPillBar(setName);
+  }
+  if (typeof populateReportsFilters === 'function') {
+    populateReportsFilters(setName);
+  }
+  if (window.showToast) {
+    window.showToast(`Linked ${linkedCount} mark records to "${setName}" successfully!`, 'success');
+  }
+}
+
 // -------------------------------------------------------------
 // JUMP TO RECORDS / REPORTS WITH SET PRESELECTED
 // -------------------------------------------------------------
@@ -573,6 +640,8 @@ window.openDeleteTestSetModal = openDeleteTestSetModal;
 window.closeDeleteTestSetModal = closeDeleteTestSetModal;
 window.executeDeleteTestSet = executeDeleteTestSet;
 window.deleteTestSet = deleteTestSet;
+window.openExcelUploadForSet = openExcelUploadForSet;
+window.autoLinkRecentMarksToSet = autoLinkRecentMarksToSet;
 window.viewSetInRecords = viewSetInRecords;
 window.viewSetInReports = viewSetInReports;
 window.syncTestSetsRegistry = syncTestSetsRegistry;
