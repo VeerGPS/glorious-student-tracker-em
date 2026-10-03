@@ -2,5 +2,7 @@ node_modules/
 package-lock.json
 mongodb_config.json
 .env
+whatsapp_auth/
+
 
 

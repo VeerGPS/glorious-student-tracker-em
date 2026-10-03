@@ -1137,6 +1137,9 @@ function switchTab(tabId) {
         stdSel.innerHTML += `<option value="${s}">Class ${s}</option>`;
       });
     }
+    if (typeof checkWhatsAppStatus === 'function') {
+      checkWhatsAppStatus();
+    }
   }
 
   const mainScroll = document.getElementById('dashboard-main-scroll');

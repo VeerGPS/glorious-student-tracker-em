@@ -1412,9 +1412,157 @@ function generateBulkExcel() {
 }
 
 // -------------------------------------------------------------
-// WHATSAPP BROADCAST QUEUE & ALERTS
+// WHATSAPP BROADCAST QUEUE & 1-CLICK PDF REPORT CARD DISPATCHER
 // -------------------------------------------------------------
 
+let waConnectionStatus = 'disconnected'; // 'disconnected' | 'connecting' | 'qr_ready' | 'connected'
+let waQrPollInterval = null;
+let isDispatchRunning = false;
+let isDispatchCancelled = false;
+
+// 1. WhatsApp Connection Status Check & UI Sync
+async function checkWhatsAppStatus() {
+  try {
+    const res = await fetch('/api/whatsapp/status');
+    const data = await res.json();
+    waConnectionStatus = data.status || 'disconnected';
+    updateWhatsAppStatusUI(data);
+    return data;
+  } catch (err) {
+    console.warn('WhatsApp status check failed:', err.message);
+    updateWhatsAppStatusUI({ status: 'disconnected' });
+    return { status: 'disconnected' };
+  }
+}
+
+function updateWhatsAppStatusUI(data) {
+  const badge = document.getElementById('wa-status-badge');
+  const linkBtn = document.getElementById('wa-btn-link');
+  const disconnectBtn = document.getElementById('wa-btn-disconnect');
+  if (!badge) return;
+
+  if (data.status === 'connected' && data.user) {
+    badge.className = 'px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm';
+    badge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> Linked: +${data.user.phone || ''} (${data.user.name || 'WhatsApp'})`;
+    if (linkBtn) linkBtn.classList.add('hidden');
+    if (disconnectBtn) disconnectBtn.classList.remove('hidden');
+  } else if (data.status === 'qr_ready') {
+    badge.className = 'px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 bg-amber-100 text-amber-800 border border-amber-300';
+    badge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span> QR Ready (Scan to Link)`;
+    if (linkBtn) linkBtn.classList.remove('hidden');
+    if (disconnectBtn) disconnectBtn.classList.add('hidden');
+  } else if (data.status === 'connecting') {
+    badge.className = 'px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 bg-blue-100 text-blue-800 border border-blue-300';
+    badge.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-blue-600 text-xs"></i> Initializing WhatsApp...`;
+    if (linkBtn) linkBtn.classList.remove('hidden');
+    if (disconnectBtn) disconnectBtn.classList.add('hidden');
+  } else {
+    badge.className = 'px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 bg-slate-100 text-slate-600 border border-slate-200';
+    badge.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> WhatsApp Not Linked`;
+    if (linkBtn) linkBtn.classList.remove('hidden');
+    if (disconnectBtn) disconnectBtn.classList.add('hidden');
+  }
+}
+
+// 2. Open QR Modal and Poll for Pairing
+async function openWhatsAppQrModal(forceNew = false) {
+  const modal = document.getElementById('wa-qr-modal');
+  const loading = document.getElementById('wa-qr-loading');
+  const img = document.getElementById('wa-qr-image');
+  const errDiv = document.getElementById('wa-qr-error');
+
+  if (modal) modal.classList.remove('hidden');
+  if (loading) loading.classList.remove('hidden');
+  if (img) img.classList.add('hidden');
+  if (errDiv) errDiv.classList.add('hidden');
+
+  try {
+    await fetch('/api/whatsapp/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ forceNew })
+    });
+
+    if (waQrPollInterval) clearInterval(waQrPollInterval);
+    waQrPollInterval = setInterval(async () => {
+      try {
+        const res = await fetch('/api/whatsapp/status');
+        const data = await res.json();
+        updateWhatsAppStatusUI(data);
+
+        if (data.status === 'connected') {
+          clearInterval(waQrPollInterval);
+          waQrPollInterval = null;
+          closeWhatsAppQrModal();
+          if (window.showToast) window.showToast(`WhatsApp linked successfully (+${data.user?.phone || ''})!`, 'success');
+          return;
+        }
+
+        if (data.qr && img) {
+          img.src = data.qr;
+          img.classList.remove('hidden');
+          if (loading) loading.classList.add('hidden');
+        }
+      } catch (pollErr) {
+        console.warn('QR poll error:', pollErr.message);
+      }
+    }, 1500);
+  } catch (err) {
+    if (loading) loading.classList.add('hidden');
+    if (errDiv) {
+      errDiv.innerText = `Failed to generate QR: ${err.message}`;
+      errDiv.classList.remove('hidden');
+    }
+  }
+}
+
+function requestNewWhatsAppQr() {
+  openWhatsAppQrModal(true);
+}
+
+function closeWhatsAppQrModal() {
+  const modal = document.getElementById('wa-qr-modal');
+  if (modal) modal.classList.add('hidden');
+  if (waQrPollInterval) {
+    clearInterval(waQrPollInterval);
+    waQrPollInterval = null;
+  }
+}
+
+async function disconnectWhatsAppSession() {
+  if (!confirm('Are you sure you want to disconnect this WhatsApp session? You will need to scan the QR code again to reconnect.')) return;
+  try {
+    await fetch('/api/whatsapp/disconnect', { method: 'POST' });
+    if (window.showToast) window.showToast('WhatsApp session disconnected.', 'info');
+    checkWhatsAppStatus();
+  } catch (e) {
+    if (window.showToast) window.showToast('Failed to disconnect: ' + e.message, 'error');
+  }
+}
+
+// 3. Helper: Generate Clean Vector PDF Base64 for Individual Student
+function generateStudentScorecardPDFBase64(stuRoll, stuStd, stuSec, examTitle, marks) {
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    throw new Error('jsPDF library is not loaded.');
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  addStudentScorecardToDoc(
+    doc,
+    stuRoll,
+    true,
+    marks,
+    examTitle || 'STUDENT PROGRESS REPORT CARD',
+    'All',
+    stuStd,
+    stuSec || 'A'
+  );
+  const dataUri = doc.output('datauristring');
+  const base64 = dataUri.split(',')[1];
+  return base64;
+}
+
+// 4. Load Students into Dispatch Queue (Strictly removes plain text breakdown & dashboard links)
 function loadWhatsAppQueue() {
   const std = document.getElementById('wa-filter-std') ? document.getElementById('wa-filter-std').value : 'all';
   const fTestSet = document.getElementById('wa-filter-testset') ? document.getElementById('wa-filter-testset').value : 'all';
@@ -1440,29 +1588,20 @@ function loadWhatsAppQueue() {
     if (tDate) stuMarks = stuMarks.filter(m => m.date <= tDate);
 
     if (stuMarks.length > 0) {
-      let totalObt = 0;
-      let totalMax = 0;
-      const details = stuMarks.slice(0, 8).map(m => {
-        if (!m.isAbsent) {
-          totalObt += m.marks;
-          totalMax += m.total;
-        }
-        return `• ${m.subject}: ${m.isAbsent ? 'AB' : `${m.marks}/${m.total}`}`;
-      }).join('\n');
-
-      const u = new URL(window.location.href);
-      u.searchParams.set('student', stu.roll);
-      if (stu.std) u.searchParams.set('std', stu.std);
-
       const targetExamTitle = (fTestSet && fTestSet !== 'all') ? fTestSet : exam;
-      const overall = totalMax > 0 ? ((totalObt / totalMax) * 100).toFixed(1) : '0';
-      const msg = `*Glorious Public School - Performance Report*\n\nStudent: *${stu.name}*\nRoll No: ${stu.roll} (Class ${stu.std || '-'})\nPeriod/Exam: ${targetExamTitle}\n\n*Scores:*\n${details}\n\n*Overall Average: ${overall}%*\n\nView official digital scorecard: ${u.toString()}`;
+      const cleanPhone = formatPhoneForWA(stu.mobile);
 
       waDispatchQueue.push({
         roll: stu.roll,
         name: stu.name,
-        mobile: formatPhoneForWA(stu.mobile),
-        message: msg
+        std: stu.std || std,
+        section: stu.section || 'A',
+        mobile: cleanPhone,
+        rawMobile: stu.mobile,
+        examTitle: targetExamTitle,
+        marks: stuMarks,
+        status: 'ready', // 'ready' | 'sending' | 'sent' | 'failed'
+        statusMessage: ''
       });
     }
   });
@@ -1482,15 +1621,15 @@ function loadCustomWhatsAppQueue(items, label = 'Custom Queue') {
   if (container) {
     container.classList.remove('hidden');
     renderWaQueue();
-    // Scroll to it
     container.scrollIntoView({ behavior: 'smooth' });
   }
 }
 
+// 5. Render Queue List with Status Badges & Individual Action Buttons
 function renderWaQueue() {
   const countEl = document.getElementById('wa-queue-count');
   const listEl = document.getElementById('wa-queue-list');
-  const sendBtn = document.getElementById('wa-btn-send-next');
+  const dispatchBtn = document.getElementById('wa-btn-dispatch-all');
 
   if (countEl) countEl.innerText = waDispatchQueue.length;
 
@@ -1499,43 +1638,259 @@ function renderWaQueue() {
       listEl.innerHTML = `
         <div class="text-center text-slate-400 py-6">
           <i class="fa-solid fa-circle-check text-4xl mb-2 text-emerald-400 block"></i>
-          <p class="font-bold text-slate-700">All broadcast messages dispatched!</p>
+          <p class="font-bold text-slate-700">All student report card PDFs dispatched!</p>
         </div>
       `;
     }
-    if (sendBtn) {
-      sendBtn.disabled = true;
-      sendBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    if (dispatchBtn) {
+      dispatchBtn.disabled = true;
+      dispatchBtn.classList.add('opacity-50', 'cursor-not-allowed');
     }
     return;
   }
 
-  if (sendBtn) {
-    sendBtn.disabled = false;
-    sendBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+  if (dispatchBtn) {
+    dispatchBtn.disabled = false;
+    dispatchBtn.classList.remove('opacity-50', 'cursor-not-allowed');
   }
 
   if (listEl) {
-    listEl.innerHTML = waDispatchQueue.map((item, idx) => `
-      <div class="flex items-center justify-between p-3 border-b border-slate-100 ${idx === 0 ? 'bg-emerald-50/70 border-emerald-200 rounded-xl shadow-sm' : ''}">
-        <div>
-          <span class="font-bold text-slate-800 text-sm">${item.name}</span>
-          <span class="text-xs text-slate-500 font-medium ml-2">(+${item.mobile})</span>
+    listEl.innerHTML = waDispatchQueue.map((item, idx) => {
+      let statusBadge = `<span class="text-[10px] font-bold text-slate-600 bg-slate-200/80 px-2.5 py-0.5 rounded-md flex items-center gap-1"><i class="fa-solid fa-file-pdf text-rose-500"></i> Ready (PDF)</span>`;
+      if (item.status === 'sending') {
+        statusBadge = `<span class="text-[10px] font-black text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-md animate-pulse flex items-center gap-1"><i class="fa-solid fa-spinner fa-spin"></i> Sending...</span>`;
+      } else if (item.status === 'sent') {
+        statusBadge = `<span class="text-[10px] font-black text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-md flex items-center gap-1"><i class="fa-solid fa-check"></i> Dispatched</span>`;
+      } else if (item.status === 'failed') {
+        statusBadge = `<span class="text-[10px] font-black text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-md flex items-center gap-1" title="${item.statusMessage || ''}"><i class="fa-solid fa-triangle-exclamation"></i> Failed</span>`;
+      }
+
+      return `
+        <div class="flex items-center justify-between p-3 bg-white border border-slate-200/80 rounded-xl shadow-xs hover:border-emerald-300 transition-all">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-700 font-black text-xs flex items-center justify-center border border-emerald-100">
+              #${item.roll}
+            </div>
+            <div>
+              <div class="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                ${item.name}
+                <span class="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">Class ${item.std || '-'}-${item.section || 'A'}</span>
+              </div>
+              <div class="text-xs text-slate-500 font-medium">
+                +${item.mobile} • <span class="text-emerald-700 font-semibold">${item.marks.length} test marks</span>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            ${statusBadge}
+            <button type="button" onclick="sendSingleStudentPdf(${idx})" title="Send Report Card PDF now" class="p-1.5 px-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold border border-emerald-200 transition-all cursor-pointer flex items-center gap-1">
+              <i class="fa-brands fa-whatsapp"></i> Send PDF
+            </button>
+          </div>
         </div>
-        ${idx === 0 ? '<span class="text-[10px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md animate-pulse">UP NEXT</span>' : ''}
-      </div>
-    `).join('');
+      `;
+    }).join('');
   }
 }
 
-function sendNextWhatsApp() {
-  if (waDispatchQueue.length === 0) return;
-  const target = waDispatchQueue.shift();
-  renderWaQueue();
+// 6. Single Student PDF Dispatch Handler
+async function sendSingleStudentPdf(index) {
+  const item = waDispatchQueue[index];
+  if (!item) return;
 
-  const url = `https://wa.me/${target.mobile}?text=${encodeURIComponent(target.message)}`;
-  window.open(url, '_blank');
+  const st = await checkWhatsAppStatus();
+  if (st.status !== 'connected') {
+    if (window.showToast) window.showToast('Please link WhatsApp first before sending report cards.', 'warning');
+    openWhatsAppQrModal();
+    return;
+  }
+
+  item.status = 'sending';
+  renderWaQueue();
+  if (window.showToast) window.showToast(`Generating & dispatching PDF for ${item.name}...`, 'info');
+
+  try {
+    const base64 = generateStudentScorecardPDFBase64(item.roll, item.std, item.section, item.examTitle, item.marks);
+    const res = await fetch('/api/whatsapp/send-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mobile: item.mobile,
+        roll: item.roll,
+        name: item.name,
+        examTitle: item.examTitle,
+        pdfBase64: base64,
+        filename: `Report_Card_${item.name.replace(/\s+/g, '_')}_Roll${item.roll}.pdf`
+      })
+    });
+    const result = await res.json();
+    if (result.success) {
+      item.status = 'sent';
+      item.statusMessage = 'Dispatched successfully';
+      if (window.showToast) window.showToast(`Report card PDF sent to ${item.name}!`, 'success');
+    } else {
+      item.status = 'failed';
+      item.statusMessage = result.error || 'Failed';
+      if (window.showToast) window.showToast(`Failed to send to ${item.name}: ${result.error}`, 'error');
+    }
+  } catch (err) {
+    item.status = 'failed';
+    item.statusMessage = err.message;
+    if (window.showToast) window.showToast(`Error: ${err.message}`, 'error');
+  }
+
+  renderWaQueue();
 }
+
+// 7. 1-Click Automated Batch Dispatch to All Students
+async function startOneClickPdfDispatch() {
+  if (waDispatchQueue.length === 0) {
+    if (window.showToast) window.showToast('Please load students into the dispatch queue first.', 'warning');
+    return;
+  }
+
+  const st = await checkWhatsAppStatus();
+  if (st.status !== 'connected') {
+    if (window.showToast) window.showToast('Please scan the QR code to link your WhatsApp account before dispatching.', 'warning');
+    openWhatsAppQrModal();
+    return;
+  }
+
+  isDispatchRunning = true;
+  isDispatchCancelled = false;
+
+  const modal = document.getElementById('wa-dispatch-progress-modal');
+  const bar = document.getElementById('wa-progress-bar');
+  const percentEl = document.getElementById('wa-progress-percent');
+  const labelEl = document.getElementById('wa-progress-student-label');
+  const sentEl = document.getElementById('wa-count-sent');
+  const failedEl = document.getElementById('wa-count-failed');
+  const remEl = document.getElementById('wa-count-remaining');
+  const logEl = document.getElementById('wa-dispatch-log');
+  const pacingEl = document.getElementById('wa-live-pacing');
+  const cancelBtn = document.getElementById('wa-btn-cancel-dispatch');
+  const finishBtn = document.getElementById('wa-btn-finish-modal');
+  const closeBtn = document.getElementById('wa-btn-close-progress');
+  const subtitle = document.getElementById('wa-progress-subtitle');
+
+  if (modal) modal.classList.remove('hidden');
+  if (cancelBtn) cancelBtn.classList.remove('hidden');
+  if (finishBtn) finishBtn.classList.add('hidden');
+  if (closeBtn) {
+    closeBtn.disabled = true;
+    closeBtn.classList.add('opacity-40');
+  }
+  if (logEl) logEl.innerHTML = '';
+
+  const total = waDispatchQueue.length;
+  let sentCount = 0;
+  let failedCount = 0;
+
+  for (let i = 0; i < total; i++) {
+    if (isDispatchCancelled) {
+      if (logEl) logEl.innerHTML += `<div class="text-amber-400">⏸ Dispatch stopped by user.</div>`;
+      if (subtitle) subtitle.innerText = 'Dispatch Paused by User';
+      break;
+    }
+
+    const item = waDispatchQueue[i];
+    item.status = 'sending';
+    renderWaQueue();
+
+    const progressPct = Math.round(((i + 1) / total) * 100);
+    if (bar) bar.style.width = `${progressPct}%`;
+    if (percentEl) percentEl.innerText = `${progressPct}%`;
+    if (labelEl) labelEl.innerText = `[${i + 1}/${total}] Sending to ${item.name} (Roll ${item.roll})...`;
+    if (remEl) remEl.innerText = total - (i + 1);
+
+    try {
+      const base64 = generateStudentScorecardPDFBase64(item.roll, item.std, item.section, item.examTitle, item.marks);
+      
+      const res = await fetch('/api/whatsapp/send-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mobile: item.mobile,
+          roll: item.roll,
+          name: item.name,
+          examTitle: item.examTitle,
+          pdfBase64: base64,
+          filename: `Report_Card_${item.name.replace(/\s+/g, '_')}_Roll${item.roll}.pdf`
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        item.status = 'sent';
+        item.statusMessage = 'Dispatched successfully';
+        sentCount++;
+        if (sentEl) sentEl.innerText = sentCount;
+        if (logEl) {
+          logEl.innerHTML += `<div class="text-emerald-400">✔ [${new Date().toLocaleTimeString()}] Sent PDF &rarr; ${item.name} (+${item.mobile})</div>`;
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+      } else {
+        item.status = 'failed';
+        item.statusMessage = data.error || 'Failed';
+        failedCount++;
+        if (failedEl) failedEl.innerText = failedCount;
+        if (logEl) {
+          logEl.innerHTML += `<div class="text-rose-400">❌ [${new Date().toLocaleTimeString()}] Failed &rarr; ${item.name} (${item.statusMessage})</div>`;
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+      }
+    } catch (err) {
+      item.status = 'failed';
+      item.statusMessage = err.message;
+      failedCount++;
+      if (failedEl) failedEl.innerText = failedCount;
+      if (logEl) {
+        logEl.innerHTML += `<div class="text-rose-400">❌ [${new Date().toLocaleTimeString()}] Error &rarr; ${item.name} (${err.message})</div>`;
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    renderWaQueue();
+
+    // Pacing delay (1.5 seconds) to avoid WhatsApp rate limits
+    if (i < total - 1 && !isDispatchCancelled) {
+      if (pacingEl) pacingEl.innerText = 'Cooling down 1.5s...';
+      await new Promise(r => setTimeout(r, 1500));
+      if (pacingEl) pacingEl.innerText = '';
+    }
+  }
+
+  isDispatchRunning = false;
+  if (labelEl) labelEl.innerText = isDispatchCancelled ? 'Dispatch paused.' : `Complete! ${sentCount} sent, ${failedCount} failed.`;
+  if (subtitle) subtitle.innerText = isDispatchCancelled ? 'Broadcast Paused' : 'All Reports Dispatched!';
+  if (cancelBtn) cancelBtn.classList.add('hidden');
+  if (finishBtn) finishBtn.classList.remove('hidden');
+  if (closeBtn) {
+    closeBtn.disabled = false;
+    closeBtn.classList.remove('opacity-40');
+  }
+
+  if (window.showToast) {
+    window.showToast(`Batch dispatch completed! ${sentCount} sent, ${failedCount} failed.`, sentCount > 0 ? 'success' : 'warning');
+  }
+}
+
+function cancelOneClickPdfDispatch() {
+  isDispatchCancelled = true;
+  isDispatchRunning = false;
+  const labelEl = document.getElementById('wa-progress-student-label');
+  if (labelEl) labelEl.innerText = 'Stopping dispatch after current item...';
+}
+
+function closeDispatchProgressModal() {
+  const modal = document.getElementById('wa-dispatch-progress-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+// Auto-check WhatsApp status on page load
+setTimeout(() => {
+  checkWhatsAppStatus();
+}, 1000);
 
 // Global symbols
 window.addStudentScorecardToDoc = addStudentScorecardToDoc;
@@ -1553,7 +1908,18 @@ window.generateBulkExcel = generateBulkExcel;
 window.loadWhatsAppQueue = loadWhatsAppQueue;
 window.loadCustomWhatsAppQueue = loadCustomWhatsAppQueue;
 window.renderWaQueue = renderWaQueue;
-window.sendNextWhatsApp = sendNextWhatsApp;
+
+// WhatsApp 1-Click PDF Dispatch Exports
+window.checkWhatsAppStatus = checkWhatsAppStatus;
+window.openWhatsAppQrModal = openWhatsAppQrModal;
+window.closeWhatsAppQrModal = closeWhatsAppQrModal;
+window.requestNewWhatsAppQr = requestNewWhatsAppQr;
+window.disconnectWhatsAppSession = disconnectWhatsAppSession;
+window.generateStudentScorecardPDFBase64 = generateStudentScorecardPDFBase64;
+window.sendSingleStudentPdf = sendSingleStudentPdf;
+window.startOneClickPdfDispatch = startOneClickPdfDispatch;
+window.cancelOneClickPdfDispatch = cancelOneClickPdfDispatch;
+window.closeDispatchProgressModal = closeDispatchProgressModal;
 
 // Test Set Selection & Sync Symbols
 window.populateReportsFilters = populateReportsFilters;

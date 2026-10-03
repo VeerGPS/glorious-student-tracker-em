@@ -356,6 +356,64 @@ app.post('/api/db/reset', async (req, res) => {
 });
 
 // -------------------------------------------------------------
+// WhatsApp Broadcast & Report Card PDF Dispatch Endpoints
+// -------------------------------------------------------------
+const whatsappService = require('./whatsapp_service');
+
+// 1. WhatsApp Status
+app.get('/api/whatsapp/status', (req, res) => {
+  try {
+    const status = whatsappService.getWhatsAppStatus();
+    res.json({ success: true, ...status });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 2. Connect / Request QR
+app.post('/api/whatsapp/connect', async (req, res) => {
+  try {
+    const forceNew = req.body && req.body.forceNew === true;
+    const result = await whatsappService.initWhatsApp(forceNew);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Disconnect / Logout
+app.post('/api/whatsapp/disconnect', async (req, res) => {
+  try {
+    const result = await whatsappService.disconnectWhatsApp();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 4. Send Individual Student Report Card PDF
+app.post('/api/whatsapp/send-pdf', async (req, res) => {
+  try {
+    const { mobile, roll, name, examTitle, pdfBase64, filename } = req.body;
+    const result = await whatsappService.sendStudentReportPDF({
+      mobile,
+      roll,
+      name,
+      examTitle,
+      pdfBase64,
+      filename
+    });
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(400).json(result);
+    }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// -------------------------------------------------------------
 // Serve Static Frontend Assets
 // -------------------------------------------------------------
 app.use(express.static(path.join(__dirname)));
