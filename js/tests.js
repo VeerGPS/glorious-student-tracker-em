@@ -450,7 +450,7 @@ function processParsedStudentTallyRows(rows, explicitStd = null) {
   }
 
   const assignedClasses = (typeof getTeacherAssignedClasses === 'function') ? getTeacherAssignedClasses() : ['8', '9', '10'];
-  const targetStd = (explicitStd || (document.getElementById('tally-target-std') ? document.getElementById('tally-target-std').value : null) || (window.currentTeacherWorkspaceClass && window.currentTeacherWorkspaceClass !== 'all' ? window.currentTeacherWorkspaceClass : (assignedClasses[0] || '9'))).toString();
+  let targetStd = (explicitStd || (document.getElementById('tally-target-std') ? document.getElementById('tally-target-std').value : null) || (window.currentTeacherWorkspaceClass && window.currentTeacherWorkspaceClass !== 'all' ? window.currentTeacherWorkspaceClass : (assignedClasses[0] || '9'))).toString();
 
   // Find header row (first row with recognizable columns in English)
   let headerRowIdx = 0;
@@ -478,11 +478,35 @@ function processParsedStudentTallyRows(rows, explicitStd = null) {
       return /\b(?:sr\.?\s*no\.?|srno|sr_no|serial|seat\.?\s*no\.?)\b/i.test(clean) || clean.includes('અનુક્રમ') || clean.includes('ક્રમ');
     });
   }
+  if (rollIdx === -1) {
+    rollIdx = headers.findIndex(h => {
+      if (!h) return false;
+      const clean = h.toString().trim().toLowerCase();
+      if (clean.includes('gr') || clean.includes('g.r') || clean.includes('mobile') || clean.includes('phone') || clean.includes('contact') || clean.includes('name')) return false;
+      return clean === 'no.' || clean === 'no' || clean === '#' || /\b(?:no\.?|nr\.?|num|number)\b/i.test(clean);
+    });
+  }
   const nameIdx = headers.findIndex(h => h.includes('name') || h.includes('student') || h.includes('નામ') || h.includes('વિદ્યાર્થી'));
   let stdIdx = headers.findIndex(h => h.includes('class') || h.includes('std') || h.includes('standard') || h.includes('grade') || h.includes('ધોરણ'));
   const secIdx = headers.findIndex(h => h.includes('sec') || h.includes('division') || h.includes('section') || h.includes('વર્ગ') || h.includes('વિભાગ'));
   if (stdIdx === -1 && secIdx !== -1) {
     stdIdx = headers.findIndex((h, idx) => idx !== secIdx && (h.includes('class') || h.includes('std')));
+  }
+  // If no explicit class column, inspect header rows before headerRowIdx for class indicator
+  if (stdIdx === -1) {
+    for (let pr = 0; pr < headerRowIdx; pr++) {
+      const pRow = rows[pr] || [];
+      for (const cell of pRow) {
+        if (!cell) continue;
+        const cStr = cell.toString().trim();
+        const stdMatch = cStr.match(/(?:class|std|standard|grade|ધોરણ)\s*([0-9]{1,2})/i) || cStr.match(/^([1-9]|1[0-2])(?:st|nd|rd|th)$/i) || cStr.match(/\b([1-9]|1[0-2])(?:st|nd|rd|th)\b/i);
+        if (stdMatch) {
+          targetStd = stdMatch[1];
+          break;
+        }
+      }
+      if (targetStd !== (explicitStd || '9')) break;
+    }
   }
   const mobIdx = headers.findIndex(h => h.includes('mob') || h.includes('phone') || h.includes('contact') || h.includes('whatsapp') || h.includes('મોબાઈલ'));
 
@@ -679,7 +703,39 @@ function downloadFormatExcel(type) {
 
   const wb = XLSX.utils.book_new();
 
-  if (type === 'randomized-multi') {
+  if (type === 'school-sheet' || type === 'date-wise-tests' || type === 'glorious-multi-test') {
+    // Format 2: Periodic Test Date-Header Format (Glorious Public School Multi-Test Format)
+    const assignedClasses = (typeof getTeacherAssignedClasses === 'function') ? getTeacherAssignedClasses() : ['10'];
+    const targetStd = (document.getElementById('marks-target-std') ? document.getElementById('marks-target-std').value : null) || (window.currentTeacherWorkspaceClass && window.currentTeacherWorkspaceClass !== 'all' ? window.currentTeacherWorkspaceClass : (assignedClasses[0] || '10'));
+    const classLabel = targetStd.toString().endsWith('th') || targetStd.toString().endsWith('st') || targetStd.toString().endsWith('nd') || targetStd.toString().endsWith('rd') ? targetStd.toString() : `${targetStd}th`;
+
+    const row0 = ['Glorious Public School', '', '', '', ''];
+    const row1 = [classLabel, '', '', '', ''];
+    const row2 = ['', '', 'Sci 30)', 'Sci (30)', 'Eng 30) poem', 'SS(30) Ch 2'];
+    const row3 = ['No.', 'Student Name', '2026-07-22', '2026-08-05', '2026-08-14', '2026-08-07'];
+
+    const classStudents = DB.students.filter(s => s.std.toString() === targetStd.toString()).sort((a, b) => a.roll - b.roll);
+    const sampleRows = [row0, row1, row2, row3];
+
+    if (classStudents.length > 0) {
+      classStudents.forEach(s => {
+        sampleRows.push([s.roll, s.name, '', '', '', '']);
+      });
+    } else {
+      sampleRows.push(
+        [1, 'AARY PRAKASHBHAI TABIYAD', 23, 27, 23, 24],
+        [2, 'AARYARAJE BHANUBHAI PATEL', 30, 29, 29, 29],
+        [3, 'ABHIRASINH YUVRAJSINH SISODIYA', 14, 8, 9, 14],
+        [4, 'ANSHI MAHESHBHAI PATEL', 22, 25, 25, 'ab'],
+        [5, 'CHIT RAJESHKUMAR PATEL', 17, 21, 26, 'ab'],
+        [6, 'DHAIRYA RAJNIKANT PATEL', 17, 15, 14, 23]
+      );
+    }
+    const ws = XLSX.utils.aoa_to_sheet(sampleRows);
+    ws['!cols'] = [{ wch: 8 }, { wch: 32 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 18 }];
+    XLSX.utils.book_append_sheet(wb, ws, `Class_${targetStd}_Periodic_Tests`);
+    XLSX.writeFile(wb, `Template_Glorious_School_Datewise_Tests_Class_${targetStd}.xlsx`);
+  } else if (type === 'randomized-multi') {
     // Multi-subject format with Subject Date (Total Marks) in the same block/header:
     const headers = [
       'Gr No.',
@@ -719,6 +775,10 @@ function downloadFormatExcel(type) {
   }
 
   if (window.showToast) window.showToast('Sample template downloaded!', 'success');
+}
+
+function downloadClassDatewiseTemplate(std = null) {
+  downloadFormatExcel('school-sheet');
 }
 
 /**
@@ -778,12 +838,247 @@ function downloadGujaratiMarksTemplate() {
   downloadStandardMarksTemplate('9');
 }
 
+// =============================================================
+// MULTI-FORMAT EXCEL DETECTION & NORMALIZATION HELPERS
+// =============================================================
+
+function parseFlexibleDate(dateVal, fallbackDate = '') {
+  if (!dateVal) return fallbackDate || new Date().toISOString().split('T')[0];
+  
+  if (dateVal instanceof Date) {
+    if (!isNaN(dateVal.getTime())) {
+      const y = dateVal.getFullYear();
+      const m = String(dateVal.getMonth() + 1).padStart(2, '0');
+      const d = String(dateVal.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  // Handle Excel serial date number
+  if (typeof dateVal === 'number' && dateVal > 20000 && dateVal < 70000) {
+    const epoch = new Date(Math.round((dateVal - 25569) * 86400 * 1000));
+    if (!isNaN(epoch.getTime())) {
+      const y = epoch.getFullYear();
+      const m = String(epoch.getMonth() + 1).padStart(2, '0');
+      const d = String(epoch.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  let str = dateVal.toString().trim();
+  if (!str) return fallbackDate || new Date().toISOString().split('T')[0];
+
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+  // Month names (e.g. 15-Aug-2026, 15 Aug 26)
+  const monthsMap = { jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06', jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12' };
+  const textMonthMatch = str.match(/(?:\(|\b)(\d{1,2})[-/ ]([a-zA-Z]{3,9})[-/ ](\d{2,4})(?:\)|\b)/);
+  if (textMonthMatch) {
+    const d = textMonthMatch[1].padStart(2, '0');
+    const mStr = textMonthMatch[2].toLowerCase().slice(0, 3);
+    let y = textMonthMatch[3];
+    if (y.length === 2) y = parseInt(y) < 50 ? '20' + y : '19' + y;
+    const m = monthsMap[mStr];
+    if (m) return `${y}-${m}-${d}`;
+  }
+
+  // Delimiter-separated dates e.g. 14/8/t26, 14/08/2026, 2026/08/14, 14-8-26, 2026-07-22
+  const parts = str.split(/[-/. ]/).filter(Boolean);
+  if (parts.length === 3) {
+    const p0Clean = parts[0].replace(/[^0-9]/g, '');
+    const p1Clean = parts[1].replace(/[^0-9]/g, '');
+    const p2Clean = parts[2].replace(/[^0-9]/g, '');
+
+    if (p0Clean.length === 4) {
+      const y = p0Clean;
+      const m = p1Clean.padStart(2, '0');
+      const d = p2Clean.padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    } else if (p2Clean.length === 2 || p2Clean.length === 4) {
+      const d = p0Clean.padStart(2, '0');
+      const m = p1Clean.padStart(2, '0');
+      let y = p2Clean;
+      if (y.length === 2) y = parseInt(y) < 50 ? '20' + y : '19' + y;
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  return fallbackDate || new Date().toISOString().split('T')[0];
+}
+
+const CANONICAL_SUBJECT_MAP = [
+  { match: /^(?:sci|science|vigyan)\b/i, canonical: 'Science' },
+  { match: /^(?:ss|s\.s\.?|social\s*sci(?:ence)?|social\s*studies|samajik\s*vigyan)\b/i, canonical: 'Social Science' },
+  { match: /^(?:eng|english|angreji)\b/i, canonical: 'English' },
+  { match: /^(?:math|maths|mathematics|ganit)\b/i, canonical: 'Mathematics' },
+  { match: /^(?:comp|computer|cs|it)\b/i, canonical: 'Computer' },
+  { match: /^(?:guj|gujarati)\b/i, canonical: 'Gujarati' },
+  { match: /^(?:hin|hindi)\b/i, canonical: 'Hindi' },
+  { match: /^(?:sans|skt|sanskrit)\b/i, canonical: 'Sanskrit' },
+  { match: /^(?:evs|env|environmental)\b/i, canonical: 'EVS' },
+  { match: /^(?:pe|pt|physical\s*education)\b/i, canonical: 'Physical Education' },
+  { match: /^(?:draw|drawing|art)\b/i, canonical: 'Drawing' }
+];
+
+function normalizeSubjectAndDetails(cellStr, fallbackTotal = 50) {
+  if (!cellStr) return { subject: '', total: fallbackTotal, topic: '' };
+
+  let str = cellStr.toString().trim();
+  let extractedTotal = null;
+
+  // Extract total marks: e.g. '(30)', '30)', '[30]', '(Total: 30)', 'Total 30'
+  const totalMatch = str.match(/(?:\(|\{|\[)?\s*(?:total\s*(?:marks?)?\s*[:=-]?|max\s*(?:marks?)?\s*[:=-]?|marks?\s*[:=-]?|out\s*of\s*[:=-]?|\/)?\s*([0-9]+(?:\.[0-9]+)?)\s*(?:marks?|m|pts?)?\s*(?:\)|\}|\])/i);
+  if (totalMatch) {
+    const val = parseFloat(totalMatch[1]);
+    if (!isNaN(val) && val > 0) {
+      extractedTotal = val;
+      str = str.replace(totalMatch[0], ' ').trim();
+    }
+  }
+
+  // Clean brackets and extra symbols
+  str = str.replace(/[()[\]{}]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  let canonicalSubject = '';
+  let topic = '';
+
+  for (const item of CANONICAL_SUBJECT_MAP) {
+    const m = str.match(item.match);
+    if (m) {
+      canonicalSubject = item.canonical;
+      const remainder = str.substring(m.index + m[0].length).replace(/^[-–—:;,/ ]+/, '').trim();
+      if (remainder) topic = remainder;
+      break;
+    }
+  }
+
+  if (!canonicalSubject) {
+    const parts = str.split(/[-–—:]/);
+    canonicalSubject = parts[0].trim();
+    if (parts.length > 1) {
+      topic = parts.slice(1).join(' ').trim();
+    }
+  }
+
+  let finalSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(canonicalSubject) : canonicalSubject;
+  if (!finalSub) finalSub = cellStr.toString().trim();
+
+  return {
+    subject: finalSub,
+    total: extractedTotal !== null ? extractedTotal : fallbackTotal,
+    topic: topic || ''
+  };
+}
+
+function detectExcelMarksLayout(rows) {
+  if (!rows || rows.length < 2) return { type: 'unknown' };
+
+  // Look for 2-row header: subject row followed by date + student header row
+  for (let r = 0; r < Math.min(8, rows.length - 1); r++) {
+    const sRow = rows[r] || [];
+    const dRow = rows[r + 1] || [];
+
+    // Check dRow for student columns: Roll / No and Name
+    const dHeaders = dRow.map(c => (c ? c.toString().trim().toLowerCase() : ''));
+    let rollCol = dHeaders.findIndex(h => {
+      if (!h) return false;
+      if (h.includes('gr') || h.includes('mobile') || h.includes('phone') || h.includes('name')) return false;
+      return h === 'no.' || h === 'no' || h === 'roll' || h === 'roll no' || h === 'rollno' || h === 'sr' || h === 'sr no' || h === 'sr.' || h === 'seat no' || h === '#' || h.includes('રોલ') || /\b(?:no\.?|nr\.?|num|number)\b/i.test(h);
+    });
+    let nameCol = dHeaders.findIndex(h => h.includes('name') || h.includes('student') || h.includes('નામ'));
+
+    // Check if dRow has date cells in other columns
+    let dateColsCount = 0;
+    dRow.forEach((c, idx) => {
+      if (idx === rollCol || idx === nameCol) return;
+      if (!c) return;
+      const cStr = c.toString().trim();
+      if (/^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$/.test(cStr) || /^\d{1,2}[-/.]\d{1,2}[-/.]\w+$/.test(cStr)) {
+        dateColsCount++;
+      }
+    });
+
+    // Check if sRow has subjects above those date columns
+    let subColsCount = 0;
+    sRow.forEach((c, idx) => {
+      if (idx === rollCol || idx === nameCol) return;
+      if (!c) return;
+      const cStr = c.toString().trim().toLowerCase();
+      if (CANONICAL_SUBJECT_MAP.some(sm => sm.match.test(cStr)) || /\d+\s*\)/.test(cStr) || /\(\d+\)/.test(cStr)) {
+        subColsCount++;
+      }
+    });
+
+    if (rollCol !== -1 && nameCol !== -1 && (dateColsCount >= 1 || subColsCount >= 1)) {
+      // Detected Format 2 (Periodic Tests Date-Header Format)!
+      let detectedStd = null;
+      let detectedSchool = '';
+      for (let prevR = 0; prevR <= r; prevR++) {
+        const pRow = rows[prevR] || [];
+        for (const cell of pRow) {
+          if (!cell) continue;
+          const cStr = cell.toString().trim();
+          if (!detectedSchool && (cStr.toLowerCase().includes('school') || cStr.toLowerCase().includes('vidyalaya') || cStr.toLowerCase().includes('academy'))) {
+            detectedSchool = cStr;
+          }
+          if (!detectedStd) {
+            const stdMatch = cStr.match(/(?:class|std|standard|grade|ધોરણ)\s*([0-9]{1,2})/i) || cStr.match(/^([1-9]|1[0-2])(?:st|nd|rd|th)$/i) || cStr.match(/\b([1-9]|1[0-2])(?:st|nd|rd|th)\b/i);
+            if (stdMatch) {
+              detectedStd = stdMatch[1];
+            }
+          }
+        }
+      }
+
+      let studentRowsCount = 0;
+      for (let dataR = r + 2; dataR < rows.length; dataR++) {
+        const row = rows[dataR];
+        if (!row || row.length === 0) continue;
+        const nameVal = nameCol !== -1 ? row[nameCol] : null;
+        const rollVal = rollCol !== -1 ? row[rollCol] : null;
+        if (nameVal || rollVal) studentRowsCount++;
+      }
+
+      return {
+        type: 'school-multi-test',
+        subjectRowIdx: r,
+        dateRowIdx: r + 1,
+        dataStartIdx: r + 2,
+        rollColIdx: rollCol,
+        nameColIdx: nameCol,
+        grColIdx: dHeaders.findIndex(h => h.includes('gr')),
+        std: detectedStd,
+        school: detectedSchool,
+        studentCount: studentRowsCount
+      };
+    }
+  }
+
+  // Format 1 checks
+  const row0Headers = (rows[0] || []).map(c => (c ? c.toString().trim().toLowerCase() : ''));
+  const isSingleTest = row0Headers.some(h => h.includes('subject')) && (row0Headers.some(h => h.includes('topic')) || row0Headers.some(h => h.includes('mark')));
+  if (isSingleTest) {
+    return { type: 'single-test', headerRowIdx: 0, dataStartIdx: 1 };
+  }
+
+  return { type: 'standard-multi-subject', headerRowIdx: 0, dataStartIdx: 1 };
+}
+
 function handleExcelUpload(event, explicitStd = null) {
   const file = event.target.files[0];
   if (!file) return;
 
   const assignedClasses = (typeof getTeacherAssignedClasses === 'function') ? getTeacherAssignedClasses() : ['9'];
-  const targetStd = explicitStd || (document.getElementById('marks-target-std') ? document.getElementById('marks-target-std').value : null) || (window.currentTeacherWorkspaceClass && window.currentTeacherWorkspaceClass !== 'all' ? window.currentTeacherWorkspaceClass : (assignedClasses[0] || '9'));
+  let targetStd = explicitStd || (document.getElementById('marks-target-std') ? document.getElementById('marks-target-std').value : null) || (window.currentTeacherWorkspaceClass && window.currentTeacherWorkspaceClass !== 'all' ? window.currentTeacherWorkspaceClass : (assignedClasses[0] || '9'));
 
   const reader = new FileReader();
 
@@ -818,13 +1113,29 @@ function handleExcelUpload(event, explicitStd = null) {
         window.showToast("Note: File contains question marks. Please save as a standard Excel Workbook (.xlsx).", 'warning');
       }
 
+      // Automatically detect layout: Format 1 (Single header row) or Format 2 (Multi-row Date & Subject header)
+      const layout = detectExcelMarksLayout(rows);
+      if (layout && layout.std) {
+        targetStd = layout.std;
+        const marksTargetSel = document.getElementById('marks-target-std');
+        if (marksTargetSel) {
+          let optFound = Array.from(marksTargetSel.options).some(o => o.value === targetStd);
+          if (!optFound) {
+            marksTargetSel.innerHTML += `<option value="${targetStd}">Class ${targetStd}</option>`;
+          }
+          marksTargetSel.value = targetStd;
+          if (typeof updateMarksTargetClassUI === 'function') updateMarksTargetClassUI();
+        }
+      }
+
       window.pendingExcelUpload = {
         rows: rows,
         targetStd: targetStd,
-        fileName: file.name
+        fileName: file.name,
+        layout: layout
       };
 
-      openExcelTestSetModal(file.name, targetStd, rows);
+      openExcelTestSetModal(file.name, targetStd, rows, layout);
     } catch (err) {
       console.error('Excel parse error:', err);
       if (window.showToast) window.showToast('Failed to read Excel file. Please ensure valid .xlsx/.csv format.', 'error');
@@ -841,13 +1152,15 @@ function handleExcelUpload(event, explicitStd = null) {
 
 window.pendingExcelUpload = null;
 
-function openExcelTestSetModal(fileName, targetStd, rows) {
+function openExcelTestSetModal(fileName, targetStd, rows, layout = null) {
   const modal = document.getElementById('excel-test-set-modal');
   if (!modal) {
     // Fallback if modal DOM element is not found
     processParsedExcelMarks(rows, targetStd, 'Assessment Upload');
     return;
   }
+
+  if (!layout) layout = detectExcelMarksLayout(rows);
 
   const fnEl = document.getElementById('excel-test-set-filename');
   if (fnEl) fnEl.innerText = fileName || 'Uploaded File';
@@ -856,12 +1169,27 @@ function openExcelTestSetModal(fileName, targetStd, rows) {
   if (stdEl) stdEl.innerText = `Class ${targetStd}`;
 
   const cntEl = document.getElementById('excel-test-set-count');
-  if (cntEl) cntEl.innerText = `${Math.max(0, rows.length - 1)} student rows`;
+  const count = (layout && layout.studentCount) ? layout.studentCount : Math.max(0, rows.length - 1);
+  if (cntEl) cntEl.innerText = `${count} student rows`;
+
+  const fmtEl = document.getElementById('excel-test-set-format');
+  if (fmtEl) {
+    if (layout.type === 'school-multi-test') {
+      fmtEl.innerText = 'Periodic Tests Date-Header Format';
+      fmtEl.className = 'font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[11px]';
+    } else if (layout.type === 'single-test') {
+      fmtEl.innerText = 'Single Test Assessment Format';
+      fmtEl.className = 'font-black text-teal-800 bg-teal-100 px-2 py-0.5 rounded text-[11px]';
+    } else {
+      fmtEl.innerText = 'Standard Multi-Subject Format';
+      fmtEl.className = 'font-black text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded text-[11px]';
+    }
+  }
 
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const curMonth = monthNames[new Date().getMonth()];
 
-  let suggested = `${curMonth} Round-1`;
+  let suggested = layout && layout.type === 'school-multi-test' ? `${curMonth} Periodic Tests` : `${curMonth} Round-1`;
   if (fileName) {
     let clean = fileName.replace(/\.[^/.]+$/, '');
     clean = clean.replace(/^(?:class[_\-\s]*\d+[_\-\s]*|report[_\-\s]*card[_\-\s]*|marks[_\-\s]*|template[_\-\s]*)+/i, '');
@@ -881,10 +1209,11 @@ function openExcelTestSetModal(fileName, targetStd, rows) {
     const suggestions = [
       `${curMonth} Round-1`,
       `${curMonth} Round-2`,
+      `Periodic Test 1`,
+      `Periodic Test 2`,
       `Unit Test 1`,
       `Unit Test 2`,
-      `First Term Assessment`,
-      `Preliminary Exam`
+      `First Term Assessment`
     ];
     presetsContainer.innerHTML = suggestions.map(s => `
       <button type="button" onclick="setExcelTestSetInput('${s}')" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-100 hover:text-emerald-800 text-[11px] font-bold text-slate-600 transition-all border border-slate-200">
@@ -1101,6 +1430,202 @@ function processParsedExcelMarks(rows, explicitTargetStd = null, setName = '') {
     const s = str.toString();
     return typeof gujaratiToEnglishDigits === 'function' ? gujaratiToEnglishDigits(s) : (window.gujaratiToEnglishDigits ? window.gujaratiToEnglishDigits(s) : s);
   };
+
+  const layout = detectExcelMarksLayout(rows);
+
+  // =========================================================================
+  // FORMAT 2: Periodic Test Date-Header Format (Glorious Public School Multi-Test Format)
+  // Multi-row header with Subject row (e.g. Sci 30), Eng 30) poem, SS(30) Ch 2)
+  // and Date row (e.g. No., Student Name, 2026-07-22, 2026-08-05...)
+  // =========================================================================
+  if (layout.type === 'school-multi-test') {
+    const rawDefaultStd = (layout.std || explicitTargetStd || (document.getElementById('marks-target-std') ? document.getElementById('marks-target-std').value : null) || (window.currentTeacherWorkspaceClass && window.currentTeacherWorkspaceClass !== 'all' ? window.currentTeacherWorkspaceClass : '10')).toString();
+    const defaultStd = toEngDigits(rawDefaultStd);
+    const defaultSubject = 'Mathematics';
+    const defaultTopic = setName || 'Unit Assessment';
+    const defaultDate = new Date().toISOString().split('T')[0];
+    const defaultTotal = 50;
+
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    const sRow = rows[layout.subjectRowIdx] || [];
+    const dRow = rows[layout.dateRowIdx] || [];
+    const maxCols = Math.max(sRow.length, dRow.length);
+
+    // Identify test columns
+    const testCols = [];
+    for (let c = 0; c < maxCols; c++) {
+      if (c === layout.rollColIdx || c === layout.nameColIdx || c === layout.grColIdx) continue;
+      const sCell = sRow[c] !== undefined && sRow[c] !== null ? sRow[c].toString().trim() : '';
+      const dCell = dRow[c] !== undefined && dRow[c] !== null ? dRow[c].toString().trim() : '';
+      if (!sCell && !dCell) continue;
+
+      const subDetails = normalizeSubjectAndDetails(sCell, defaultTotal);
+      const parsedDate = parseFlexibleDate(dCell, defaultDate);
+
+      if (!subDetails.subject || isDedicatedMetaCol(subDetails.subject)) continue;
+
+      testCols.push({
+        colIndex: c,
+        rawSubject: sCell,
+        rawDate: dCell,
+        subject: subDetails.subject,
+        total: subDetails.total,
+        topic: subDetails.topic || setName || defaultTopic,
+        date: parsedDate
+      });
+    }
+
+    if (testCols.length === 0) {
+      if (window.showToast) window.showToast('No valid test columns found in Excel sheet.', 'error');
+      return { addedCount: 0, updatedCount: 0 };
+    }
+
+    // Auto-register uploaded class into active teacher profile
+    if (DB.activeSession && DB.activeSession.teacher) {
+      const t = DB.activeSession.teacher;
+      t.classrooms = t.classrooms || [];
+      if (!t.classrooms.some(c => String(c.classNumber || c) === String(defaultStd))) {
+        t.classrooms.push({ classNumber: String(defaultStd), sections: ['A'] });
+        const foundInList = (DB.teachers || []).find(x => x.id === t.id);
+        if (foundInList) foundInList.classrooms = t.classrooms;
+      }
+      if (typeof saveTeacherData === 'function') saveTeacherData(t.id);
+    }
+
+    for (let r = layout.dataStartIdx; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row || row.length === 0) continue;
+
+      const rawRoll = layout.rollColIdx !== -1 && row[layout.rollColIdx] !== undefined ? toEngDigits(row[layout.rollColIdx]) : '';
+      const roll = rawRoll ? parseInt(rawRoll.toString().replace(/[^0-9]/g, '')) : null;
+      const name = layout.nameColIdx !== -1 && row[layout.nameColIdx] !== undefined ? row[layout.nameColIdx].toString().trim() : '';
+      const grNo = layout.grColIdx !== -1 && row[layout.grColIdx] !== undefined ? toEngDigits(row[layout.grColIdx].toString().trim()) : '';
+
+      if (!roll && !name) continue;
+
+      // Ensure student exists in directory scoped to defaultStd
+      ensureStudentRecord(roll, grNo, name, defaultStd);
+      const targetRoll = roll || (name ? getRollByName(name, defaultStd) : 0);
+
+      // Process each test column
+      testCols.forEach(tc => {
+        const rawScore = row[tc.colIndex];
+        if (rawScore === undefined || rawScore === null || rawScore.toString().trim() === '') return;
+
+        const rawStr = toEngDigits(rawScore.toString().trim());
+        const cleanScorePart = rawStr.split('/')[0].trim();
+        const lowerScorePart = cleanScorePart.toLowerCase();
+        const isAb = ['ab', 'absent', 'a', 'gh'].includes(lowerScorePart) || rawStr.toLowerCase().startsWith('ab') || rawStr.toLowerCase().startsWith('absent');
+        const marks = isAb ? 0 : parseFloat(cleanScorePart);
+
+        if (isAb || (!isNaN(marks) && marks >= 0)) {
+          let targetTotal = tc.total || defaultTotal;
+          if (rawStr.includes('/')) {
+            const denom = parseFloat(rawStr.split('/')[1].trim());
+            if (!isNaN(denom) && denom > 0) targetTotal = denom;
+          }
+          const targetTopic = tc.topic || setName || defaultTopic;
+          const cleanTargetSub = typeof cleanSubjectName === 'function' ? cleanSubjectName(tc.subject) : tc.subject;
+
+          // Match mark strictly by class, student, subject and test date
+          const ex = DB.marks.find(m => 
+            (m.std ? m.std.toString() === defaultStd.toString() : true) &&
+            (m.roll === targetRoll || (grNo && m.grNo && String(m.grNo).trim() === String(grNo).trim())) && 
+            (m.subject === cleanTargetSub || (typeof cleanSubjectName === 'function' && cleanSubjectName(m.subject) === cleanTargetSub)) && 
+            m.date === tc.date
+          );
+
+          if (ex) {
+            ex.subject = cleanTargetSub;
+            ex.date = tc.date;
+            ex.total = targetTotal;
+            ex.marks = marks;
+            ex.isAbsent = isAb;
+            ex.std = defaultStd.toString();
+            ex.source = 'excel';
+            if (setName) {
+              ex.testSet = setName;
+              ex.exam = setName;
+            }
+            if (targetTopic) ex.topic = targetTopic;
+            if (grNo) ex.grNo = grNo;
+            updatedCount++;
+          } else {
+            DB.marks.push({
+              id: Date.now() + Math.floor(Math.random() * 1000000),
+              grNo: grNo || `GR-${new Date().getFullYear()}-${defaultStd}-${String(targetRoll).padStart(3, '0')}`,
+              roll: targetRoll,
+              std: defaultStd.toString(),
+              subject: cleanTargetSub,
+              topic: targetTopic,
+              testSet: setName || '',
+              exam: setName || '',
+              marks: marks,
+              total: targetTotal,
+              date: tc.date,
+              isAbsent: isAb,
+              source: 'excel',
+              importedAt: new Date().toISOString()
+            });
+            addedCount++;
+          }
+        }
+      });
+    }
+
+    // Safety purge & test-set registration
+    if (Array.isArray(DB.marks)) {
+      DB.marks = DB.marks.filter(m => m && m.subject && !isDedicatedMetaCol(m.subject));
+    }
+
+    if (setName) {
+      DB.testSets = DB.testSets || [];
+      const existingSetIdx = DB.testSets.findIndex(s => s.name.toLowerCase() === setName.toLowerCase() && String(s.std) === String(defaultStd));
+      const setObj = {
+        id: existingSetIdx >= 0 ? DB.testSets[existingSetIdx].id : 'set_' + Date.now(),
+        name: setName,
+        std: defaultStd,
+        date: new Date().toISOString(),
+        count: addedCount + updatedCount
+      };
+      if (existingSetIdx >= 0) {
+        DB.testSets[existingSetIdx] = setObj;
+      } else {
+        DB.testSets.push(setObj);
+      }
+    }
+
+    if (typeof healStudentRollsAndMarks === 'function') {
+      healStudentRollsAndMarks();
+    }
+
+    saveDatabase();
+
+    if (DB.activeSession && DB.activeSession.role === 'teacher' && DB.activeSession.teacher) {
+      if (typeof saveTeacherData === 'function') {
+        saveTeacherData(DB.activeSession.teacher.id);
+      }
+    }
+
+    if (window.showToast) {
+      const totalProcessed = addedCount + updatedCount;
+      window.showToast(`Periodic Tests Upload: ${addedCount} added, ${updatedCount} updated for Class ${defaultStd} (${totalProcessed} marks)!`, 'success');
+    }
+
+    if (window.renderMarksTable) window.renderMarksTable();
+    if (window.renderStudentsTable) window.renderStudentsTable();
+    if (window.updateDashboard) window.updateDashboard();
+    if (window.updateMarksTargetClassUI) window.updateMarksTargetClassUI();
+
+    return { addedCount, updatedCount };
+  }
+
+  // =========================================================================
+  // FORMAT 1: Single-Row Header Formats (Multi-Subject or Single Test)
+  // =========================================================================
+  // Normalize header row
 
   // Normalize header row
   const rawHeaders = rows[0].map(h => (h ? h.toString().trim().toLowerCase() : ''));
@@ -1440,7 +1965,7 @@ function ensureStudentRecord(roll, grNo, name, std) {
   if (!roll && !name) return;
   const assignedClasses = (typeof getTeacherAssignedClasses === 'function') ? getTeacherAssignedClasses() : [];
   let targetStd = (std || (assignedClasses.length > 0 ? assignedClasses[0] : '9')).toString();
-  if (assignedClasses.length > 0 && !assignedClasses.includes(targetStd)) {
+  if (!std && assignedClasses.length > 0 && !assignedClasses.includes(targetStd)) {
     targetStd = assignedClasses[0].toString();
   }
 
@@ -1507,6 +2032,7 @@ window.populateTestEntryDropdowns = populateTestEntryDropdowns;
 // Excel System 1 & 2 exports
 window.downloadFormatExcel = downloadFormatExcel;
 window.downloadClassMarksTemplate = downloadClassMarksTemplate;
+window.downloadClassDatewiseTemplate = downloadClassDatewiseTemplate;
 window.handleExcelUpload = handleExcelUpload;
 window.handleReportCardExcelUpload = handleExcelUpload;
 window.downloadStudentTallyExcel = downloadStudentTallyExcel;
@@ -1517,6 +2043,9 @@ window.handleStudentTallyUpload = handleStudentTallyUpload;
 window.processParsedStudentTallyRows = processParsedStudentTallyRows;
 window.parseSubjectHeader = parseSubjectHeader;
 window.processParsedExcelMarks = processParsedExcelMarks;
+window.detectExcelMarksLayout = detectExcelMarksLayout;
+window.parseFlexibleDate = parseFlexibleDate;
+window.normalizeSubjectAndDetails = normalizeSubjectAndDetails;
 window.ensureStudentRecord = ensureStudentRecord;
 window.getRollByName = getRollByName;
 

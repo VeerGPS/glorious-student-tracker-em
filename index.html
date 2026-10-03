@@ -481,16 +481,20 @@
             Upload your classroom roster now or you can easily do it later inside the dashboard.
           </p>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button type="button" onclick="downloadFormatExcel('school-sheet')"
+              class="px-3 py-2.5 bg-white hover:bg-emerald-50 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 transition-all flex items-center justify-center gap-2 shadow-sm truncate">
+              <i class="fa-solid fa-calendar-days text-emerald-600"></i> Date-Wise Tests (.xlsx)
+            </button>
             <button type="button" onclick="downloadFormatExcel('randomized-multi')"
-              class="px-4 py-2.5 bg-white hover:bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition-all flex items-center justify-center gap-2 shadow-sm">
-              <i class="fa-solid fa-download"></i> Download Sample Excel
+              class="px-3 py-2.5 bg-white hover:bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-200 transition-all flex items-center justify-center gap-2 shadow-sm truncate">
+              <i class="fa-solid fa-file-lines text-emerald-600"></i> Multi-Subject (.xlsx)
             </button>
 
             <div>
               <input type="file" id="setup-excel-upload" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelUpload(event)">
               <label for="setup-excel-upload"
-                class="cursor-pointer px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md">
+                class="cursor-pointer px-3 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-md truncate">
                 <i class="fa-solid fa-cloud-arrow-up"></i> Upload Excel / CSV
               </label>
             </div>
@@ -1034,7 +1038,7 @@
                 <i class="fa-solid fa-circle-check text-emerald-600 mt-0.5 shrink-0 text-sm"></i>
                 <div class="space-y-1">
                   <div id="marks-isolation-desc"><strong>Class Isolation Enabled:</strong> Uploading marks for <span id="marks-target-class-label" class="font-black text-emerald-900 underline">Class 9</span> will strictly update that class.</div>
-                  <div class="text-[10px] text-emerald-700">Header format like <code class="bg-white px-1.5 py-0.5 rounded text-emerald-800 font-bold">Mathematics 2026-09-12 (25)</code> auto-detects Subject, Date & bracketed Total Marks.</div>
+                  <div class="text-[10px] text-emerald-700"><strong>Dual Excel Format Supported:</strong> (1) <strong>Periodic Test Date-Header Format:</strong> Multi-row header with Subject row <code class="bg-white px-1.5 py-0.5 rounded text-emerald-800 font-bold">Sci 30)</code> & Date row <code class="bg-white px-1.5 py-0.5 rounded text-emerald-800 font-bold">2026-07-22</code>. (2) <strong>Standard Multi-Subject Format:</strong> Combined header <code class="bg-white px-1.5 py-0.5 rounded text-emerald-800 font-bold">Mathematics 2026-09-12 (25)</code>. Both formats auto-detect effortlessly.</div>
                 </div>
 
               </div>
@@ -1056,7 +1060,7 @@
                   <h4 class="text-[10px] font-black uppercase tracking-widest text-emerald-800">
                     Report Card Marks Templates
                   </h4>
-                  <span class="text-[9px] font-extrabold uppercase bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md">1-Click Auto Fill</span>
+                  <span class="text-[9px] font-extrabold uppercase bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded-md">Dual Format Ready</span>
                 </div>
                 <div class="space-y-2">
 
@@ -1065,6 +1069,12 @@
                       <i class="fa-solid fa-file-excel text-amber-300"></i> Download Class Roster Marks Template
                     </span>
                     <span class="text-[10px] font-bold text-emerald-100 bg-emerald-700/50 px-2 py-0.5 rounded">Pre-filled with Enrolled Students</span>
+                  </button>
+                  <button type="button" onclick="downloadFormatExcel('school-sheet')" class="w-full text-left bg-white hover:bg-emerald-50 text-emerald-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-sm flex items-center justify-between">
+                    <span class="flex items-center gap-2">
+                      <i class="fa-solid fa-calendar-days text-emerald-600"></i> Date-Wise Tests Format (Glorious School Style)
+                    </span>
+                    <span class="text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">New Format</span>
                   </button>
                   <button type="button" onclick="downloadFormatExcel('randomized-multi')" class="w-full text-left bg-white hover:bg-emerald-50 text-emerald-800 px-3.5 py-2 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-sm flex items-center gap-2">
                     <i class="fa-solid fa-file-lines text-emerald-600"></i> Standard Multi-Subject Format (Sample)
@@ -2754,6 +2764,10 @@
         <div class="flex items-center justify-between">
           <span class="font-bold text-slate-500">Detected Student Rows:</span>
           <span id="excel-test-set-count" class="font-black text-emerald-900">0 rows</span>
+        </div>
+        <div class="flex items-center justify-between" id="excel-test-set-format-row">
+          <span class="font-bold text-slate-500">Detected Format:</span>
+          <span id="excel-test-set-format" class="font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[10px]">Auto Detected</span>
         </div>
       </div>
 
