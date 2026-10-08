@@ -34,8 +34,9 @@ export default {
           return html`<li>
             <div class="main">
               <div class="title">${t.name}</div>
-              <div class="sub">${fmtDate(t.date)} · ${t.papers.map(p => `${p.subject} ${p.max}`).join(' · ')}${avg !== null ? ` · Average ${pct(Math.round(avg * 10) / 10)}` : ''}</div>
-              <div style="margin-top:4px">${status(t, prog)}</div>
+              <div class="sub">${fmtDate(t.date)} · ${t.papers.length} ${t.papers.length === 1 ? 'subject' : 'subjects'}${avg !== null ? ` · Average ${pct(Math.round(avg * 10) / 10)}` : ''}</div>
+              <div class="paper-pills">${t.papers.map(p => html`<span class="pill">${p.subject}${p.topic ? ` (${p.topic})` : ''} <small>/${p.max}</small></span>`)}</div>
+              <div style="margin-top:6px">${status(t, prog)}</div>
             </div>
             <a class="btn small primary" href="#/marks/${t.id}">Open</a>
           </li>`;

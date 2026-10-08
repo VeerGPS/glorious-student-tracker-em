@@ -28,9 +28,17 @@ function check(raw, max) {
   return { ok: true, value: n };
 }
 
-function paperTitle(p, t) {
-  const extra = [p.topic, p.date && p.date !== t.date ? fmtDateSlash(p.date).slice(0, 5) : ''].filter(Boolean).join(' · ');
-  return html`${p.subject}<small>out of ${p.max}${extra ? html` · ${extra}` : ''}</small>`;
+// Column heading: subject, then topic, then date and maximum marks.
+function paperHead(p) {
+  return html`<span class="ph-sub">${p.subject}</span>${p.topic ? html`<span class="ph-topic">${p.topic}</span>` : ''}<span class="ph-meta">${p.date ? `${fmtDate(p.date, false)} · ` : ''}out of ${p.max}</span>`;
+}
+
+// Absent and below-pass marks stand out in the grid.
+function tone(raw, max) {
+  const s = String(raw).trim().toLowerCase();
+  if (['ab', 'a', 'abs', 'absent'].includes(s)) return 'ab';
+  const n = Number(s);
+  return s !== '' && Number.isFinite(n) && n >= 0 && n <= max && n / max < 0.33 ? 'low' : '';
 }
 
 export default {
@@ -60,24 +68,32 @@ export default {
       if (!edits.has(key(sid, p.id))) return '';
       return check(edits.get(key(sid, p.id)), p.max).ok ? 'changed' : 'invalid';
     };
-    const input = (s, p) => html`<input inputmode="decimal" autocomplete="off" value="${value(s.id, p.id)}" class="${cellClass(s.id, p)}"
+    const input = (s, p) => html`<input inputmode="decimal" autocomplete="off" value="${value(s.id, p.id)}" class="${cellClass(s.id, p)} ${tone(value(s.id, p.id), p.max)}"
       data-sid="${s.id}" data-pid="${p.id}" data-input="cell" data-keydown="cell-key" aria-label="${s.name} ${p.subject} out of ${p.max}" placeholder="-">`;
 
-    const footStats = p => {
+    const stats = p => {
       const vals = kids.map(s => t.marks[s.id] && t.marks[s.id][p.id]).filter(v => v !== undefined);
       const nums = vals.filter(v => typeof v === 'number');
-      const avg = nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : '-';
-      return `${vals.length}/${kids.length} · avg ${avg}`;
+      return { entered: vals.length, avg: nums.length ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 10) / 10 : '-' };
     };
 
     const grid = paperFilter === 'all'
       ? html`<div class="marks-wrap"><table class="marks">
-          <thead><tr><th class="who">Student</th>${papers.map(p => html`<th>${paperTitle(p, t)}</th>`)}</tr></thead>
-          <tbody>${kids.map(s => html`<tr><td class="who"><span class="roll">${s.roll}</span> ${s.name}</td>${papers.map(p => html`<td>${input(s, p)}</td>`)}</tr>`)}</tbody>
-          <tfoot><tr><td class="who">Entered · average</td>${papers.map(p => html`<td>${footStats(p)}</td>`)}</tr></tfoot>
+          <thead><tr><th class="who"><div class="who-in"><span class="roll">Roll</span><span class="nm">Student</span></div></th>${papers.map(p => html`<th>${paperHead(p)}</th>`)}</tr></thead>
+          <tbody>${kids.map(s => html`<tr><td class="who"><div class="who-in"><span class="roll">${s.roll}</span><span class="nm">${s.name}</span></div></td>${papers.map(p => html`<td>${input(s, p)}</td>`)}</tr>`)}</tbody>
+          <tfoot><tr><td class="who">Entered · average</td>${papers.map(p => { const st = stats(p); return html`<td><span class="fs">${st.entered} of ${kids.length}</span><span class="fs">avg ${st.avg}</span></td>`; })}</tr></tfoot>
         </table></div>`
-      : html`<div class="card single-list">${kids.map(s => html`<div class="att-row"><span class="roll">${s.roll}</span><span class="name">${s.name}</span>${input(s, papers[0])}<span class="muted small nowrap">/ ${papers[0].max}</span></div>`)}
-          <p class="small muted" style="margin-top:8px">${footStats(papers[0])}</p></div>`;
+      : (() => {
+        const p = papers[0];
+        const st = stats(p);
+        return html`<div class="card single-list">
+          <div class="paper-bar">
+            <div><strong>${p.subject}</strong>${p.topic ? html` <span class="muted">· ${p.topic}</span>` : ''}<div class="muted small">${p.date ? `${fmtDate(p.date)} · ` : ''}out of ${p.max}</div></div>
+            <div class="paper-stats">${st.entered} of ${kids.length} entered<br>average ${st.avg}</div>
+          </div>
+          ${kids.map(s => html`<div class="att-row"><span class="roll">${s.roll}</span><span class="name">${s.name}</span>${input(s, p)}<span class="out">/ ${p.max}</span></div>`)}
+        </div>`;
+      })();
 
     mount(ctx.main, html`
       ${backLink('#/marks', 'All tests')}
@@ -91,7 +107,7 @@ export default {
           <button class="btn small danger" data-act="delete">Delete</button>
         </div>
       </div>
-      <div class="actions">
+      <div class="actions test-actions">
         <a class="btn wa" href="#/send?kind=report&test=${t.id}&std=${t.std}&section=${sectionFilter}">${icon('chat')} Send to parents</a>
         <button class="btn" data-act="pdf">${icon('file')} Report cards (PDF)</button>
       </div>
@@ -104,7 +120,7 @@ export default {
         </div>
       </details>
       <div class="picker" style="margin-top:14px">
-        ${t.papers.length > 1 ? chips('paper', [{ value: 'all', label: 'All subjects' }, ...t.papers.map(p => ({ value: p.id, label: p.topic ? `${p.subject} (${p.topic})` : (t.papers.filter(x => x.subject === p.subject).length > 1 && p.date ? `${p.subject} ${fmtDateSlash(p.date).slice(0, 5)}` : p.subject) }))], paperFilter, { small: true, label: 'Show' }) : ''}
+        ${t.papers.length > 1 ? html`<div class="paper-chips">${chips('paper', [{ value: 'all', label: 'All subjects' }, ...t.papers.map(p => ({ value: p.id, label: p.topic ? `${p.subject} (${p.topic})` : (t.papers.filter(x => x.subject === p.subject).length > 1 && p.date ? `${p.subject} ${fmtDateSlash(p.date).slice(0, 5)}` : p.subject) }))], paperFilter, { small: true, label: 'Show' })}</div>` : ''}
         ${secs.length > 1 ? chips('section', [{ value: 'all', label: 'All' }, ...secs.map(s => ({ value: s, label: s }))], sectionFilter, { small: true, label: 'Section' }) : ''}
       </div>
       <p class="small muted">Type the marks. Type <strong>AB</strong> if the student was absent. Press Enter to go to the next student.</p>
@@ -142,6 +158,9 @@ export default {
         const res = check(el.value, p.max);
         el.classList.toggle('changed', edits.has(k) && res.ok);
         el.classList.toggle('invalid', !res.ok);
+        const kind = tone(el.value, p.max);
+        el.classList.toggle('ab', kind === 'ab');
+        el.classList.toggle('low', kind === 'low');
         el.title = res.ok ? '' : res.message;
         updateFooter();
       },
