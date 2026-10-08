@@ -71,6 +71,51 @@ class FileAdapter {
   }
 }
 
+// Ways to read a connection string pasted by hand. A password with @ : / ? #
+// must be percent-encoded, and Atlas's "<db_password>" brackets are often left
+// in; the string is tried as given first, then with those mistakes corrected.
+function mongoUriCandidates(input) {
+  const uri = String(input || '').trim().replace(/^(['"])(.*)\1$/, '$2').trim();
+  const out = [uri];
+  const start = uri.indexOf('://');
+  const at = uri.lastIndexOf('@');
+  if (start < 0 || at < start) return out;
+  const userInfo = uri.slice(start + 3, at);
+  const colon = userInfo.indexOf(':');
+  if (colon < 0) return out;
+  const user = userInfo.slice(0, colon);
+  const password = userInfo.slice(colon + 1);
+  const withPassword = pw => `${uri.slice(0, start + 3)}${encodeURIComponent(user)}:${encodeURIComponent(pw)}${uri.slice(at)}`;
+  const add = x => { if (!out.includes(x)) out.push(x); };
+  if (/[^A-Za-z0-9._~-]/.test(user + password)) add(withPassword(password));
+  const bare = password.match(/^<(.+)>$/);
+  if (bare) add(withPassword(bare[1]));
+  return out;
+}
+
+function isAuthError(err) {
+  return Boolean(err) && (err.code === 18 || err.code === 8000 || /auth(entication)? failed|bad auth/i.test(err.message || ''));
+}
+
+// A plain explanation of why the database cannot be opened (never includes the password).
+function explainDbError(err, variable = 'MONGODB_URI') {
+  const msg = String((err && err.message) || err || '');
+  const where = `the ${variable} setting (on Render: Dashboard → your service → Environment)`;
+  if (isAuthError(err)) {
+    return `MongoDB says the user name or password is wrong. Check the user in MongoDB Atlas → Database Access, then put that exact password in ${where} and save.`;
+  }
+  if ((err && err.name === 'MongoParseError') || /connection string|scheme|unescaped|hostname/i.test(msg)) {
+    return `The connection string in ${where} is not written correctly. Copy it again from MongoDB Atlas (Connect → Drivers) and replace <db_password> with the password, without the < > signs.`;
+  }
+  if (/querySrv|ENOTFOUND|EAI_AGAIN/i.test(msg)) {
+    return `The database address in ${where} was not found. Copy the connection string again from MongoDB Atlas (Connect → Drivers).`;
+  }
+  if ((err && err.name === 'MongoServerSelectionError') || /timed out|ECONNREFUSED|ECONNRESET|closed|ReplicaSetNoPrimary/i.test(msg)) {
+    return 'The database cannot be reached. In MongoDB Atlas → Network Access, allow access from anywhere (0.0.0.0/0), because Render has no fixed address, and check that the cluster is not paused.';
+  }
+  return `The database reported: ${msg.replace(/mongodb(\+srv)?:\/\/\S*/gi, '[connection string]').slice(0, 200)}`;
+}
+
 class MongoAdapter {
   constructor(uri, dbName, MongoClient) {
     this.kind = 'mongodb';
@@ -82,10 +127,24 @@ class MongoAdapter {
   }
 
   async connect() {
-    this.client = new this.MongoClient(this.uri, { serverSelectionTimeoutMS: 10000, connectTimeoutMS: 10000 });
-    await this.client.connect();
-    this.db = this.client.db(this.dbName);
-    await this.db.command({ ping: 1 });
+    let lastErr = null;
+    for (const uri of mongoUriCandidates(this.uri)) {
+      try {
+        this.client = new this.MongoClient(uri, { serverSelectionTimeoutMS: 10000, connectTimeoutMS: 10000 });
+        await this.client.connect();
+        this.db = this.client.db(this.dbName);
+        await this.db.command({ ping: 1 });
+        if (uri !== this.uri.trim()) console.warn('MongoDB: connected after correcting the connection string (special characters in the password).');
+        return;
+      } catch (err) {
+        lastErr = err;
+        await this.close();
+        this.client = null;
+        // Only a mistyped string or a refused password is worth another form of the string.
+        if (!(err.name === 'MongoParseError' || isAuthError(err))) break;
+      }
+    }
+    throw lastErr;
   }
 
   async load() {
@@ -138,6 +197,7 @@ class Store {
     COLLECTIONS.forEach(c => { this.maps[c] = new Map(); });
     this.settings = null;
     this.ready = false;
+    this.openError = null; // why the database could not be opened, in plain words
     this.bootId = crypto.randomBytes(4).toString('hex');
     this.counter = 0;
     this.chains = new Map();
@@ -239,4 +299,4 @@ class Store {
   }
 }
 
-module.exports = { Store, FileAdapter, MongoAdapter, COLLECTIONS, clone };
+module.exports = { Store, FileAdapter, MongoAdapter, COLLECTIONS, clone, mongoUriCandidates, explainDbError };

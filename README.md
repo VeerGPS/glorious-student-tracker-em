@@ -88,6 +88,8 @@ MONGODB_URI=mongodb+srv://user:password@cluster.mongodb.net/
 
 The WhatsApp link is also stored in MongoDB, so it survives restarts — no new QR scan after Render restarts the app.
 
+If the app cannot connect to MongoDB, the page says why (wrong password, mistyped connection string, Atlas **Network Access** not allowing Render, paused cluster) and keeps retrying. After changing the database password, update the variable the app actually uses: `MONGODB_URI_EM` wins over `MONGODB_URI` if both are set. A password with characters like `@ # / :` can be pasted as it is.
+
 Other options: `PORT` (default 5001), `DATA_DIR`, `MONGODB_DB` (default `gps_english_medium`), `WHATSAPP_DISABLED=1`.
 
 ### Moving from the previous version

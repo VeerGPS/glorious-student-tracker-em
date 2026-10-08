@@ -9,7 +9,7 @@ const crypto = require('crypto');
 const express = require('express');
 const compression = require('compression');
 
-const { Store, FileAdapter, MongoAdapter } = require('./src/store');
+const { Store, FileAdapter, MongoAdapter, explainDbError } = require('./src/store');
 const { createApi } = require('./src/api');
 const { WhatsAppService } = require('./src/whatsapp');
 const { hashPassword } = require('./src/auth');
@@ -31,6 +31,7 @@ function readConfig(env = process.env) {
     port: Number(env.PORT) || 5001,
     dataDir,
     mongoUri: env.MONGODB_URI_EM || env.MONGODB_URI || readSavedMongoUri(dataDir),
+    mongoUriFrom: env.MONGODB_URI_EM ? 'MONGODB_URI_EM' : env.MONGODB_URI ? 'MONGODB_URI' : 'mongodb_config.json',
     mongoDb: env.MONGODB_DB || 'gps_english_medium',
     adminPassword: env.ADMIN_PASSWORD || '',
     sessionSecret: env.SESSION_SECRET || '',
@@ -192,11 +193,14 @@ async function start() {
     } catch (err) {
       attempt += 1;
       const delay = Math.min(60000, 3000 * attempt);
+      store.openError = config.mongoUri ? explainDbError(err, config.mongoUriFrom) : `The data folder could not be opened: ${err.message}`;
       console.error(`Could not open the database (attempt ${attempt}): ${err.message}. Retrying in ${delay / 1000}s.`);
+      console.error(`What to do: ${store.openError}`);
       await adapter.close().catch(() => {});
       await new Promise(r => setTimeout(r, delay));
     }
   }
+  store.openError = null;
   console.log(`Database ready (${store.kind}).`);
   whatsapp.start().catch(err => console.warn('WhatsApp could not reconnect:', err.message));
   setInterval(() => {

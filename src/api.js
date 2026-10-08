@@ -74,11 +74,14 @@ function createApi({ store, whatsapp, config = {} }) {
   });
 
   api.get('/health', (req, res) => {
-    res.json({ ok: true, ready: store.ready, storage: store.kind });
+    res.json({ ok: true, ready: store.ready, storage: store.kind, problem: store.ready ? null : store.openError || null });
   });
 
   api.use((req, res, next) => {
     if (store.ready) return next();
+    if (store.openError) {
+      return res.status(503).json({ error: `The app cannot connect to the school database. For the office: ${store.openError} The app keeps trying by itself.`, code: 'DB_ERROR' });
+    }
     res.status(503).json({ error: 'The school database is starting up. Please try again in a moment.', code: 'NOT_READY' });
   });
 
