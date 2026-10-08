@@ -1,39 +1,50 @@
 @echo off
-title Glorious Public School Tracker (English Medium)
+title Glorious Public School - Student Tracker
+cd /d "%~dp0"
 echo =======================================================
-echo    Starting GPS Student Tracker (English Medium)
+echo    Starting Glorious Public School - Student Tracker
 echo =======================================================
 echo.
 
-:: Check if Node.js is installed
+:: Node.js 22 or newer is needed
 where node >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [ERROR] Node.js is not installed or not in PATH!
-    echo Please install Node.js from https://nodejs.org
+    echo [ERROR] Node.js is not installed.
+    echo Please install the LTS version from https://nodejs.org and run this again.
     pause
     exit /b 1
 )
 
-:: Check if port 5001 is already in use
-netstat -ano | findstr :5001 | findstr LISTENING >nul
-if %errorlevel% equ 0 (
-    echo [OK] Backend server is already running on port 5001.
-) else (
-    echo [*] Launching Node.js Backend Server on port 5001...
-    start /min "GPS EM Server" node server.js
-    timeout /t 2 /nobreak >nul
+:: Install or update the app's parts the first time (or after an update)
+if not exist "node_modules\jspdf" (
+    echo [*] Installing the app for the first time. This needs internet and takes a minute...
+    call npm install --no-audit --no-fund
+    if errorlevel 1 (
+        echo [ERROR] Installation failed. Check the internet connection and try again.
+        pause
+        exit /b 1
+    )
 )
 
-:: Open the complete app in the default web browser
-echo [*] Opening Web Application in your browser...
+:: Start the server unless it is already running
+netstat -ano | findstr :5001 | findstr LISTENING >nul
+if %errorlevel% equ 0 (
+    echo [OK] The app is already running.
+) else (
+    echo [*] Starting the app...
+    start /min "School Tracker Server" node server.js
+    timeout /t 3 /nobreak >nul
+)
+
+echo [*] Opening the app in your browser...
 start http://localhost:5001
 
 echo.
 echo =======================================================
-echo [SUCCESS] Glorious Student Tracker (English Medium) is Active!
-echo  - PC Browser:          http://localhost:5001
-echo  - MongoDB Database:    gps_english_medium
+echo  The app is open at http://localhost:5001
+echo  Other phones and computers on the school Wi-Fi can use
+echo  the "On school Wi-Fi" address shown in the server window.
+echo  Keep the small server window open while the app is in use.
 echo =======================================================
-timeout /t 3 >nul
+timeout /t 5 >nul
 exit /b 0
-

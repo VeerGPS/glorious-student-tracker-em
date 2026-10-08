@@ -5,6 +5,13 @@ services:
     plan: free
     buildCommand: "npm install"
     startCommand: "npm start"
+    healthCheckPath: /api/health
     envVars:
+      # MongoDB Atlas connection string. Required on Render: the free plan's disk
+      # is wiped on every restart, so data must live in MongoDB.
       - key: MONGODB_URI
+        sync: false
+      # Optional: first office password. If not set, the office signs in once
+      # with the old passcode and must choose a new password straight away.
+      - key: ADMIN_PASSWORD
         sync: false

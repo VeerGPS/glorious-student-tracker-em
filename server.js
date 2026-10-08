@@ -1,441 +1,214 @@
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
+'use strict';
+
+require('dotenv').config({ quiet: true });
+
 const fs = require('fs');
-const { MongoClient } = require('mongodb');
-require('dotenv').config();
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+const express = require('express');
+const compression = require('compression');
 
-const app = express();
-const PORT = process.env.PORT || 5001;
-const CONFIG_FILE = path.join(__dirname, 'mongodb_config.json');
+const { Store, FileAdapter, MongoAdapter } = require('./src/store');
+const { createApi } = require('./src/api');
+const { WhatsAppService } = require('./src/whatsapp');
+const { hashPassword } = require('./src/auth');
+const { importLegacy, combineLegacySources } = require('./src/legacy');
 
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, Origin');
-  res.header('Access-Control-Allow-Private-Network', 'true');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(204);
-  }
-  next();
-});
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: '15mb' }));
+const ROOT = __dirname;
+const PUBLIC_DIR = path.join(ROOT, 'public');
+const DEFAULT_SCHOOL = {
+  name: 'Glorious Public School',
+  address: 'Affiliated to State Board | Himatnagar, Gujarat - 383001 | Contact: gloriouspschool2009@gmail.com',
+  publicUrl: ''
+};
+// Office password used only until it is changed on first sign-in (unless ADMIN_PASSWORD is set).
+const FIRST_RUN_ADMIN_PASSWORD = 'gps369';
 
-// -------------------------------------------------------------
-// MongoDB State & Connection Manager
-// -------------------------------------------------------------
-let mongoClient = null;
-let mongoDb = null;
-let mongoStatus = 'unconfigured'; // 'unconfigured' | 'connecting' | 'connected' | 'error'
-let lastSyncTime = null;
-let lastSyncTimestamp = Date.now();
-let activeUri = process.env.MONGODB_URI_EM || process.env.MONGODB_URI || null;
-
-// Read locally saved config if environment variable is not present
-if (!activeUri && fs.existsSync(CONFIG_FILE)) {
-  try {
-    const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
-    const parsed = JSON.parse(raw);
-    if (parsed.uri) activeUri = parsed.uri;
-  } catch (err) {
-    console.error('Failed to read mongodb_config.json:', err.message);
-  }
+function readConfig(env = process.env) {
+  const dataDir = path.resolve(env.DATA_DIR || path.join(ROOT, 'data'));
+  return {
+    port: Number(env.PORT) || 5001,
+    dataDir,
+    mongoUri: env.MONGODB_URI_EM || env.MONGODB_URI || readSavedMongoUri(dataDir),
+    mongoDb: env.MONGODB_DB || 'gps_english_medium',
+    adminPassword: env.ADMIN_PASSWORD || '',
+    sessionSecret: env.SESSION_SECRET || '',
+    whatsappDisabled: env.WHATSAPP_DISABLED === '1'
+  };
 }
 
-async function connectToMongo(uri) {
-  if (!uri) {
-    mongoStatus = 'unconfigured';
-    return { success: false, message: 'No MongoDB URI provided' };
-  }
-
-  mongoStatus = 'connecting';
-  try {
-    if (mongoClient) {
-      try { await mongoClient.close(); } catch (e) {}
-    }
-
-    const client = new MongoClient(uri, {
-      serverSelectionTimeoutMS: 7000,
-      connectTimeoutMS: 10000,
-      heartbeatFrequencyMS: 15000, // Heartbeat every 15s to detect disconnects fast
-      maxIdleTimeMS: 0,            // Never close idle connections
-    });
-
-    await client.connect();
-    // Ping to confirm connection
-    await client.db('admin').command({ ping: 1 });
-
-    mongoClient = client;
-    mongoDb = client.db('gps_english_medium');
-    activeUri = uri;
-    mongoStatus = 'connected';
-    console.log('✔ Connected to MongoDB Atlas successfully! Database: gps_english_medium');
-
-    // Save URI locally for auto-reconnect on server restart
+// The previous version saved the connection string in mongodb_config.json.
+function readSavedMongoUri(dataDir) {
+  for (const file of [path.join(dataDir, 'mongodb_config.json'), path.join(ROOT, 'mongodb_config.json')]) {
     try {
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify({ uri: activeUri, updatedAt: new Date().toISOString() }, null, 2));
-    } catch (e) {}
-
-    // Monitor for connection loss and auto-reconnect
-    client.on('close', () => {
-      console.warn('⚠ MongoDB connection closed. Attempting auto-reconnect...');
-      mongoStatus = 'error';
-      mongoConnectWithRetry(uri);
-    });
-
-    client.on('error', (err) => {
-      console.error('⚠ MongoDB client error:', err.message);
-      mongoStatus = 'error';
-    });
-
-    return { success: true, message: 'Connected to MongoDB Atlas (English Medium)' };
-  } catch (err) {
-    let msg = err.message || '';
-    if (msg.includes('SSL alert number 80') || msg.includes('tlsv1 alert internal error')) {
-      msg = 'MongoDB Atlas rejected connection (SSL alert 80). Your IP address is not whitelisted. In MongoDB Atlas, go to Network Access -> Add IP Address -> 0.0.0.0/0 (Allow Access from Anywhere).';
-    }
-    console.error('❌ MongoDB Atlas connection error:', msg);
-    mongoStatus = 'error';
-    return { success: false, error: msg };
-  }
-}
-
-// Auto-reconnect with exponential backoff (max 3 retries, 5s apart)
-async function mongoConnectWithRetry(uri, maxRetries = 5, delayMs = 5000) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    console.log(`🔄 MongoDB reconnect attempt ${attempt}/${maxRetries}...`);
-    const result = await connectToMongo(uri);
-    if (result.success) {
-      console.log(`✔ MongoDB reconnected on attempt ${attempt}`);
-      return;
-    }
-    if (attempt < maxRetries) {
-      await new Promise(r => setTimeout(r, delayMs));
-    }
-  }
-  console.error('❌ MongoDB failed to reconnect after ' + maxRetries + ' attempts. Will retry on next request.');
-}
-
-// Auto-connect on startup (ALWAYS — uses .env URI)
-if (activeUri) {
-  mongoConnectWithRetry(activeUri);
-}
-
-// Keepalive ping every 30 seconds to prevent idle disconnection
-setInterval(async () => {
-  if (mongoStatus === 'connected' && mongoClient) {
-    try {
-      await mongoClient.db('admin').command({ ping: 1 });
-    } catch (err) {
-      console.warn('⚠ MongoDB keepalive ping failed:', err.message);
-      mongoStatus = 'error';
-      if (activeUri) {
-        mongoConnectWithRetry(activeUri);
-      }
-    }
-  } else if (mongoStatus !== 'connecting' && activeUri) {
-    // Not connected but have URI — try to reconnect
-    mongoConnectWithRetry(activeUri, 2, 3000);
-  }
-}, 30000);
-
-// -------------------------------------------------------------
-// API Endpoints for MongoDB Atlas Database
-// -------------------------------------------------------------
-
-function getLocalNetworkIp() {
-  const os = require('os');
-  const nets = os.networkInterfaces();
-  for (const name of Object.keys(nets)) {
-    for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) {
-        return net.address;
-      }
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (parsed && typeof parsed.uri === 'string' && parsed.uri.startsWith('mongodb')) return parsed.uri;
+    } catch {
+      // not there
     }
   }
   return null;
 }
 
-// 1. Health & Connection Status
-app.get('/api/db/status', (req, res) => {
-  const localIp = getLocalNetworkIp();
-  res.json({
-    dbType: 'mongodb',
-    status: mongoStatus,
-    connected: mongoStatus === 'connected',
-    hasUri: !!activeUri,
-    database: mongoDb ? mongoDb.databaseName : null,
-    lastSyncTime: lastSyncTime,
-    lastSyncTimestamp: lastSyncTimestamp,
-    localIp: localIp,
-    networkUrl: localIp ? `http://${localIp}:${PORT}` : null,
-    port: PORT
+async function ensureSettings(store, config) {
+  let s = store.settings;
+  let changed = false;
+  if (!s) {
+    s = { id: 'main', schemaVersion: 2 };
+    changed = true;
+  }
+  if (!s.tokenSecret) {
+    s.tokenSecret = crypto.randomBytes(32).toString('base64url');
+    changed = true;
+  }
+  if (!s.admin) {
+    const { salt, hash } = hashPassword(config.adminPassword || FIRST_RUN_ADMIN_PASSWORD);
+    s.admin = { salt, hash, tokenVersion: 1, mustChange: !config.adminPassword };
+    changed = true;
+  }
+  if (!s.school) {
+    s.school = { ...DEFAULT_SCHOOL };
+    changed = true;
+  }
+  store.settings = s;
+  if (changed) await store.saveSettings();
+}
+
+// One-time copy of the data saved by the previous version of the app.
+async function migrateLegacy(store) {
+  if (store.settings.legacyMigratedAt) return;
+  const legacy = await store.adapter.loadLegacy();
+  if (legacy) {
+    const counts = await importLegacy(store, combineLegacySources(legacy), { includeTeachers: true, actor: 'migration' });
+    console.log('Copied data from the previous version of the app:', counts);
+    store.settings.legacyMigration = counts;
+  }
+  store.settings.legacyMigratedAt = new Date().toISOString();
+  await store.saveSettings();
+}
+
+async function openStore(store, config) {
+  await store.adapter.connect();
+  await store.load();
+  await ensureSettings(store, config);
+  await migrateLegacy(store);
+  store.ready = true;
+}
+
+function securityHeaders(req, res, next) {
+  res.set({
+    'Content-Security-Policy': [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "connect-src 'self'",
+      "font-src 'self'",
+      "object-src 'none'",
+      "frame-src 'self' blob:",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'"
+    ].join('; '),
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
   });
-});
+  next();
+}
 
-// 2. Set / Update MongoDB Atlas Connection String
-app.post('/api/db/connect', async (req, res) => {
-  const { uri } = req.body;
-  if (!uri || typeof uri !== 'string') {
-    return res.status(400).json({ success: false, error: 'Valid MongoDB connection string is required.' });
-  }
+function createApp({ store, whatsapp, config }) {
+  const app = express();
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1);
+  app.use(compression());
+  app.use(securityHeaders);
+  app.use('/api', createApi({ store, whatsapp, config }));
 
-  const result = await connectToMongo(uri.trim());
-  if (result.success) {
-    res.json({ success: true, status: 'connected', message: 'Successfully connected to MongoDB Atlas!' });
-  } else {
-    res.status(500).json({ success: false, status: 'error', error: result.error || 'Connection failed' });
-  }
-});
+  // Only the browser files in public/ are served — never data or settings files.
+  app.get('/vendor/xlsx.full.min.js', (req, res) => {
+    res.set('Cache-Control', 'public, max-age=604800');
+    res.sendFile(require.resolve('xlsx/dist/xlsx.full.min.js'));
+  });
+  app.use(express.static(PUBLIC_DIR, {
+    index: false,
+    setHeaders: res => res.set('Cache-Control', 'no-cache')
+  }));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api/') || path.extname(req.path) || /\/\./.test(req.path)) return next();
+    res.set('Cache-Control', 'no-cache');
+    res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
+  });
+  app.use((req, res) => res.status(404).type('text').send('Not found'));
+  return app;
+}
 
-// 3. Disconnect / Clear MongoDB Config
-app.post('/api/db/disconnect', async (req, res) => {
-  try {
-    if (mongoClient) {
-      await mongoClient.close();
-      mongoClient = null;
-      mongoDb = null;
+function lanAddress() {
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const net of list || []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
     }
-    activeUri = null;
-    mongoStatus = 'unconfigured';
-    if (fs.existsSync(CONFIG_FILE)) {
-      fs.unlinkSync(CONFIG_FILE);
+  }
+  return null;
+}
+
+async function start() {
+  const config = readConfig();
+  const adapter = config.mongoUri ? new MongoAdapter(config.mongoUri, config.mongoDb) : new FileAdapter(config.dataDir);
+  const store = new Store(adapter);
+  const whatsapp = new WhatsAppService({
+    store,
+    dataDir: config.dataDir,
+    legacyDir: path.join(ROOT, 'whatsapp_auth'),
+    disabled: config.whatsappDisabled
+  });
+  const app = createApp({ store, whatsapp, config });
+
+  const server = app.listen(config.port, '0.0.0.0', () => {
+    const lan = lanAddress();
+    console.log('=======================================================');
+    console.log(' Glorious Public School - Student Tracker is running');
+    console.log(` On this computer:  http://localhost:${config.port}`);
+    if (lan) console.log(` On school Wi-Fi:   http://${lan}:${config.port}`);
+    console.log(` Data is saved in:  ${config.mongoUri ? 'MongoDB (online database)' : config.dataDir}`);
+    console.log('=======================================================');
+  });
+
+  let attempt = 0;
+  while (!store.ready) {
+    try {
+      await openStore(store, config);
+    } catch (err) {
+      attempt += 1;
+      const delay = Math.min(60000, 3000 * attempt);
+      console.error(`Could not open the database (attempt ${attempt}): ${err.message}. Retrying in ${delay / 1000}s.`);
+      await adapter.close().catch(() => {});
+      await new Promise(r => setTimeout(r, delay));
     }
-    res.json({ success: true, message: 'Disconnected from MongoDB Atlas' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
   }
-});
+  console.log(`Database ready (${store.kind}).`);
+  whatsapp.start().catch(err => console.warn('WhatsApp could not reconnect:', err.message));
+  setInterval(() => {
+    store.retryFailed().then(left => { if (left) console.warn(`${left} change(s) still waiting to be saved.`); });
+  }, 15000).unref();
 
-// 4. Fetch All School Data from MongoDB
-app.get('/api/db/school', async (req, res) => {
-  if (mongoStatus !== 'connected' || !mongoDb) {
-    return res.status(503).json({ success: false, error: 'MongoDB Atlas is not connected' });
-  }
+  const shutdown = async () => {
+    server.close();
+    await whatsapp.stop().catch(() => {});
+    await store.close().catch(() => {});
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+}
 
-  try {
-    const collection = mongoDb.collection('school_data');
-    const doc = await collection.findOne({ _id: 'glorious_public_school' });
-    res.json({ success: true, data: doc || null });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// 5. Sync Entire School Data to MongoDB Atlas
-app.post('/api/db/sync', async (req, res) => {
-  if (mongoStatus !== 'connected' || !mongoDb) {
-    return res.status(503).json({ success: false, error: 'MongoDB Atlas is not connected' });
-  }
-
-  try {
-    const { teachers, students, marks, attendance, upcomingTests, activeTeacherId } = req.body;
-
-    // SAFEGUARD: Prevent accidental data wipe — don't overwrite existing cloud data with empty arrays
-    const incomingHasStudents = Array.isArray(students) && students.length > 0;
-    const incomingHasMarks = Array.isArray(marks) && marks.length > 0;
-    const incomingHasTeachers = Array.isArray(teachers) && teachers.length > 0;
-
-    if (!incomingHasStudents && !incomingHasMarks && !incomingHasTeachers) {
-      // Check if cloud already has data — if yes, reject the empty push
-      const collection = mongoDb.collection('school_data');
-      const existing = await collection.findOne({ _id: 'glorious_public_school' });
-      if (existing && Array.isArray(existing.students) && existing.students.length > 0) {
-        console.log('⚠ [Sync] Rejected empty data push — cloud has ' + existing.students.length + ' students. Preventing accidental wipe.');
-        return res.json({ success: true, message: 'Sync skipped — cloud data preserved (empty push blocked)', lastSyncTime: new Date().toLocaleTimeString(), lastSyncTimestamp: Date.now() });
-      }
-    }
-
-    const collection = mongoDb.collection('school_data');
-
-    const updateDoc = {
-      $set: {
-        updatedAt: new Date(),
-        lastTeacherId: activeTeacherId || null
-      }
-    };
-
-    if (Array.isArray(teachers)) updateDoc.$set.teachers = teachers;
-    if (Array.isArray(students)) updateDoc.$set.students = students;
-    if (Array.isArray(marks)) updateDoc.$set.marks = marks;
-    if (Array.isArray(attendance)) updateDoc.$set.attendance = attendance;
-    if (upcomingTests) updateDoc.$set.upcomingTests = upcomingTests;
-
-    await collection.updateOne(
-      { _id: 'glorious_public_school' },
-      updateDoc,
-      { upsert: true }
-    );
-
-    // Also sync teacher-specific isolated document if activeTeacherId provided
-    if (activeTeacherId) {
-      const teachersCol = mongoDb.collection('teachers_data');
-      await teachersCol.updateOne(
-        { _id: activeTeacherId },
-        {
-          $set: {
-            updatedAt: new Date(),
-            students: students || [],
-            marks: marks || [],
-            attendance: attendance || [],
-            upcomingTests: upcomingTests || {}
-          }
-        },
-        { upsert: true }
-      );
-    }
-
-    lastSyncTime = new Date().toLocaleTimeString();
-    lastSyncTimestamp = Date.now();
-    res.json({ success: true, lastSyncTime, lastSyncTimestamp });
-  } catch (err) {
-    console.error('Sync to MongoDB error:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// 6. Factory Reset / Wipe School Data in MongoDB Atlas
-app.post('/api/db/reset', async (req, res) => {
-  if (mongoStatus !== 'connected' || !mongoDb) {
-    return res.status(503).json({ success: false, error: 'MongoDB Atlas is not connected' });
-  }
-
-  try {
-    const { mode, seedStudents, seedMarks, seedAttendance, seedUpcomingTests } = req.body;
-    const collection = mongoDb.collection('school_data');
-    const teachersCol = mongoDb.collection('teachers_data');
-
-    let updateDoc = {
-      $set: {
-        updatedAt: new Date(),
-        resetMode: mode || 'wipe'
-      }
-    };
-
-    if (mode === 'wipe' || mode === 'all' || !mode) {
-      updateDoc.$set.students = [];
-      updateDoc.$set.marks = [];
-      updateDoc.$set.attendance = [];
-      updateDoc.$set.upcomingTests = [];
-      await teachersCol.deleteMany({});
-    } else if (mode === 'marks_only') {
-      updateDoc.$set.marks = [];
-      updateDoc.$set.attendance = [];
-      updateDoc.$set.upcomingTests = [];
-      await teachersCol.updateMany({}, {
-        $set: {
-          updatedAt: new Date(),
-          marks: [],
-          attendance: [],
-          upcomingTests: []
-        }
-      });
-    } else if (mode === 'seed' || mode === 'demo') {
-      updateDoc.$set.students = [];
-      updateDoc.$set.marks = [];
-      updateDoc.$set.attendance = [];
-      updateDoc.$set.upcomingTests = [];
-    }
-
-    await collection.updateOne(
-      { _id: 'glorious_public_school' },
-      updateDoc,
-      { upsert: true }
-    );
-
-    lastSyncTime = new Date().toLocaleTimeString();
-    lastSyncTimestamp = Date.now();
-    console.log(`✔ [MongoDB] Database reset (${mode || 'wipe'}) applied successfully.`);
-    res.json({ success: true, mode: mode || 'wipe', lastSyncTime, lastSyncTimestamp });
-  } catch (err) {
-    console.error('Reset MongoDB error:', err);
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// -------------------------------------------------------------
-// WhatsApp Broadcast & Report Card PDF Dispatch Endpoints
-// -------------------------------------------------------------
-const whatsappService = require('./whatsapp_service');
-
-// 1. WhatsApp Status
-app.get('/api/whatsapp/status', (req, res) => {
-  try {
-    const status = whatsappService.getWhatsAppStatus();
-    res.json({ success: true, ...status });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// 2. Connect / Request QR
-app.post('/api/whatsapp/connect', async (req, res) => {
-  try {
-    const forceNew = req.body && req.body.forceNew === true;
-    const result = await whatsappService.initWhatsApp(forceNew);
-    res.json({ success: true, ...result });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// 3. Disconnect / Logout
-app.post('/api/whatsapp/disconnect', async (req, res) => {
-  try {
-    const result = await whatsappService.disconnectWhatsApp();
-    res.json({ success: true, ...result });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// 4. Send Individual Student Report Card PDF
-app.post('/api/whatsapp/send-pdf', async (req, res) => {
-  try {
-    const { mobile, roll, name, examTitle, pdfBase64, filename } = req.body;
-    const result = await whatsappService.sendStudentReportPDF({
-      mobile,
-      roll,
-      name,
-      examTitle,
-      pdfBase64,
-      filename
-    });
-    if (result.success) {
-      res.json(result);
-    } else {
-      res.status(400).json(result);
-    }
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// -------------------------------------------------------------
-// Serve Static Frontend Assets
-// -------------------------------------------------------------
-app.use(express.static(path.join(__dirname)));
-
-// Fallback to index.html for any unhandled routes
-app.use((req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// Start Server
 if (require.main === module) {
-  const localIp = getLocalNetworkIp();
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`=======================================================`);
-    console.log(`🚀 Glorious Public School Tracker (English Medium) is running!`);
-    console.log(`💻 PC Local URL:        http://localhost:${PORT}`);
-    if (localIp) {
-      console.log(`📱 Mobile Phone (Wi-Fi): http://${localIp}:${PORT}`);
-    }
-    console.log(`📦 Database:            MongoDB Atlas [gps_english_medium] (State: ${mongoStatus})`);
-    console.log(`=======================================================`);
+  start().catch(err => {
+    console.error(err);
+    process.exit(1);
   });
 }
 
-module.exports = { app, connectToMongo };
+module.exports = { createApp, openStore, ensureSettings, readConfig, FIRST_RUN_ADMIN_PASSWORD };
