@@ -14,7 +14,7 @@ The app has five pages (the bar at the bottom on a phone):
 |---|---|
 | **Home** | See each of your classes: is today's attendance done, how many marks are entered. |
 | **Attendance** | Everyone starts as **present**. Tap a name to mark **absent**, then **Save**. One more tap sends a WhatsApp message to the parents of absent children. |
-| **Marks** | **New test** → pick the subjects and maximum marks → type the marks (on a phone, one subject at a time; press Enter to go to the next child). Or **Upload marks from Excel**. |
+| **Marks** | **New test** → pick the subjects and maximum marks → type the marks (on a phone, one subject at a time; press Enter to go to the next child). Or **Upload marks from Excel**: a simple sheet (Roll No, Name, one column per subject) or the school's common sheet (subjects with max marks like `Sci (30)` above a row of dates). Dates typed carelessly (`13/06/`, `14/8/t26`), `ab` for absent and blank cells for optional subjects are all fine. Students are matched by roll number and name, so marks never go to another child. |
 | **Students** | Upload your class list from Excel or add children one by one. Open a child's **Insights** (strengths, weak subjects, test-by-test progress against the class), download a report card, or copy a child's private parent link. |
 | **Send** | Choose: **Report cards**, **Absent students**, **Low marks alert** or **Notice** → check the list → send. |
 

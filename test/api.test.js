@@ -160,6 +160,39 @@ test('Excel marks upload in the school\'s date-column format', async t => {
   assert.equal(again.data.overwrites, 2);
 });
 
+test('Excel marks go to the right child when the sheet numbers students differently', async t => {
+  const srv = await startServer();
+  t.after(() => srv.close());
+  const office = await adminToken(srv);
+  await srv.call('POST', '/api/students', { std: '10', roll: 1, name: 'Bina Rajeshbhai Shah' }, office);
+  await srv.call('POST', '/api/students', { std: '10', roll: 2, name: 'Asha Kumar' }, office);
+  await srv.call('POST', '/api/students', { std: '10', roll: 3, name: 'Chirag Dave' }, office);
+  const res = await srv.call('POST', '/api/tests/import', {
+    std: '10',
+    name: 'Common test',
+    papers: [{ subject: 'Mathematics', max: 25, date: '2026-07-13' }],
+    rows: [
+      { line: 5, roll: 1, name: 'ASHA KUMAR', values: [16] },
+      { line: 6, roll: 2, name: 'BINA R. SHAH', values: [14] },
+      { line: 7, roll: 3, name: 'DEV MEHTA', values: [9] }
+    ],
+    addMissingStudents: true,
+    dryRun: false
+  }, office);
+  assert.equal(res.status, 200);
+  assert.equal(res.data.marks, 2);
+  assert.equal(res.data.newStudents.length, 0, 'no duplicate students are created');
+  assert.equal(res.data.unmatched.length, 1);
+  assert.match(res.data.unmatched[0].reason, /Roll 3 is Chirag Dave/);
+  const boot = (await srv.call('GET', '/api/bootstrap', undefined, office)).data;
+  const marks = boot.tests[0].marks;
+  const byName = n => boot.students.find(s => s.name === n).id;
+  const pid = boot.tests[0].papers[0].id;
+  assert.equal(marks[byName('Asha Kumar')][pid], 16);
+  assert.equal(marks[byName('Bina Rajeshbhai Shah')][pid], 14);
+  assert.equal(marks[byName('Chirag Dave')], undefined, 'Chirag does not get Dev\'s marks');
+});
+
 test('student list upload adds, updates and reports problems', async t => {
   const srv = await startServer();
   t.after(() => srv.close());

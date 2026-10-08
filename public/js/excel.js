@@ -93,10 +93,38 @@ export function findDate(value) {
   return null;
 }
 
+// A date typed carelessly in a row of dates: "13/06/" (no year) or "14/8/t26".
+function looseDate(value, yearHint) {
+  const s = text(value);
+  if (!/^[\d\s/.\-()a-z]{3,20}$/i.test(s) || (s.match(/[a-z]/gi) || []).length > 2 || !/[/.\-]/.test(s)) return null;
+  const nums = s.match(/\d+/g) || [];
+  let d = parseInt(nums[0], 10);
+  let mo = parseInt(nums[1], 10);
+  if (mo > 12 && d <= 12) [d, mo] = [mo, d];
+  let iso = null;
+  if (nums.length >= 3 && /^(\d{2}|\d{4})$/.test(nums[2])) iso = makeIso(nums[2], mo, d);
+  else if (nums.length === 2 && yearHint) iso = makeIso(yearHint, mo, d);
+  return iso ? { iso, match: s } : null;
+}
+
+function datedTitle(papers) {
+  const dates = [...new Set(papers.map(p => p.date).filter(Boolean))].sort();
+  if (!dates.length) return '';
+  const fmt = (iso, withYear) => {
+    const [y, m, d] = iso.split('-').map(Number);
+    const month = Object.keys(MONTHS)[m - 1];
+    return `${d} ${month.charAt(0).toUpperCase()}${month.slice(1)}${withYear ? ` ${y}` : ''}`;
+  };
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  if (first === last) return `Test ${fmt(first, true)}`;
+  return `Tests ${fmt(first, first.slice(0, 4) !== last.slice(0, 4))} to ${fmt(last, true)}`;
+}
+
 const SUBJECTS = [
   [/^(?:maths?|mathematics|ganit)\b\.?/i, 'Mathematics'],
   [/^(?:sci|science|vigyan)\b\.?/i, 'Science'],
-  [/^(?:ss|s\.\s*s\.?|social\s*sci(?:ence)?|social\s*studies|samajik\s*vigyan)\b\.?/i, 'Social Science'],
+  [/^(?:s\.?\s*s\b\.?|social\s*sci(?:ence)?|social\s*studies|samajik\s*vigyan)\b\.?/i, 'Social Science'],
   [/^(?:eng|english|angreji)\b\.?/i, 'English'],
   [/^(?:hin|hindi)\b\.?/i, 'Hindi'],
   [/^(?:guj|gujarati)\b\.?/i, 'Gujarati'],
@@ -256,6 +284,26 @@ export function parseMarksSheet(rows, fileName = '') {
     dataStart = r + 1;
   }
 
+  // The school's periodic-test sheet has a row of dates as the header and the
+  // subjects in the row above. Spot that layout, and read even dates typed
+  // carelessly ("13/06/", "14/8/t26", "17/07/2026(50)") when it is used.
+  const strictDate = v => (typeof v === 'string' || typeof v === 'number' ? findDate(v) : null);
+  const years = header.map(strictDate).filter(Boolean).map(d => d.iso.slice(0, 4));
+  const yearHint = years.sort((a, b) => years.filter(y => y === b).length - years.filter(y => y === a).length)[0] || String(new Date().getFullYear());
+  const headCols = [];
+  for (let c = 0; c < width; c += 1) if (!isMeta(cols, c) && !isBlank(header[c])) headCols.push(c);
+  const strictCount = headCols.filter(c => strictDate(header[c])).length;
+  const dateRow = h > 0 && strictCount > 0 && headCols.filter(c => strictDate(header[c]) || looseDate(header[c], yearHint)).length >= headCols.length / 2;
+  const dateOf = v => strictDate(v) || (dateRow ? looseDate(v, yearHint) : null);
+  const labelAbove = c => {
+    for (let up = h - 1; up >= Math.max(0, h - 2); up -= 1) {
+      const above = text((rows[up] || [])[c]);
+      if (above) return above;
+    }
+    return '';
+  };
+  const isMarkLike = v => typeof v === 'number' || /^(ab|a|abs|absent|-?\d+(\.\d+)?)$/i.test(text(v));
+
   // Subject label for each remaining column. When the header cell is a date,
   // the subject is in the row above (merged cells carry the label to the right).
   const papers = [];
@@ -263,25 +311,33 @@ export function parseMarksSheet(rows, fileName = '') {
   for (let c = 0; c < width; c += 1) {
     if (isMeta(cols, c)) { carry = ''; continue; }
     const head = header[c];
-    const headDate = typeof head === 'string' || typeof head === 'number' ? findDate(head) : null;
-    const headIsOnlyDate = headDate && text(head).replace(headDate.match, '').replace(/[()\s]/g, '') === '';
+    const headDate = dateOf(head);
+    // Whatever is left beside the date, e.g. "(50)", can only hold the max marks.
+    const rest = headDate ? parseSubjectLabel(text(head).replace(headDate.match, ' ')) : null;
+    const headIsDate = headDate && !rest.subject;
     let label = '';
     let date = '';
-    if (headIsOnlyDate) {
+    let headMax = null;
+    if (headIsDate) {
       date = headDate.iso;
-      for (let up = h - 1; up >= Math.max(0, h - 2); up -= 1) {
-        const above = text((rows[up] || [])[c]);
-        if (above) { label = above; break; }
-      }
-      if (!label) label = carry;
+      headMax = rest.max;
+      label = labelAbove(c) || carry;
+      carry = label;
+    } else if (isBlank(head) && dateRow && labelAbove(c)) {
+      label = labelAbove(c);
       carry = label;
     } else {
       label = text(head);
       carry = '';
     }
-    const hasData = rows.slice(dataStart).some(r => r && !isBlank(r[c]));
-    if (!label && !hasData) continue;
-    if (!label) label = `Subject ${papers.length + 1}`;
+    const filled = rows.slice(dataStart).map(r => (r ? r[c] : null)).filter(v => !isBlank(v));
+    if (!label) {
+      // A column without a heading is used only if it clearly holds marks
+      // (not a stray note or a second half of a name).
+      const marks = filled.filter(isMarkLike).length;
+      if (marks < 3 || marks < filled.length * 0.8) continue;
+      label = `Subject ${papers.length + 1}`;
+    }
     if (columnKind(label) === 'skip') continue;
     const parsed = parseSubjectLabel(label);
     if (!parsed.subject) continue;
@@ -291,7 +347,7 @@ export function parseMarksSheet(rows, fileName = '') {
       subject: parsed.subject,
       topic: parsed.topic,
       date: date || parsed.date || extraDate[c] || '',
-      max: extraMax[c] || parsed.max || null
+      max: extraMax[c] || headMax || parsed.max || null
     });
   }
   if (!papers.length) throw new Error('No subject columns were found next to the student names.');
@@ -330,9 +386,11 @@ export function parseMarksSheet(rows, fileName = '') {
 
   const classCol = cols.class >= 0 ? out.map(r => text((rows[r.line - 1] || [])[cols.class])).find(Boolean) : '';
   const fileTitle = fileName.replace(/\.[^.]+$/, '').replace(/[_]+/g, ' ').replace(/\b(class|std)\s*\d+\b/ig, '').replace(/\b(marks?|template|sheet|copy)\b/ig, '').replace(/\s+/g, ' ').trim();
+  // A file name like "updated common sheet-3" says nothing about the test; the dates do.
+  const fileNamesTest = fileTitle.length >= 3 && /test|exam|term|periodic|unit|assessment|round|weekly|monthly|half|annual|final|prelim/i.test(fileTitle);
   return {
     std: detectClass(rows, h + 1) || (classCol ? (classCol.match(/\d{1,2}/) || [])[0] || null : null),
-    title: detectTitle(rows, h + 1) || (fileTitle.length >= 3 ? fileTitle : ''),
+    title: detectTitle(rows, h + 1) || (fileNamesTest ? fileTitle : datedTitle(papers) || (fileTitle.length >= 3 ? fileTitle : '')),
     papers,
     rows: out
   };

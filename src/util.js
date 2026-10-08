@@ -144,12 +144,51 @@ function round1(n) {
   return Math.round(n * 10) / 10;
 }
 
+function nameWords(name) {
+  return String(name || '').toLowerCase().replace(/[^\p{L}]+/gu, ' ').trim().split(' ').filter(Boolean);
+}
+
+function editDistance(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i += 1) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j += 1) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+
+function closeWord(x, y) {
+  if (x === y) return true;
+  if (x.length === 1 || y.length === 1) return x[0] === y[0];
+  return Math.min(x.length, y.length) >= 5 && editDistance(x, y) <= 2;
+}
+
+// True when two spellings name the same child: "AARY P. TABIYAD" and
+// "Aary Prakashbhai Tabiyad", or a small typo. Every word of the shorter name
+// must match a different word of the longer one.
+function sameName(a, b) {
+  const wa = nameWords(a);
+  const wb = nameWords(b);
+  if (!wa.length || !wb.length) return false;
+  const [short, long] = wa.length <= wb.length ? [wa, wb] : [wb, wa];
+  if (short.length === 1 && long.length > 1) return closeWord(short[0], long[0]);
+  const used = new Set();
+  return short.every(w => {
+    const i = long.findIndex((v, j) => !used.has(j) && closeWord(w, v));
+    if (i < 0) return false;
+    used.add(i);
+    return true;
+  });
+}
+
 // Competition ranking (1, 2, 2, 4) of `value` within `values` (higher is better).
 function rankOf(value, values) {
   return 1 + values.filter(v => v > value).length;
 }
 
 module.exports = {
+  sameName,
   newId,
   newKey,
   nowIso,

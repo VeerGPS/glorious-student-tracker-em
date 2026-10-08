@@ -32,6 +32,60 @@ test('reads the school\'s periodic-test sheet (subject row above a row of dates)
   assert.equal(r.rows[0].line, 5);
 });
 
+test('reads the common-sheet variants teachers actually send', async () => {
+  const { parseMarksSheet } = await load();
+  // Dates typed without a year ("13/06/"), "S S" for Social Science, an empty column C.
+  const june = parseMarksSheet([
+    ['Glorious Public School '],
+    ['10th'],
+    [null, null, null, 'Sci. (25)', 'S S  (25)', 'Hindi (25)', 'Sans. (25)', 'Maths(25)'],
+    ['No.', 'Student Name', null, '2026-06-25', '2026-06-09', '2026-06-13', '13/06/', '2026-06-22'],
+    [1, 'ASHA KUMAR', null, 25, 12, 22, null, 22],
+    [2, 'BINA SHAH', null, 'ab', 18, null, 20, 'Ab'],
+    [3, 'CHIRAG DAVE', null, 9, 8, 11, null, 13]
+  ], 'STD_10_updated_common_sheet.xlsx');
+  assert.equal(june.std, '10');
+  assert.equal(june.title, 'Tests 9 Jun to 25 Jun 2026');
+  assert.deepEqual(june.papers.map(p => [p.subject, p.max, p.date]), [
+    ['Science', 25, '2026-06-25'],
+    ['Social Science', 25, '2026-06-09'],
+    ['Hindi', 25, '2026-06-13'],
+    ['Sanskrit', 25, '2026-06-13'],
+    ['Mathematics', 25, '2026-06-22']
+  ]);
+  assert.deepEqual(june.rows[1].values, ['ab', 18, '', 20, 'Ab']);
+
+  // Max marks written beside the date ("17/07/2026(50)"), and a stray note in column C.
+  const july = parseMarksSheet([
+    ['Glorious Public School '],
+    ['10th'],
+    [null, null, null, 'Maths (25)', 'SS (UPSC/GPSC)', 'Maths(25)'],
+    ['No.', 'Student Name', null, '2026-07-13', '17/07/2026(50)', '2026-07-20'],
+    [1, 'ASHA KUMAR', null, 16, 43, 20],
+    [2, 'BINA SHAH', 'SHAH ', 14, 45, 22],
+    [3, 'CHIRAG DAVE', null, 'ab', 'AB', 0]
+  ], 'STD_10_updated_common_sheet-3.xlsx');
+  assert.deepEqual(july.papers.map(p => [p.subject, p.max, p.date, p.topic]), [
+    ['Mathematics', 25, '2026-07-13', ''],
+    ['Social Science', 50, '2026-07-17', 'UPSC/GPSC'],
+    ['Mathematics', 25, '2026-07-20', '']
+  ]);
+  assert.deepEqual(july.rows[1].values, [14, 45, 22], 'the note in column C is not read as a subject');
+
+  // A mistyped date ("14/8/t26").
+  const aug = parseMarksSheet([
+    ['Glorious Public School '],
+    ['10th'],
+    [null, null, 'Sci (30)', 'Eng 30) poem '],
+    ['No.', 'Student Name', '2026-08-05', '14/8/t26'],
+    [1, 'ASHA KUMAR', 27, 23]
+  ], 'STD_10_updated_common_sheet-5.xlsx');
+  assert.deepEqual(aug.papers.map(p => [p.subject, p.max, p.date, p.topic]), [
+    ['Science', 30, '2026-08-05', ''],
+    ['English', 30, '2026-08-14', 'poem']
+  ]);
+});
+
 test('reads a simple sheet with max marks in the headings', async () => {
   const { parseMarksSheet } = await load();
   const rows = [
