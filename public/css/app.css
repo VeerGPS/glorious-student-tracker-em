@@ -323,3 +323,241 @@ details.more > summary { cursor: pointer; font-weight: 600; color: var(--primary
   .topbar, .nav, .sticky-foot, .toast-area { display: none !important; }
   main { padding: 0; }
 }
+
+/* =====================================================================
+   Colourful theme: pastel background, frosted cards, a dark gradient
+   header and one colour per section (as in the previous version).
+   Gradient stops are dark enough for white text to stay readable.
+   ===================================================================== */
+
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/plus-jakarta-sans-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/plus-jakarta-sans-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/plus-jakarta-sans-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/plus-jakarta-sans-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 800; font-display: swap; src: url('/fonts/plus-jakarta-sans-latin-800-normal.woff2') format('woff2'); }
+
+:root {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius: 18px;
+  --bg-grad: linear-gradient(135deg, #f0fdf4 0%, #e0e7ff 35%, #fdf4ff 70%, #fff7ed 100%);
+  --glass: rgba(255, 255, 255, 0.86);
+  --glass-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(255, 255, 255, 0.75);
+  --shadow: 0 10px 30px -10px rgba(79, 70, 229, 0.18), 0 3px 8px -3px rgba(15, 23, 42, 0.06);
+  --header-grad: linear-gradient(90deg, #1e1b4b 0%, #4c1d95 55%, #701a75 100%);
+
+  /* One colour per section */
+  --g-home: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  --g-attendance: linear-gradient(135deg, #047857 0%, #0f766e 100%);
+  --g-marks: linear-gradient(135deg, #a21caf 0%, #7c3aed 100%);
+  --g-students: linear-gradient(135deg, #0e7490 0%, #1d4ed8 100%);
+  --g-send: linear-gradient(135deg, #c2410c 0%, #be123c 100%);
+  --g-teachers: linear-gradient(135deg, #b45309 0%, #c2410c 100%);
+  --g-settings: linear-gradient(135deg, #334155 0%, #4338ca 100%);
+
+  --accent: #4f46e5;
+  --accent-text: #4338ca;
+  --accent-soft: #eef2ff;
+  --accent-grad: var(--g-home);
+  --primary: var(--accent);
+  --primary-soft: var(--accent-soft);
+  --focus: var(--accent);
+  --bar: var(--accent);
+  --bar-track: var(--accent-soft);
+}
+body[data-module="attendance"] { --accent: #047857; --accent-text: #047857; --accent-soft: #e7f8f0; --accent-grad: var(--g-attendance); }
+body[data-module="marks"] { --accent: #a21caf; --accent-text: #a21caf; --accent-soft: #fbeefd; --accent-grad: var(--g-marks); }
+body[data-module="students"] { --accent: #0e7490; --accent-text: #0e7490; --accent-soft: #e6f8fb; --accent-grad: var(--g-students); }
+body[data-module="send"] { --accent: #c2410c; --accent-text: #c2410c; --accent-soft: #fff1e8; --accent-grad: var(--g-send); }
+body[data-module="teachers"] { --accent: #b45309; --accent-text: #b45309; --accent-soft: #fff6e0; --accent-grad: var(--g-teachers); }
+body[data-module="settings"] { --accent: #4338ca; --accent-text: #4338ca; --accent-soft: #eef0fb; --accent-grad: var(--g-settings); }
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-grad: linear-gradient(135deg, #07130d 0%, #0f1330 35%, #1c0f26 70%, #1f1208 100%);
+    --glass: rgba(24, 24, 27, 0.84);
+    --glass-strong: rgba(24, 24, 27, 0.95);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  }
+  body[data-module] { --accent-soft: color-mix(in srgb, var(--accent) 24%, #18181b); --accent-text: color-mix(in srgb, var(--accent) 45%, #ffffff); }
+  body:not([data-module]) { --accent-soft: #23234a; --accent-text: #a5b4fc; }
+}
+
+html { background: var(--bg-grad); background-attachment: fixed; min-height: 100%; }
+body { background: transparent; }
+a { color: var(--accent-text); }
+h1 { font-weight: 800; letter-spacing: -0.01em; }
+h2, h3 { font-weight: 700; }
+
+/* ---------- Header ---------- */
+.topbar {
+  background: var(--header-grad); color: #fff; border-bottom: 0;
+  box-shadow: 0 8px 24px -12px rgba(76, 29, 149, 0.6);
+}
+.topbar .brand span { color: rgba(255, 255, 255, 0.78); }
+.topbar .logo {
+  flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center;
+  background: linear-gradient(135deg, #f59e0b 0%, #ea580c 50%, #e11d48 100%); color: #fff;
+  box-shadow: 0 6px 16px -6px rgba(245, 158, 11, 0.7);
+}
+.topbar .logo svg { width: 24px; height: 24px; }
+.topbar .btn { color: #fff; border-color: rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.08); }
+.topbar .btn:hover { background: rgba(255, 255, 255, 0.18); }
+.topbar .btn.ghost { border-color: transparent; background: transparent; }
+.topbar .nav { background: transparent; }
+.topbar .nav a { color: rgba(255, 255, 255, 0.85); }
+.topbar .nav a:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.topbar .nav a svg { color: var(--item-light); }
+.topbar .nav a[aria-current="page"] { background: var(--item-grad); color: #fff; box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.5); }
+.topbar .nav a[aria-current="page"] svg { color: #fff; }
+
+.nav a { --item-grad: var(--g-home); --item-solid: #4f46e5; --item-light: #c7d2fe; }
+.nav a[data-module="attendance"] { --item-grad: var(--g-attendance); --item-solid: #047857; --item-light: #6ee7b7; }
+.nav a[data-module="marks"] { --item-grad: var(--g-marks); --item-solid: #a21caf; --item-light: #f0abfc; }
+.nav a[data-module="students"] { --item-grad: var(--g-students); --item-solid: #0e7490; --item-light: #67e8f9; }
+.nav a[data-module="send"] { --item-grad: var(--g-send); --item-solid: #c2410c; --item-light: #fdba74; }
+.nav a[data-module="teachers"] { --item-grad: var(--g-teachers); --item-solid: #b45309; --item-light: #fcd34d; }
+.nav a[data-module="settings"] { --item-grad: var(--g-settings); --item-solid: #4338ca; --item-light: #cbd5e1; }
+
+@media (max-width: 760px) {
+  .nav.bottom {
+    background: var(--glass-strong); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--glass-border); box-shadow: 0 -8px 24px -16px rgba(79, 70, 229, 0.35);
+  }
+  .nav.bottom a { color: var(--text-2); }
+  .nav.bottom a svg { color: var(--item-solid); width: 34px; height: 28px; padding: 3px 6px; border-radius: 10px; }
+  .nav.bottom a[aria-current="page"] { background: transparent; color: var(--text); }
+  .nav.bottom a[aria-current="page"] svg { background: var(--item-grad); color: #fff; box-shadow: 0 4px 12px -4px var(--item-solid); }
+}
+@media (max-width: 760px) and (prefers-color-scheme: dark) {
+  .nav.bottom a svg { color: var(--item-light); }
+}
+
+/* ---------- Page titles get the section's colour ---------- */
+.page-head > div:first-child { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; }
+.page-head > div:first-child > :not(.head-icon) { grid-column: 2; }
+.head-icon {
+  grid-column: 1; grid-row: 1 / span 2; width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center;
+  background: var(--accent-grad); color: #fff; box-shadow: 0 8px 20px -8px var(--accent);
+}
+.head-icon svg { width: 28px; height: 28px; }
+
+/* ---------- Frosted cards ---------- */
+.card, .tile, .table-wrap, .marks-wrap, .sticky-foot {
+  background: var(--glass); border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: var(--shadow);
+}
+.sticky-foot { background: var(--glass-strong); }
+.table th, .marks thead th { background: var(--accent-soft); color: var(--accent-text); }
+.marks th, .marks td { background: transparent; }
+.marks .who { background: var(--glass-strong); }
+.marks thead .who { background: var(--accent-soft); }
+.marks tfoot td { background: var(--accent-soft); }
+.table tbody tr:hover td { background: linear-gradient(90deg, rgba(238, 242, 255, 0.55), rgba(250, 232, 255, 0.55)); }
+.list > li { border-bottom-color: rgba(148, 163, 184, 0.25); }
+.roll { color: var(--accent-text); }
+
+/* ---------- Buttons & chips ---------- */
+.btn { border-radius: 12px; transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, filter 0.15s ease; }
+.btn.primary {
+  background: var(--accent-grad); border-color: transparent; color: #fff;
+  box-shadow: 0 8px 18px -8px var(--accent);
+}
+.btn.primary:hover { background: var(--accent-grad); filter: brightness(1.08); transform: translateY(-1px); }
+.btn.wa { background: linear-gradient(135deg, #15803d 0%, #047857 100%); border-color: transparent; box-shadow: 0 8px 18px -8px #15803d; }
+.btn.wa:hover { background: linear-gradient(135deg, #15803d 0%, #047857 100%); filter: brightness(1.08); }
+.btn.danger { color: #be123c; border-color: #fecdd3; }
+.chip[aria-pressed="true"] { background: var(--accent-grad); border-color: transparent; color: #fff; box-shadow: 0 6px 14px -6px var(--accent); }
+.chip:not([aria-pressed="true"]):hover { border-color: var(--accent); }
+.badge.info { background: var(--accent-soft); color: var(--accent-text); }
+input:focus, select:focus, textarea:focus { outline-color: var(--accent); border-color: var(--accent); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
+
+/* Big coloured action buttons */
+.btn.big[class*=" m-"] { color: #fff; border: 0; box-shadow: 0 12px 26px -12px rgba(15, 23, 42, 0.55); position: relative; overflow: hidden; }
+.btn.big[class*=" m-"]::after {
+  content: ""; position: absolute; right: -24px; top: -24px; width: 96px; height: 96px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14); pointer-events: none;
+}
+.btn.big[class*=" m-"]:hover { transform: translateY(-2px); filter: brightness(1.06); }
+.btn.big[class*=" m-"] small { color: rgba(255, 255, 255, 0.88) !important; }
+.btn.big.m-home { background: var(--g-home); }
+.btn.big.m-attendance { background: var(--g-attendance); }
+.btn.big.m-marks { background: var(--g-marks); }
+.btn.big.m-students { background: var(--g-students); }
+.btn.big.m-send { background: var(--g-send); }
+.btn.big.m-teachers { background: var(--g-teachers); }
+
+/* ---------- Coloured stat tiles ---------- */
+.grid-tiles .tile { position: relative; overflow: hidden; border: 0; color: #fff; background: linear-gradient(135deg, #2563eb 0%, #4338ca 100%); }
+.grid-tiles .tile:nth-child(4n+2) { background: var(--g-teachers); }
+.grid-tiles .tile:nth-child(4n+3) { background: var(--g-attendance); }
+.grid-tiles .tile:nth-child(4n+4) { background: var(--g-marks); }
+.grid-tiles .tile::after {
+  content: ""; position: absolute; right: -28px; bottom: -36px; width: 110px; height: 110px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.13); pointer-events: none;
+}
+.grid-tiles .tile .label, .grid-tiles .tile .note { color: rgba(255, 255, 255, 0.9); }
+
+/* Class cards on the home page get a coloured band */
+.class-card { position: relative; overflow: hidden; padding-top: 22px; }
+.class-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; background: var(--band, var(--g-home)); }
+.class-card.c1 { --band: linear-gradient(90deg, #7c3aed, #a21caf); }
+.class-card.c2 { --band: linear-gradient(90deg, #a21caf, #be123c); }
+.class-card.c3 { --band: linear-gradient(90deg, #4f46e5, #2563eb); }
+.class-card.c4 { --band: linear-gradient(90deg, #0e7490, #0891b2); }
+.class-card.c5 { --band: linear-gradient(90deg, #047857, #0f766e); }
+.class-card.c0 { --band: linear-gradient(90deg, #b45309, #c2410c); }
+
+/* ---------- Banners, toasts, dialogs ---------- */
+.banner { background: linear-gradient(90deg, rgba(224, 231, 255, 0.9), rgba(250, 232, 255, 0.9)); border-left: 5px solid #6366f1; }
+.banner.warn { background: linear-gradient(90deg, rgba(254, 243, 199, 0.95), rgba(255, 237, 213, 0.95)); border-left-color: #f59e0b; }
+.banner.bad { background: linear-gradient(90deg, rgba(255, 228, 230, 0.95), rgba(252, 231, 243, 0.95)); border-left-color: #e11d48; }
+.banner.good { background: linear-gradient(90deg, rgba(209, 250, 229, 0.95), rgba(204, 251, 241, 0.95)); border-left-color: #10b981; }
+@media (prefers-color-scheme: dark) {
+  .banner { background: rgba(67, 56, 202, 0.22); }
+  .banner.warn { background: rgba(217, 119, 6, 0.2); }
+  .banner.bad { background: rgba(225, 29, 72, 0.2); }
+  .banner.good { background: rgba(16, 185, 129, 0.18); }
+}
+.toast { background: linear-gradient(135deg, #312e81, #6d28d9); }
+.toast.good { background: linear-gradient(135deg, #047857, #0f766e); }
+.toast.bad { background: linear-gradient(135deg, #be123c, #9d174d); }
+dialog.modal { border: 0; box-shadow: 0 30px 80px -20px rgba(49, 46, 129, 0.55); }
+.modal-head { box-shadow: inset 0 5px 0 var(--accent); padding-top: 18px; }
+
+/* ---------- Attendance buttons ---------- */
+.seg { border: 0; gap: 6px; overflow: visible; }
+.seg button { border-radius: 10px; border: 1.5px solid transparent; }
+.seg button + button { border-left: 1.5px solid transparent; }
+.seg button[data-v="P"] { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+.seg button[data-v="A"] { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.seg button[data-v="L"] { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.seg button[aria-pressed="true"][data-v="P"] { background: linear-gradient(135deg, #059669, #047857); color: #fff; border-color: #047857; box-shadow: 0 4px 10px -4px #059669; }
+.seg button[aria-pressed="true"][data-v="A"] { background: linear-gradient(135deg, #e11d48, #b91c1c); color: #fff; border-color: #b91c1c; box-shadow: 0 4px 10px -4px #e11d48; }
+.seg button[aria-pressed="true"][data-v="L"] { background: linear-gradient(135deg, #d97706, #b45309); color: #fff; border-color: #b45309; box-shadow: 0 4px 10px -4px #d97706; }
+@media (prefers-color-scheme: dark) {
+  .seg button[aria-pressed="false"] { background: transparent; }
+  .seg button[data-v="P"][aria-pressed="false"] { color: #6ee7b7; border-color: #065f46; }
+  .seg button[data-v="A"][aria-pressed="false"] { color: #fda4af; border-color: #7f1d1d; }
+  .seg button[data-v="L"][aria-pressed="false"] { color: #fcd34d; border-color: #78350f; }
+}
+
+/* ---------- Sign-in page ---------- */
+.login .logo .logo-badge {
+  width: 84px; height: 84px; margin: 0 auto 14px; border-radius: 26px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, #f59e0b 0%, #ea580c 50%, #e11d48 100%); box-shadow: 0 16px 32px -14px rgba(234, 88, 12, 0.8);
+}
+.login .logo .logo-badge svg { width: 44px; height: 44px; }
+.login .logo h1 {
+  font-size: 1.9rem; font-weight: 800;
+  background: linear-gradient(90deg, #1e1b4b, #581c87, #701a75); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+@media (prefers-color-scheme: dark) {
+  .login .logo h1 { background: linear-gradient(90deg, #c7d2fe, #e9d5ff, #f5d0fe); -webkit-background-clip: text; background-clip: text; }
+}
+.role-list .btn.big { min-height: 84px; }
+.role-list .btn.big.m-home { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #a21caf 100%); }
+.role-list .btn.big.m-attendance { background: linear-gradient(135deg, #047857 0%, #0f766e 55%, #0e7490 100%); }
+.role-list .btn.big.m-send { background: linear-gradient(135deg, #b45309 0%, #c2410c 55%, #be123c 100%); }

@@ -2,14 +2,14 @@ import { html, mount, icon, fmtDate, greeting, plural } from '../ui.js';
 import { state, students, sections, tests, testProgress, attendanceFor, select, classesForUser } from '../data.js';
 import { legacyBanner } from './common.js';
 
-function classCard(std, section) {
+function classCard(std, section, index) {
   const kids = students(std, section);
   const today = state.data.today;
   const rec = attendanceFor(std, section, today);
   const absent = rec ? Object.values(rec.status).filter(s => s === 'A').length : 0;
   const latest = tests(std)[0];
   const prog = latest ? testProgress(latest, section) : null;
-  return html`<div class="card">
+  return html`<div class="card class-card c${index % 6}">
     <div class="row between">
       <h2>Class ${std}-${section}</h2>
       <span class="badge">${plural(kids.length, 'student')}</span>
@@ -38,7 +38,7 @@ export default {
     const me = state.me;
     const classes = classesForUser();
     const cards = [];
-    classes.forEach(std => sections(std).forEach(sec => cards.push(classCard(std, sec))));
+    classes.forEach(std => sections(std).forEach(sec => cards.push(classCard(std, sec, cards.length + 1))));
     const noStudents = !state.data.students.length;
 
     mount(ctx.main, html`
@@ -54,10 +54,10 @@ export default {
         <a class="btn primary small" href="#/students">${icon('users')} Add students</a>
       </div>` : ''}
       <div class="grid-2">
-        <a class="btn big" href="#/attendance">${icon('check')} Take attendance</a>
-        <a class="btn big" href="#/marks">${icon('pen')} Enter marks</a>
-        <a class="btn big" href="#/students">${icon('users')} Students</a>
-        <a class="btn big" href="#/send">${icon('send')} Send to parents</a>
+        <a class="btn big m-attendance" href="#/attendance">${icon('check')} Take attendance</a>
+        <a class="btn big m-marks" href="#/marks">${icon('pen')} Enter marks</a>
+        <a class="btn big m-students" href="#/students">${icon('users')} Students</a>
+        <a class="btn big m-send" href="#/send">${icon('send')} Send to parents</a>
       </div>
       <div class="section">
         <h2>My classes</h2>

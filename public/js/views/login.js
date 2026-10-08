@@ -6,6 +6,7 @@ const CLASSES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 function screen(main, inner) {
   mount(main, html`<div class="login">
     <div class="logo">
+      <div class="logo-badge">${icon('school')}</div>
       <h1>Glorious Public School</h1>
       <p class="muted">Student Tracker</p>
     </div>
@@ -22,9 +23,9 @@ export default {
     const showChoice = () => screen(main, html`<div class="card">
       <h2>Who are you?</h2>
       <div class="role-list">
-        <button class="btn big" data-act="role" data-role="teacher">${icon('teacher')}<span>Teacher<small>Attendance, marks and messages for your classes</small></span></button>
-        <button class="btn big" data-act="role" data-role="admin">${icon('chart')}<span>Principal / Office<small>The whole school</small></span></button>
-        <button class="btn big" data-act="role" data-role="parent">${icon('users')}<span>Parent<small>See your child's marks and report card</small></span></button>
+        <button class="btn big m-home" data-act="role" data-role="teacher">${icon('teacher')}<span>Teacher<small>Attendance, marks and messages for your classes</small></span></button>
+        <button class="btn big m-attendance" data-act="role" data-role="admin">${icon('chart')}<span>Principal / Office<small>The whole school</small></span></button>
+        <button class="btn big m-send" data-act="role" data-role="parent">${icon('users')}<span>Parent<small>See your child's marks and report card</small></span></button>
       </div>
     </div>`);
 

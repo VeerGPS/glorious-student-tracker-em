@@ -43,12 +43,14 @@ export default {
     const pdf = testId => `/api/parent/${encodeURIComponent(key)}/report.pdf${testId ? `?test=${encodeURIComponent(testId)}` : ''}`;
     mount(main, html`
       <header class="topbar">
+        <span class="logo" aria-hidden="true">${icon('school')}</span>
         <div class="brand"><strong>${data.school.name}</strong><span>Parent view</span></div>
         <button class="btn ghost small" data-act="leave">Sign out</button>
       </header>
       <main>
         <div class="page-head">
           <div>
+            <span class="head-icon" aria-hidden="true">${icon('users')}</span>
             <h1>${st.name}</h1>
             <p>Class ${st.std}-${st.section} · Roll ${st.roll}${st.grNo ? ` · GR ${st.grNo}` : ''}</p>
           </div>

@@ -4,24 +4,28 @@ import { classPicker, pickerHandlers, whatsappLine } from './common.js';
 
 const KINDS = {
   report: {
+    color: 'm-marks',
     title: 'Report cards',
     help: 'Send each parent their child\'s report card as a PDF.',
     icon: 'file',
     text: 'Dear Parent,\nPlease find the progress report of {name} (Class {class}) for {test}.\nPercentage: {percent}  Grade: {grade}\n\n- {school}'
   },
   absent: {
+    color: 'm-attendance',
     title: 'Absent students',
     help: 'Tell parents their child was absent.',
     icon: 'check',
     text: 'Dear Parent,\n{name} (Roll {roll}, Class {class}) was absent from school on {date}.\nPlease inform the class teacher about the reason.\n\n- {school}'
   },
   low: {
+    color: 'm-send',
     title: 'Low marks alert',
     help: 'Message parents of students who scored low in a test.',
     icon: 'alert',
     text: 'Dear Parent,\n{name} scored {percent} in {test}. Please help {first} revise at home, and meet the class teacher if needed.\n\n- {school}'
   },
   notice: {
+    color: 'm-students',
     title: 'Notice to parents',
     help: 'Any message to all parents of a class.',
     icon: 'chat',
@@ -98,7 +102,7 @@ function chooser() {
     <div class="page-head"><div><h1>Send to parents</h1><p>What do you want to send?</p></div></div>
     <div class="banner">${whatsappLine()}</div>
     <div class="grid-2">${Object.entries(KINDS).map(([k, v]) => html`
-      <button class="btn big" data-act="kind" data-kind="${k}">${icon(v.icon)}<span>${v.title}<small class="muted" style="display:block;font-weight:500">${v.help}</small></span></button>`)}
+      <button class="btn big ${v.color}" data-act="kind" data-kind="${k}">${icon(v.icon)}<span>${v.title}<small class="muted" style="display:block;font-weight:500">${v.help}</small></span></button>`)}
     </div>`;
 }
 

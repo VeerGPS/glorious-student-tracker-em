@@ -132,6 +132,11 @@ function createApp({ store, whatsapp, config }) {
     res.set('Cache-Control', 'public, max-age=604800');
     res.sendFile(require.resolve('xlsx/dist/xlsx.full.min.js'));
   });
+  app.use('/fonts', express.static(path.join(path.dirname(require.resolve('@fontsource/plus-jakarta-sans/package.json')), 'files'), {
+    index: false,
+    maxAge: '30d',
+    immutable: true
+  }));
   app.use(express.static(PUBLIC_DIR, {
     index: false,
     setHeaders: res => res.set('Cache-Control', 'no-cache')

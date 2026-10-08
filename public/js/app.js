@@ -21,17 +21,32 @@ let lastRouteKey = '';
 
 function navItems() {
   const items = [
-    isAdmin() ? { href: '#/overview', label: 'School', icon: 'chart' } : { href: '#/home', label: 'Home', icon: 'home' },
-    { href: '#/attendance', label: 'Attendance', icon: 'check' },
-    { href: '#/marks', label: 'Marks', icon: 'pen' },
-    { href: '#/students', label: 'Students', icon: 'users' },
-    { href: '#/send', label: 'Send', icon: 'send' }
+    isAdmin() ? { href: '#/overview', label: 'School', icon: 'chart', module: 'home' } : { href: '#/home', label: 'Home', icon: 'home', module: 'home' },
+    { href: '#/attendance', label: 'Attendance', icon: 'check', module: 'attendance' },
+    { href: '#/marks', label: 'Marks', icon: 'pen', module: 'marks' },
+    { href: '#/students', label: 'Students', icon: 'users', module: 'students' },
+    { href: '#/send', label: 'Send', icon: 'send', module: 'send' }
   ];
   if (isAdmin()) {
-    items.push({ href: '#/teachers', label: 'Teachers', icon: 'teacher', desktopOnly: true });
-    items.push({ href: '#/settings', label: 'Settings', icon: 'settings', desktopOnly: true });
+    items.push({ href: '#/teachers', label: 'Teachers', icon: 'teacher', module: 'teachers', desktopOnly: true });
+    items.push({ href: '#/settings', label: 'Settings', icon: 'settings', module: 'settings', desktopOnly: true });
   }
   return items;
+}
+
+// Each section has its own colour (see the theme in app.css).
+const MODULES = {
+  attendance: { module: 'attendance', icon: 'check' },
+  marks: { module: 'marks', icon: 'pen' },
+  students: { module: 'students', icon: 'users' },
+  send: { module: 'send', icon: 'send' },
+  teachers: { module: 'teachers', icon: 'teacher' },
+  settings: { module: 'settings', icon: 'settings' }
+};
+
+function moduleFor(route) {
+  if (MODULES[route.name] && (isAdmin() || !['teachers', 'settings'].includes(route.name))) return MODULES[route.name];
+  return { module: 'home', icon: isAdmin() ? 'chart' : 'home' };
 }
 
 function parseRoute() {
@@ -65,9 +80,10 @@ function renderShell() {
   const items = navItems();
   const route = parseRoute();
   const active = `#/${route.name || (isAdmin() ? 'overview' : 'home')}`;
-  const link = it => html`<a href="${it.href}" ${it.href === active || (it.href === '#/overview' && active === '#/home') ? html`aria-current="page"` : ''}>${icon(it.icon)}<span>${it.label}</span></a>`;
+  const link = it => html`<a href="${it.href}" data-module="${it.module}" ${it.href === active || (it.href === '#/overview' && active === '#/home') ? html`aria-current="page"` : ''}>${icon(it.icon)}<span>${it.label}</span></a>`;
   mount(app, html`
     <header class="topbar">
+      <span class="logo" aria-hidden="true">${icon('school')}</span>
       <div class="brand">
         <strong>${state.data.school.name}</strong>
         <span>${state.me.name}${isAdmin() ? '' : ' · Teacher'}</span>
@@ -85,6 +101,8 @@ async function renderRoute({ keepScroll = false } = {}) {
   const scrollY = window.scrollY;
   const route = parseRoute();
   const view = viewFor(route);
+  const mod = moduleFor(route);
+  document.body.dataset.module = mod.module;
   renderShell();
   const main = document.getElementById('main');
   const fresh = lastRouteKey !== `${route.name}/${route.id || ''}`;
@@ -104,6 +122,8 @@ async function renderRoute({ keepScroll = false } = {}) {
     console.error(err);
     mount(main, html`<div class="card"><h2>Something went wrong</h2><p>${err.message}</p><button class="btn" data-act="reload-page">Reload</button></div>`);
   }
+  const head = main.querySelector('.page-head > div:first-child');
+  if (head && !head.querySelector('.head-icon')) head.insertAdjacentHTML('afterbegin', `<span class="head-icon" aria-hidden="true">${icon(mod.icon)}</span>`);
   applyBarWidths(main);
   window.scrollTo(0, keepScroll ? scrollY : 0);
 }
@@ -267,6 +287,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) chec
 // ---------------------------------------------------------------- start
 
 function showLogin() {
+  document.body.dataset.module = 'home';
   current = { view: loginView, handlers: {} };
   Promise.resolve(loginView.render({
     main: app,
@@ -283,6 +304,7 @@ function showLogin() {
 }
 
 function showParent(key) {
+  document.body.dataset.module = 'home';
   current = { view: parentView, handlers: {} };
   Promise.resolve(parentView.render({
     main: app,
