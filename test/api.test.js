@@ -160,12 +160,12 @@ test('Excel marks upload in the school\'s date-column format', async t => {
   assert.equal(again.data.overwrites, 2);
 });
 
-test('Excel marks go to the right child when the sheet numbers students differently', async t => {
+test('Excel marks follow the roll number; a different name is pointed out', async t => {
   const srv = await startServer();
   t.after(() => srv.close());
   const office = await adminToken(srv);
-  await srv.call('POST', '/api/students', { std: '10', roll: 1, name: 'Bina Rajeshbhai Shah' }, office);
-  await srv.call('POST', '/api/students', { std: '10', roll: 2, name: 'Asha Kumar' }, office);
+  await srv.call('POST', '/api/students', { std: '10', roll: 1, name: 'Asha Kumar' }, office);
+  await srv.call('POST', '/api/students', { std: '10', roll: 2, name: 'Bina Rajeshbhai Shah' }, office);
   await srv.call('POST', '/api/students', { std: '10', roll: 3, name: 'Chirag Dave' }, office);
   const res = await srv.call('POST', '/api/tests/import', {
     std: '10',
@@ -174,23 +174,21 @@ test('Excel marks go to the right child when the sheet numbers students differen
     rows: [
       { line: 5, roll: 1, name: 'ASHA KUMAR', values: [16] },
       { line: 6, roll: 2, name: 'BINA R. SHAH', values: [14] },
-      { line: 7, roll: 3, name: 'DEV MEHTA', values: [9] }
+      { line: 7, roll: 3, name: 'KIRAN DAVE', values: [9] },
+      { line: 8, roll: 4, name: 'DEV MEHTA', values: [20] }
     ],
     addMissingStudents: true,
     dryRun: false
   }, office);
   assert.equal(res.status, 200);
-  assert.equal(res.data.marks, 2);
-  assert.equal(res.data.newStudents.length, 0, 'no duplicate students are created');
-  assert.equal(res.data.unmatched.length, 1);
-  assert.match(res.data.unmatched[0].reason, /Roll 3 is Chirag Dave/);
+  assert.equal(res.data.marks, 4);
+  assert.deepEqual(res.data.newStudents.map(s => s.name), ['DEV MEHTA']);
+  assert.equal(res.data.unmatched.length, 0);
+  assert.deepEqual(res.data.nameMismatches.map(x => [x.roll, x.listName, x.fileName]), [[3, 'Chirag Dave', 'KIRAN DAVE']], 'initials are not reported');
   const boot = (await srv.call('GET', '/api/bootstrap', undefined, office)).data;
-  const marks = boot.tests[0].marks;
-  const byName = n => boot.students.find(s => s.name === n).id;
   const pid = boot.tests[0].papers[0].id;
-  assert.equal(marks[byName('Asha Kumar')][pid], 16);
-  assert.equal(marks[byName('Bina Rajeshbhai Shah')][pid], 14);
-  assert.equal(marks[byName('Chirag Dave')], undefined, 'Chirag does not get Dev\'s marks');
+  const mark = roll => boot.tests[0].marks[boot.students.find(s => s.roll === roll).id][pid];
+  assert.deepEqual([1, 2, 3, 4].map(mark), [16, 14, 9, 20]);
 });
 
 test('student list upload adds, updates and reports problems', async t => {

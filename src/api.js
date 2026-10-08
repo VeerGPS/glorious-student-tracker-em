@@ -646,6 +646,7 @@ function createApi({ store, whatsapp, config = {} }) {
     const classStudents = store.filter('students', s => s.std === std);
     const newStudents = [];
     const unmatched = [];
+    const nameMismatches = [];
     const invalid = [];
     const cells = [];
     const seen = new Map();
@@ -659,28 +660,26 @@ function createApi({ store, whatsapp, config = {} }) {
       const section = row && row.section ? normSection(row.section) : null;
       if (!roll && !name && !grNo) return;
       let student = grNo ? classStudents.find(s => s.grNo && eqi(s.grNo, grNo)) : null;
-      // Roll numbers in a sheet are sometimes just a serial number, so the name
-      // must agree too; otherwise marks would go to another child.
-      let rollHolders = null;
       if (!student && roll) {
         const byRoll = classStudents.filter(s => s.roll === roll && (!section || s.section === section));
-        const named = name ? byRoll.filter(s => sameName(s.name, name)) : [];
-        if (byRoll.length === 1 && (!name || named.length === 1)) student = byRoll[0];
-        else if (named.length === 1) student = named[0];
-        else if (byRoll.length > 1 && !name) { unmatched.push({ line, name, roll, reason: `Roll ${roll} is in more than one section; add a Section column` }); return; }
-        else if (byRoll.length) rollHolders = byRoll;
+        if (byRoll.length === 1) student = byRoll[0];
+        else if (byRoll.length > 1) {
+          const byName = name ? byRoll.filter(s => sameName(s.name, name)) : [];
+          if (byName.length === 1) student = byName[0];
+          else { unmatched.push({ line, name, roll, reason: `Roll ${roll} is in more than one section; add a Section column` }); return; }
+        }
       }
       if (!student && name) {
         const inSection = s => !section || s.section === section;
         student = classStudents.find(s => eqi(s.name, name) && inSection(s)) || null;
-        if (!student) {
+        if (!student && !roll) {
           const similar = classStudents.filter(s => sameName(s.name, name) && inSection(s));
           if (similar.length === 1) student = similar[0];
         }
       }
-      if (!student && rollHolders) {
-        unmatched.push({ line, name, roll, reason: `Roll ${roll} is ${rollHolders.map(s => s.name).join(' / ')} in the class list. Check the roll number or the name.` });
-        return;
+      // The roll number decides; a name that clearly differs is only pointed out.
+      if (student && name && !sameName(student.name, name)) {
+        nameMismatches.push({ line, roll: student.roll, section: student.section, fileName: name, listName: student.name });
       }
       if (!student) {
         if (!addMissing || !name) {
@@ -721,6 +720,7 @@ function createApi({ store, whatsapp, config = {} }) {
       students: seen.size,
       newStudents: newStudents.map(s => ({ name: s.name, roll: s.roll, section: s.section })),
       unmatched,
+      nameMismatches,
       invalid,
       marks: cells.length,
       overwrites

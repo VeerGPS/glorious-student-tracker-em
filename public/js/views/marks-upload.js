@@ -98,8 +98,11 @@ export function openMarksUpload({ std, test = null, onSaved }) {
           ${c.overwrites ? html` · ${plural(c.overwrites, 'mark')} will be changed` : ''}
         </span>
       </div>
-      ${c.invalid.length ? html`<div class="card"><h3>Fix these marks in Excel, then upload again</h3><ul class="list">${c.invalid.slice(0, 30).map(x => html`<li><span class="main"><span class="title">Row ${x.line}: ${x.name} - ${x.subject}</span><span class="sub">"${x.value}": ${x.message}</span></span></li>`)}</ul></div>` : ''}
-      ${c.unmatched.length ? html`<div class="card"><h3>${plural(c.unmatched.length, 'row')} not used</h3><ul class="list">${c.unmatched.slice(0, 30).map(x => html`<li><span class="main"><span class="title">Row ${x.line}: ${x.name || '(no name)'}${x.roll ? `, roll ${x.roll}` : ''}</span><span class="sub">${x.reason}</span></span></li>`)}</ul></div>` : ''}
+      ${c.invalid.length ? html`<div class="card"><h3>Fix these marks in Excel, then upload again</h3><ul class="list">${c.invalid.slice(0, 30).map(x => html`<li><div class="main"><div class="title">Row ${x.line}: ${x.name} - ${x.subject}</div><div class="sub">"${x.value}": ${x.message}</div></div></li>`)}</ul></div>` : ''}
+      ${c.unmatched.length ? html`<div class="card"><h3>${plural(c.unmatched.length, 'row')} not used</h3><ul class="list">${c.unmatched.slice(0, 30).map(x => html`<li><div class="main"><div class="title">Row ${x.line}: ${x.name || '(no name)'}${x.roll ? `, roll ${x.roll}` : ''}</div><div class="sub">${x.reason}</div></div></li>`)}</ul></div>` : ''}
+      ${c.nameMismatches && c.nameMismatches.length ? html`<div class="card"><h3>${plural(c.nameMismatches.length, 'name')} different from the class list</h3>
+        <p class="small muted">Marks are saved by roll number. If a roll number in the file is wrong, fix it in Excel and upload again.</p>
+        <ul class="list">${c.nameMismatches.slice(0, 30).map(x => html`<li><span class="roll">${x.roll}</span><div class="main"><div class="title">Class list: ${x.listName}</div><div class="sub">File (row ${x.line}): ${x.fileName}</div></div></li>`)}</ul></div>` : ''}
       ${c.newStudents.length ? html`<details class="more"><summary>New students (${c.newStudents.length})</summary><p class="small">${c.newStudents.map(s => `${s.roll}. ${s.name}`).join(', ')}</p></details>` : ''}`;
   }
 
