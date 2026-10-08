@@ -1,5 +1,7 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { jsPDF } = require('jspdf');
 
 // A4 portrait, millimetres.
@@ -9,33 +11,39 @@ const RIGHT = 198;
 const WIDTH = RIGHT - LEFT;
 const LIMIT = 279; // lowest point for content; the footer sits below it
 
+// Colours taken from the school logo (blue leaves, orange sun).
 const WHITE = [255, 255, 255];
 const INK = [15, 23, 42];
 const INK_2 = [51, 65, 85];
 const MUTED = [100, 116, 139];
 const LINE = [226, 232, 240];
 const ZEBRA = [248, 250, 252];
-const INDIGO = [67, 56, 202];
-const INDIGO_DARK = [30, 27, 75];
-const INDIGO_SOFT = [238, 242, 255];
-const LAVENDER = [245, 243, 255];
-const LAVENDER_LINE = [221, 214, 254];
-const GOLD = [245, 158, 11];
-const ORANGE = [234, 88, 12];
+const NAVY = [13, 59, 110];
+const BLUE = [31, 111, 176];
+const BLUE_SOFT = [237, 244, 251];
+const BLUE_LINE = [204, 222, 242];
+const SUN = [247, 148, 29];
+const SUN_DARK = [180, 83, 9];
+const SUN_SOFT = [255, 247, 235];
+const GREEN_DARK = [4, 120, 87];
 const RED = [208, 59, 59];
-const AMBER_TEXT = [180, 83, 9];
-const HEADER_STOPS = [[30, 27, 75], [76, 29, 149], [112, 26, 117]];
-const TILE_COLORS = [[67, 56, 202], [180, 83, 9], [4, 120, 87], [162, 28, 175]];
-// Result bands (same colours as the app's charts): 80+, 60-79, 33-59, below 33.
-const BANDS = [[12, 163, 12], [42, 120, 214], [201, 133, 0], [208, 59, 59]];
+// Result bands: 80+, 60-79, 33-59, below 33.
+const BANDS = [[12, 150, 12], [31, 111, 176], [214, 140, 0], [208, 59, 59]];
 const GRADE_COLORS = {
   A1: [4, 120, 87], A2: [4, 120, 87], B1: [29, 78, 216], B2: [29, 78, 216],
   C1: [161, 98, 7], C2: [161, 98, 7], D: [194, 65, 12], E: [190, 18, 60], AB: [100, 116, 139]
 };
 const GRADE_SCALE = [['A1', '91-100'], ['A2', '81-90'], ['B1', '71-80'], ['B2', '61-70'], ['C1', '51-60'], ['C2', '41-50'], ['D', '33-40'], ['E', 'below 33']];
-const SERIES_STUDENT = [67, 56, 202];
-const SERIES_CLASS = [235, 104, 52];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const LOGO = (() => {
+  try {
+    return `data:image/png;base64,${fs.readFileSync(path.join(__dirname, 'assets', 'report-logo.png')).toString('base64')}`;
+  } catch {
+    return null;
+  }
+})();
+const LOGO_RATIO = 360 / 420; // height / width of the logo image
 
 // The built-in PDF fonts only cover Latin characters (plus a few marks like · – •).
 function safe(text) {
@@ -58,13 +66,13 @@ function niceDate(iso, withYear = true) {
   return `${parseInt(m[3], 10)} ${MONTHS[parseInt(m[2], 10) - 1]}${withYear ? ` ${m[1]}` : ''}`;
 }
 
-function dateRange(dates) {
+function dateRange(dates, withYear = true) {
   const list = [...new Set(dates.filter(Boolean))].sort();
   if (!list.length) return '';
   const first = list[0];
   const last = list[list.length - 1];
-  if (first === last) return niceDate(first);
-  return `${niceDate(first, first.slice(0, 4) !== last.slice(0, 4))} – ${niceDate(last)}`;
+  if (first === last) return niceDate(first, withYear);
+  return `${niceDate(first, withYear && first.slice(0, 4) !== last.slice(0, 4))} – ${niceDate(last, withYear)}`;
 }
 
 function todayIst() {
@@ -86,17 +94,17 @@ function bandColor(pct) {
   return BANDS[3];
 }
 
-function initials(name) {
-  const words = safe(name).trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return '?';
-  return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
-}
-
 function num(n) {
   return n === null || n === undefined ? '-' : String(Math.round(n * 10) / 10);
 }
 
 // ---------------------------------------------------------------- drawing helpers
+
+function font(doc, style, size, color) {
+  doc.setFont('helvetica', style);
+  doc.setFontSize(size);
+  doc.setTextColor(...color);
+}
 
 // Text with letter spacing; jsPDF's own alignment ignores the spacing.
 function spaced(doc, text, x, y, { align = 'left', charSpace = 0.3 } = {}) {
@@ -105,229 +113,170 @@ function spaced(doc, text, x, y, { align = 'left', charSpace = 0.3 } = {}) {
   doc.text(text, left, y, { charSpace });
 }
 
-function font(doc, style, size, color) {
-  doc.setFont('helvetica', style);
-  doc.setFontSize(size);
-  doc.setTextColor(...color);
-}
-
-function mix(a, b, t) {
-  return a.map((v, i) => Math.round(v + (b[i] - v) * t));
-}
-
-// A smooth left-to-right gradient through the given colour stops.
-function gradientBand(doc, y, h, stops) {
-  const strips = 84;
-  const w = PAGE_W / strips;
-  for (let i = 0; i < strips; i += 1) {
-    const t = i / (strips - 1);
-    const seg = Math.min(stops.length - 2, Math.floor(t * (stops.length - 1)));
-    const local = t * (stops.length - 1) - seg;
-    doc.setFillColor(...mix(stops[seg], stops[seg + 1], local));
-    doc.rect(i * w, y, w + 0.4, h, 'F');
-  }
-}
-
 function withOpacity(doc, opacity, draw) {
   doc.setGState(new doc.GState({ opacity }));
   draw();
   doc.setGState(new doc.GState({ opacity: 1 }));
 }
 
-function emblem(doc, cx, cy) {
-  doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.8);
-  doc.circle(cx, cy, 11, 'S');
-  doc.setFillColor(...ORANGE);
-  doc.circle(cx, cy, 9.6, 'F');
-  withOpacity(doc, 0.35, () => {
-    doc.setFillColor(...GOLD);
-    doc.circle(cx - 2.5, cy - 3, 6, 'F');
-  });
-  // Graduation cap
-  doc.setFillColor(...WHITE);
-  doc.roundedRect(cx - 3.8, cy - 0.6, 7.6, 3.9, 1.2, 1.2, 'F');
-  doc.setDrawColor(...ORANGE);
-  doc.setLineWidth(0.45);
-  doc.triangle(cx - 6.6, cy - 1.8, cx, cy - 5.2, cx + 6.6, cy - 1.8, 'FD');
-  doc.triangle(cx - 6.6, cy - 1.8, cx, cy + 1.6, cx + 6.6, cy - 1.8, 'FD');
-  doc.setDrawColor(...WHITE);
-  doc.setLineWidth(0.5);
-  doc.line(cx + 5.1, cy - 1.8, cx + 5.1, cy + 3.2);
-  doc.circle(cx + 5.1, cy + 3.6, 0.7, 'F');
+function logo(doc, x, y, w) {
+  if (!LOGO) return;
+  doc.addImage(LOGO, 'PNG', x, y, w, w * LOGO_RATIO, 'school-logo', 'FAST');
 }
 
-function gradePill(doc, gradeText, cx, y) {
+function gradePill(doc, gradeText, cx, y, inverse = false) {
   const color = GRADE_COLORS[gradeText] || MUTED;
-  doc.setFillColor(...color);
+  doc.setFillColor(...(inverse ? WHITE : color));
   doc.roundedRect(cx - 4.6, y, 9.2, 4.2, 2.1, 2.1, 'F');
-  font(doc, 'bold', 7, WHITE);
+  font(doc, 'bold', 7, inverse ? NAVY : WHITE);
   doc.text(safe(gradeText), cx, y + 3, { align: 'center' });
 }
 
 function sectionTitle(doc, text, y) {
-  doc.setFillColor(...INDIGO);
+  doc.setFillColor(...SUN);
   doc.roundedRect(LEFT, y - 3.4, 1.6, 4.4, 0.8, 0.8, 'F');
-  font(doc, 'bold', 9.5, INDIGO_DARK);
-  doc.text(text, LEFT + 4, y);
+  font(doc, 'bold', 9.5, NAVY);
+  spaced(doc, text, LEFT + 4, y, { charSpace: 0.2 });
 }
 
 // ---------------------------------------------------------------- page parts
 
 function bigHeader(doc, school, report) {
-  gradientBand(doc, 0, 40, HEADER_STOPS);
-  withOpacity(doc, 0.08, () => {
-    doc.setFillColor(...WHITE);
-    doc.circle(176, -6, 30, 'F');
-    doc.circle(206, 34, 18, 'F');
-  });
-  doc.setFillColor(...GOLD);
-  doc.rect(0, 40, PAGE_W, 1.3, 'F');
+  logo(doc, LEFT, 8, 28);
 
-  emblem(doc, LEFT + 12, 20);
-
-  const nameX = LEFT + 28;
+  // The right-hand block decides how much room the school name has.
+  font(doc, 'bold', 12, NAVY);
+  const blockW = Math.max(doc.getTextWidth('PROGRESS REPORT') + 0.6 * 14, 50);
+  const nameX = LEFT + 33;
+  const nameW = RIGHT - blockW - 6 - nameX;
   const name = safe(school.name || 'School').toUpperCase();
-  let size = 19;
+  let size = 20;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(size);
-  while (size > 12 && doc.getTextWidth(name) > 92) { size -= 0.5; doc.setFontSize(size); }
-  font(doc, 'bold', size, WHITE);
-  doc.text(fit(doc, name, 92), nameX, 18.5);
-  doc.setFillColor(...GOLD);
-  doc.rect(nameX, 21.3, 16, 0.9, 'F');
+  while (size > 11 && doc.getTextWidth(name) > nameW) { size -= 0.5; doc.setFontSize(size); }
+  font(doc, 'bold', size, NAVY);
+  doc.text(fit(doc, name, nameW), nameX, 18.5);
   if (school.address) {
-    font(doc, 'normal', 8, [224, 231, 255]);
-    doc.text(fit(doc, school.address, 92), nameX, 27);
+    font(doc, 'normal', 8.5, MUTED);
+    doc.text(fit(doc, school.address, nameW), nameX, 25);
   }
 
-  font(doc, 'bold', 13, WHITE);
-  spaced(doc, 'PROGRESS REPORT', RIGHT, 16.5, { align: 'right', charSpace: 0.6 });
-  font(doc, 'normal', 8.5, [233, 213, 255]);
-  doc.text(fit(doc, report.title || 'All Tests', 60), RIGHT, 22.5, { align: 'right' });
-  font(doc, 'bold', 7.5, [253, 230, 138]);
-  spaced(doc, `ACADEMIC YEAR ${academicYear(report)}`, RIGHT, 28, { align: 'right' });
-  return 47;
+  font(doc, 'bold', 12, NAVY);
+  spaced(doc, 'PROGRESS REPORT', RIGHT, 16, { align: 'right', charSpace: 0.6 });
+  font(doc, 'normal', 8.5, INK_2);
+  doc.text(fit(doc, report.title || 'All Tests', 62), RIGHT, 22, { align: 'right' });
+  const year = `ACADEMIC YEAR ${academicYear(report)}`;
+  font(doc, 'bold', 7, SUN_DARK);
+  const yw = doc.getTextWidth(year) + 0.3 * (year.length - 1) + 6;
+  doc.setFillColor(...SUN_SOFT);
+  doc.setDrawColor(253, 211, 160);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(RIGHT - yw, 25, yw, 5.4, 2.7, 2.7, 'FD');
+  spaced(doc, year, RIGHT - 3, 28.7, { align: 'right' });
+
+  // Brand rule: navy with an orange lead, like the logo's sun over its leaves.
+  doc.setFillColor(...NAVY);
+  doc.rect(LEFT, 37, WIDTH, 1.1, 'F');
+  doc.setFillColor(...SUN);
+  doc.rect(LEFT, 37, 34, 1.1, 'F');
+  return 42;
 }
 
 function slimHeader(doc, school, report) {
-  gradientBand(doc, 0, 14, HEADER_STOPS);
-  doc.setFillColor(...GOLD);
-  doc.rect(0, 14, PAGE_W, 0.8, 'F');
-  font(doc, 'bold', 10.5, WHITE);
-  doc.text(fit(doc, safe(school.name || 'School').toUpperCase(), 100), LEFT, 9);
-  font(doc, 'normal', 8, [233, 213, 255]);
-  doc.text(fit(doc, `Progress report · ${report.student.name} (continued)`, 80), RIGHT, 9, { align: 'right' });
-  return 22;
+  logo(doc, LEFT, 5, 12);
+  font(doc, 'bold', 10.5, NAVY);
+  doc.text(fit(doc, safe(school.name || 'School').toUpperCase(), 100), LEFT + 15, 11);
+  font(doc, 'normal', 8, MUTED);
+  doc.text(fit(doc, `Progress report · ${report.student.name} (continued)`, 80), RIGHT, 11, { align: 'right' });
+  doc.setFillColor(...NAVY);
+  doc.rect(LEFT, 16.5, WIDTH, 0.8, 'F');
+  doc.setFillColor(...SUN);
+  doc.rect(LEFT, 16.5, 20, 0.8, 'F');
+  return 24;
 }
 
-function studentCard(doc, report, y) {
+function field(doc, label, value, x, y, width, size = 10) {
+  font(doc, 'bold', 6.4, MUTED);
+  spaced(doc, label, x, y);
+  font(doc, 'bold', size, size > 11 ? NAVY : INK_2);
+  doc.text(fit(doc, value, width), x, y + (size > 11 ? 5.8 : 4.8));
+}
+
+function studentPanel(doc, report, y) {
   const st = report.student;
-  const h = 27;
-  doc.setFillColor(...LAVENDER);
-  doc.setDrawColor(...LAVENDER_LINE);
+  const h = 22;
+  doc.setFillColor(...BLUE_SOFT);
+  doc.setDrawColor(...BLUE_LINE);
   doc.setLineWidth(0.3);
-  doc.roundedRect(LEFT, y, WIDTH, h, 3, 3, 'FD');
+  doc.roundedRect(LEFT, y, WIDTH, h, 2.5, 2.5, 'FD');
+  doc.setFillColor(...BLUE);
+  doc.roundedRect(LEFT, y, 1.6, h, 0.8, 0.8, 'F');
 
-  // Initials badge
-  doc.setFillColor(...INDIGO);
-  doc.circle(LEFT + 13, y + h / 2, 8.5, 'F');
-  withOpacity(doc, 0.25, () => {
-    doc.setFillColor(...WHITE);
-    doc.circle(LEFT + 10.5, y + h / 2 - 3, 4, 'F');
-  });
-  font(doc, 'bold', 12, WHITE);
-  doc.text(initials(st.name), LEFT + 13, y + h / 2 + 1.6, { align: 'center' });
+  const x = LEFT + 6;
+  field(doc, 'STUDENT NAME', safe(st.name).toUpperCase(), x, y + 5.5, 128, 12.5);
+  field(doc, 'CLASS', `${st.std} - ${st.section}`, x, y + 15, 30);
+  field(doc, 'ROLL NO', String(st.roll), x + 34, y + 15, 30);
+  field(doc, 'GR NO', st.grNo ? safe(st.grNo) : '-', x + 68, y + 15, 40);
 
-  const x = LEFT + 26;
-  font(doc, 'bold', 6.5, MUTED);
-  doc.text('STUDENT NAME', x, y + 6.5, { charSpace: 0.3 });
-  font(doc, 'bold', 13.5, INK);
-  doc.text(fit(doc, safe(st.name).toUpperCase(), 100), x, y + 12.5);
-
-  const facts = [
-    ['CLASS', `${st.std} - ${st.section}`],
-    ['ROLL NO', String(st.roll)],
-    ['GR NO', st.grNo ? safe(st.grNo) : '-']
-  ];
-  facts.forEach(([label, value], i) => {
-    const fx = x + i * 28;
-    font(doc, 'bold', 6.5, MUTED);
-    doc.text(label, fx, y + 18.5, { charSpace: 0.3 });
-    font(doc, 'bold', 10, INK_2);
-    doc.text(fit(doc, value, 26), fx, y + 23.5);
-  });
-
-  // Right column
-  const rx = 152;
-  doc.setDrawColor(...LAVENDER_LINE);
-  doc.line(rx - 4, y + 5, rx - 4, y + h - 5);
-  font(doc, 'bold', 6.5, MUTED);
-  doc.text('DATE OF ISSUE', rx, y + 9, { charSpace: 0.3 });
-  font(doc, 'bold', 10, INK_2);
-  doc.text(niceDate(todayIst()), rx, y + 14);
-  font(doc, 'bold', 6.5, MUTED);
-  doc.text('REPORT COVERS', rx, y + 19.5, { charSpace: 0.3 });
-  font(doc, 'bold', 9, INK_2);
+  const rx = 150;
+  doc.setDrawColor(...BLUE_LINE);
+  doc.line(rx - 5, y + 4, rx - 5, y + h - 4);
+  field(doc, 'DATE OF ISSUE', niceDate(todayIst()), rx, y + 5.5, 46);
   const testCount = new Set(report.rows.map(r => r.testId || r.test)).size;
-  doc.text(report.rows.length ? `${testCount} test${testCount === 1 ? '' : 's'} · ${report.rows.length} paper${report.rows.length === 1 ? '' : 's'}` : 'No marks yet', rx, y + 24.5);
+  field(doc, 'REPORT COVERS', report.rows.length ? `${testCount} test${testCount === 1 ? '' : 's'} · ${report.rows.length} paper${report.rows.length === 1 ? '' : 's'}` : 'No marks yet', rx, y + 15, 46);
   return y + h + 4;
 }
 
-function tiles(doc, report, y) {
+function summary(doc, report, y) {
   const t = report.total;
   const a = report.attendance;
   const items = [
-    ['OVERALL', t.pct === null ? '-' : `${t.pct}%`, t.pct === null ? 'No marks yet' : `Grade ${t.grade}`],
-    ['CLASS RANK', report.rank ? String(report.rank.rank) : '-', report.rank ? `out of ${report.rank.of} in ${report.student.std}-${report.student.section}` : 'Not ranked'],
-    ['TOTAL MARKS', t.max ? `${num(t.obtained)} / ${t.max}` : '-', report.subjects.length ? `in ${report.subjects.length} subject${report.subjects.length === 1 ? '' : 's'}` : 'No marks yet'],
-    ['ATTENDANCE', a ? `${a.pct}%` : '-', a ? `${a.present} of ${a.total} days present` : 'Not recorded']
+    ['OVERALL', t.pct === null ? '-' : `${t.pct}%`, t.pct === null ? 'No marks yet' : `Grade ${t.grade}`, BLUE],
+    ['CLASS RANK', report.rank ? String(report.rank.rank) : '-', report.rank ? `out of ${report.rank.of}` : 'Not ranked', SUN],
+    ['TOTAL MARKS', t.max ? `${num(t.obtained)} / ${t.max}` : '-', report.subjects.length ? `in ${report.subjects.length} subject${report.subjects.length === 1 ? '' : 's'}` : 'No marks yet', GREEN_DARK],
+    ['ATTENDANCE', a ? `${a.pct}%` : '-', a ? `${a.present} of ${a.total} days present` : 'Not recorded', NAVY]
   ];
   const gap = 4;
   const w = (WIDTH - gap * 3) / 4;
-  const h = 20;
-  items.forEach(([label, value, note], i) => {
+  const h = 17;
+  items.forEach(([label, value, note, color], i) => {
     const x = LEFT + i * (w + gap);
-    doc.setFillColor(...TILE_COLORS[i]);
-    doc.roundedRect(x, y, w, h, 3, 3, 'F');
-    // Soft circles inside the tile's lower-right corner.
-    withOpacity(doc, 0.13, () => {
-      doc.setFillColor(...WHITE);
-      doc.circle(x + w - 6, y + h - 5, 4.5, 'F');
-      doc.circle(x + w - 13, y + h - 2.6, 2.2, 'F');
-    });
-    font(doc, 'bold', 6.5, [237, 233, 254]);
-    doc.text(label, x + 4, y + 5.6, { charSpace: 0.4 });
-    font(doc, 'bold', value.length > 9 ? 13 : 16, WHITE);
-    doc.text(fit(doc, value, w - 8), x + 4, y + 13.2);
-    font(doc, 'normal', 7, [237, 233, 254]);
-    doc.text(fit(doc, note, w - 8), x + 4, y + 17.6);
+    doc.setFillColor(...WHITE);
+    doc.setDrawColor(...BLUE_LINE);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(x, y, w, h, 2.5, 2.5, 'FD');
+    doc.setFillColor(...color);
+    doc.roundedRect(x, y, w, 1.6, 0.8, 0.8, 'F');
+    font(doc, 'bold', 6.4, MUTED);
+    spaced(doc, label, x + 4, y + 6);
+    font(doc, 'bold', value.length > 9 ? 12.5 : 15, NAVY);
+    doc.text(fit(doc, value, w - 8), x + 4, y + 12.2);
+    font(doc, 'normal', 7, MUTED);
+    doc.text(fit(doc, note, w - 8), x + 4, y + 15.4);
   });
   return y + h + 6;
 }
 
 // Marks table columns (x is the anchor for the given alignment).
 const COLS = [
-  { key: 'subject', label: 'SUBJECT', x: LEFT + 3, w: 45 },
-  { key: 'date', label: 'DATE', x: 62, w: 22 },
-  { key: 'max', label: 'MAX', x: 94, align: 'right' },
-  { key: 'marks', label: 'MARKS', x: 110, align: 'right' },
-  { key: 'pct', label: '%', x: 123, align: 'right' },
-  { key: 'grade', label: 'GRADE', x: 136, align: 'center' },
-  { key: 'average', label: 'CLASS AVG', x: 161, align: 'right' },
-  { key: 'highest', label: 'HIGHEST', x: 177, align: 'right' },
-  { key: 'rank', label: 'RANK', x: 190, align: 'center' }
+  { key: 'subject', label: 'SUBJECT', x: LEFT + 3, w: 60 },
+  { key: 'date', label: 'DATE', x: 80, w: 24 },
+  { key: 'max', label: 'MAX', x: 118, align: 'right' },
+  { key: 'marks', label: 'MARKS', x: 138, align: 'right' },
+  { key: 'pct', label: '%', x: 155, align: 'right' },
+  { key: 'grade', label: 'GRADE', x: 171, align: 'center' },
+  { key: 'rank', label: 'RANK', x: 189, align: 'center' }
 ];
-const ROW_H = 5.6;
+const ROW_H = 5.5;
 const GROUP_H = 6.4;
 const HEAD_H = 7;
 
 function tableHeader(doc, y) {
-  doc.setFillColor(...INDIGO_DARK);
+  doc.setFillColor(...NAVY);
   doc.roundedRect(LEFT, y, WIDTH, HEAD_H, 2, 2, 'F');
   doc.rect(LEFT, y + HEAD_H - 2, WIDTH, 2, 'F');
   font(doc, 'bold', 6.8, WHITE);
-  COLS.forEach(c => spaced(doc, c.label, c.x, y + 4.6, { align: c.align || 'left', charSpace: 0.2 }));
+  COLS.forEach(c => spaced(doc, c.label, c.x, y + 4.6, { align: c.align || 'left', charSpace: 0.25 }));
   return y + HEAD_H;
 }
 
@@ -339,7 +288,12 @@ function groupRows(rows) {
     if (!g) { g = { key, name: r.test, rows: [] }; groups.push(g); }
     g.rows.push(r);
   });
-  return groups;
+  return groups.map(g => {
+    let obt = 0;
+    let max = 0;
+    g.rows.forEach(r => { obt += r.marks === 'AB' ? 0 : r.marks; max += r.max; });
+    return { ...g, obt, max, pct: max ? Math.round((obt / max) * 1000) / 10 : null };
+  });
 }
 
 function marksTable(doc, report, y, newPage) {
@@ -357,18 +311,14 @@ function marksTable(doc, report, y, newPage) {
   };
   groupRows(report.rows).forEach(g => {
     ensure(GROUP_H + ROW_H);
-    let obt = 0;
-    let max = 0;
-    g.rows.forEach(r => { obt += r.marks === 'AB' ? 0 : r.marks; max += r.max; });
-    doc.setFillColor(...INDIGO_SOFT);
+    doc.setFillColor(...BLUE_SOFT);
     doc.rect(LEFT, y, WIDTH, GROUP_H, 'F');
-    doc.setFillColor(...INDIGO);
+    doc.setFillColor(...BLUE);
     doc.rect(LEFT, y, 1.2, GROUP_H, 'F');
-    font(doc, 'bold', 8.3, INDIGO_DARK);
-    doc.text(fit(doc, g.name, 92), LEFT + 3.5, y + 4.3);
+    font(doc, 'bold', 8.3, NAVY);
+    doc.text(fit(doc, g.name, 100), LEFT + 3.5, y + 4.3);
     font(doc, 'normal', 7.3, INK_2);
-    const pct = max ? Math.round((obt / max) * 1000) / 10 : null;
-    doc.text(`${dateRange(g.rows.map(r => r.date))}   ·   ${num(obt)} / ${max}${pct === null ? '' : `   ·   ${pct}%`}`, RIGHT - 3, y + 4.3, { align: 'right' });
+    doc.text(`${dateRange(g.rows.map(r => r.date))}   ·   ${num(g.obt)} / ${g.max}${g.pct === null ? '' : `   ·   ${g.pct}%`}`, RIGHT - 3, y + 4.3, { align: 'right' });
     y += GROUP_H;
 
     g.rows.forEach((row, i) => {
@@ -379,23 +329,20 @@ function marksTable(doc, report, y, newPage) {
       }
       const absent = row.marks === 'AB';
       const fail = !absent && row.pct < 33;
-      const base = y + 3.9;
+      const base = y + 3.85;
       font(doc, 'bold', 8.3, INK);
       doc.text(fit(doc, row.topic ? `${row.subject} - ${row.topic}` : row.subject, COLS[0].w), COLS[0].x, base);
-      font(doc, 'normal', 7.6, MUTED);
+      font(doc, 'normal', 7.8, MUTED);
       doc.text(niceDate(row.date), COLS[1].x, base);
       font(doc, 'normal', 8.3, INK_2);
       doc.text(String(row.max), COLS[2].x, base, { align: 'right' });
-      font(doc, 'bold', 8.8, absent ? AMBER_TEXT : fail ? RED : INK);
+      font(doc, 'bold', 8.8, absent ? SUN_DARK : fail ? RED : INK);
       doc.text(absent ? 'AB' : num(row.marks), COLS[3].x, base, { align: 'right' });
       font(doc, 'normal', 8.3, fail ? RED : INK_2);
       doc.text(absent ? '-' : num(row.pct), COLS[4].x, base, { align: 'right' });
-      gradePill(doc, row.grade, COLS[5].x, y + 0.7);
-      font(doc, 'normal', 7.8, MUTED);
-      doc.text(num(row.average), COLS[6].x, base, { align: 'right' });
-      doc.text(row.highest === null || row.highest === undefined ? '-' : num(row.highest), COLS[7].x, base, { align: 'right' });
-      font(doc, 'normal', 7.8, INK_2);
-      doc.text(row.rank ? `${row.rank}/${row.of}` : '-', COLS[8].x, base, { align: 'center' });
+      gradePill(doc, row.grade, COLS[5].x, y + 0.65);
+      font(doc, 'normal', 8, INK_2);
+      doc.text(row.rank ? `${row.rank}/${row.of}` : '-', COLS[6].x, base, { align: 'center' });
       y += ROW_H;
     });
   });
@@ -403,167 +350,117 @@ function marksTable(doc, report, y, newPage) {
   // Overall total
   ensure(8);
   const t = report.total;
-  doc.setFillColor(...INDIGO_DARK);
+  doc.setFillColor(...NAVY);
   doc.roundedRect(LEFT, y + 0.6, WIDTH, 7.4, 2, 2, 'F');
   doc.rect(LEFT, y + 0.6, WIDTH, 2, 'F');
   const base = y + 5.4;
   font(doc, 'bold', 8.5, WHITE);
-  doc.text('OVERALL TOTAL', COLS[0].x, base, { charSpace: 0.3 });
+  spaced(doc, 'OVERALL TOTAL', COLS[0].x, base);
   doc.text(String(t.max || 0), COLS[2].x, base, { align: 'right' });
   doc.text(num(t.obtained || 0), COLS[3].x, base, { align: 'right' });
   doc.text(t.pct === null ? '-' : String(t.pct), COLS[4].x, base, { align: 'right' });
-  if (t.pct !== null) {
-    doc.setFillColor(...WHITE);
-    doc.roundedRect(COLS[5].x - 4.6, y + 2.2, 9.2, 4.2, 2.1, 2.1, 'F');
-    font(doc, 'bold', 7, INDIGO_DARK);
-    doc.text(safe(t.grade), COLS[5].x, y + 5.2, { align: 'center' });
-  }
+  if (t.pct !== null) gradePill(doc, t.grade, COLS[5].x, y + 2.2, true);
   font(doc, 'bold', 8.5, WHITE);
-  doc.text(report.rank ? `${report.rank.rank}/${report.rank.of}` : '-', COLS[8].x, base, { align: 'center' });
+  doc.text(report.rank ? `${report.rank.rank}/${report.rank.of}` : '-', COLS[6].x, base, { align: 'center' });
   return y + 8;
 }
 
-// Class average % per subject, from the class average of each paper.
-function subjectClassAverages(report) {
-  const out = {};
-  report.rows.forEach(r => {
-    if (r.average === null || r.average === undefined) return;
-    const s = out[r.subject] || (out[r.subject] = { obt: 0, max: 0 });
-    s.obt += r.average;
-    s.max += r.max;
-  });
-  Object.keys(out).forEach(k => { out[k] = out[k].max ? (out[k].obt / out[k].max) * 100 : null; });
-  return out;
+// A bar with a rounded top and a flat base.
+function column(doc, x, top, w, bottom, color) {
+  if (bottom - top <= 0.2) return;
+  doc.setFillColor(...color);
+  const r = Math.min(1.6, w / 2, bottom - top);
+  doc.roundedRect(x, top, w, bottom - top, r, r, 'F');
+  if (bottom - top > r) doc.rect(x, bottom - r, w, r, 'F');
 }
 
-function subjectSection(doc, report, y) {
-  const subjects = report.subjects.slice(0, 12);
-  const avgs = subjectClassAverages(report);
-  sectionTitle(doc, 'SUBJECT-WISE PERFORMANCE', y);
-  y += 4;
-  const trackX = LEFT + 38;
-  const trackW = 100;
-  subjects.forEach(s => {
-    const pct = Math.max(0, Math.min(100, s.pct));
-    font(doc, 'bold', 8.3, INK);
-    doc.text(fit(doc, s.subject, 36), LEFT, y + 4);
-    doc.setFillColor(...LINE);
-    doc.roundedRect(trackX, y + 1.2, trackW, 4, 2, 2, 'F');
-    if (!s.allAbsent && pct > 0) {
-      doc.setFillColor(...bandColor(pct));
-      doc.roundedRect(trackX, y + 1.2, Math.max(4, pct), 4, 2, 2, 'F');
-    }
-    const avg = avgs[s.subject];
-    if (avg !== null && avg !== undefined) {
-      const ax = trackX + Math.max(0, Math.min(100, avg));
-      doc.setDrawColor(...INK);
-      doc.setLineWidth(0.5);
-      doc.line(ax, y + 0.4, ax, y + 6);
-      doc.setFillColor(...INK);
-      doc.triangle(ax - 1, y - 0.6, ax + 1, y - 0.6, ax, y + 0.6, 'F');
-    }
-    if (s.allAbsent) {
-      font(doc, 'bold', 8.3, AMBER_TEXT);
-      doc.text('Absent', trackX + trackW + 4, y + 4);
-    } else {
-      const below = pct < 33;
-      font(doc, 'bold', 8.5, below ? RED : INK);
-      const pctText = `${s.pct}%`;
-      doc.text(pctText, trackX + trackW + 4, y + 4);
-      const after = trackX + trackW + 4 + doc.getTextWidth(pctText) + 2;
-      font(doc, 'normal', 7.6, below ? RED : MUTED);
-      doc.text(`${num(s.obtained)}/${s.max}${below ? '  · below pass mark' : ''}`, after, y + 4);
-    }
-    y += 6.3;
-  });
-  // Legend
-  y += 3;
-  let lx = trackX;
-  font(doc, 'normal', 7, MUTED);
-  [['80%+', BANDS[0]], ['60-79%', BANDS[1]], ['33-59%', BANDS[2]], ['Below 33%', BANDS[3]]].forEach(([label, color]) => {
-    doc.setFillColor(...color);
-    doc.roundedRect(lx, y - 2.3, 3, 2.6, 0.6, 0.6, 'F');
-    doc.text(label, lx + 4.2, y);
-    lx += 6 + doc.getTextWidth(label) + 4;
-  });
-  if (Object.keys(avgs).length) {
-    doc.setDrawColor(...INK);
-    doc.setLineWidth(0.5);
-    doc.line(lx + 1, y - 2.8, lx + 1, y + 0.6);
-    doc.text('Class average', lx + 3.5, y);
-  }
-  return y + 6;
-}
-
-function subjectSectionHeight(report) {
-  return 4 + Math.min(12, report.subjects.length) * 6.3 + 9;
-}
-
-// Each test's result for the student and for the class, in date order.
-function testTimeline(report) {
-  return groupRows(report.rows).map(g => {
-    let obt = 0;
-    let max = 0;
-    let avgObt = 0;
-    let avgMax = 0;
-    g.rows.forEach(r => {
-      obt += r.marks === 'AB' ? 0 : r.marks;
-      max += r.max;
-      if (r.average !== null && r.average !== undefined) { avgObt += r.average; avgMax += r.max; }
-    });
-    const dates = [...new Set(g.rows.map(r => r.date).filter(Boolean))].sort();
-    const label = !dates.length ? g.name : dates.length === 1 ? niceDate(dates[0], false) : `${niceDate(dates[0], false)} – ${niceDate(dates[dates.length - 1], false)}`;
-    return { label, pct: max ? (obt / max) * 100 : null, classPct: avgMax ? (avgObt / avgMax) * 100 : null };
-  }).filter(t => t.pct !== null);
-}
-
-const CHART_H = 64;
-
-function progressChart(doc, report, y) {
-  const points = testTimeline(report);
-  sectionTitle(doc, 'PROGRESS ACROSS TESTS', y);
-  // Legend
-  font(doc, 'normal', 7, MUTED);
-  let lx = RIGHT - 62;
-  [[SERIES_STUDENT, safe(report.student.name).split(' ')[0] || 'Student', false], [SERIES_CLASS, 'Class average', true]].forEach(([color, label, dashed]) => {
-    doc.setDrawColor(...color);
-    doc.setLineWidth(0.8);
-    if (dashed) doc.setLineDashPattern([1.2, 0.9], 0);
-    doc.line(lx, y - 1, lx + 6, y - 1);
-    doc.setLineDashPattern([], 0);
-    doc.setFillColor(...color);
-    doc.circle(lx + 3, y - 1, 0.9, 'F');
-    doc.text(fit(doc, label, 22), lx + 8, y);
-    lx += 32;
-  });
-
-  const top = y + 6;
-  const bottom = top + 44;
-  const x0 = LEFT + 12;
-  const x1 = RIGHT - 6;
+// Grid, labels and pass line shared by both charts. Returns the y position of a value.
+function chartFrame(doc, x0, x1, top, bottom) {
   const yOf = v => bottom - (Math.max(0, Math.min(100, v)) / 100) * (bottom - top);
   font(doc, 'normal', 6.5, MUTED);
   [0, 25, 50, 75, 100].forEach(v => {
     doc.setDrawColor(...LINE);
-    doc.setLineWidth(v === 0 ? 0.4 : 0.2);
+    doc.setLineWidth(v === 0 ? 0.45 : 0.2);
     doc.line(x0, yOf(v), x1, yOf(v));
     doc.text(`${v}%`, x0 - 2, yOf(v) + 1, { align: 'right' });
   });
-  // Pass mark
   doc.setDrawColor(...RED);
   doc.setLineWidth(0.25);
-  doc.setLineDashPattern([0.8, 0.8], 0);
+  doc.setLineDashPattern([0.9, 0.9], 0);
   doc.line(x0, yOf(33), x1, yOf(33));
   doc.setLineDashPattern([], 0);
-  font(doc, 'normal', 6, RED);
-  doc.text('pass 33%', x1, yOf(33) - 1, { align: 'right' });
+  return yOf;
+}
 
-  const step = points.length > 1 ? (x1 - x0 - 16) / (points.length - 1) : 0;
-  const xOf = i => (points.length > 1 ? x0 + 8 + i * step : (x0 + x1) / 2);
+function passKey(doc, x, y) {
+  doc.setDrawColor(...RED);
+  doc.setLineWidth(0.3);
+  doc.setLineDashPattern([0.9, 0.9], 0);
+  doc.line(x, y - 1, x + 6, y - 1);
+  doc.setLineDashPattern([], 0);
+  font(doc, 'normal', 7, MUTED);
+  doc.text('Pass mark 33%', x + 7.5, y);
+}
 
-  // Soft area under the student's line
-  withOpacity(doc, 0.1, () => {
-    doc.setFillColor(...SERIES_STUDENT);
+const BAR_CHART_H = 70;
+
+function subjectChart(doc, report, y) {
+  const subjects = report.subjects.slice(0, 12);
+  sectionTitle(doc, 'SUBJECT-WISE PERFORMANCE', y);
+  const top = y + 8;
+  const bottom = top + 40;
+  const x0 = LEFT + 11;
+  const x1 = RIGHT;
+  const yOf = chartFrame(doc, x0, x1, top, bottom);
+  const slot = (x1 - x0) / Math.max(1, subjects.length);
+  const barW = Math.min(15, slot * 0.5);
+  subjects.forEach((s, i) => {
+    const cx = x0 + slot * (i + 0.5);
+    if (s.allAbsent) {
+      column(doc, cx - barW / 2, bottom - 1.2, barW, bottom, MUTED);
+      font(doc, 'bold', 7.5, SUN_DARK);
+      doc.text('Absent', cx, bottom - 2.5, { align: 'center' });
+    } else {
+      const pct = Math.max(0, Math.min(100, s.pct));
+      column(doc, cx - barW / 2, yOf(pct), barW, bottom, bandColor(pct));
+      font(doc, 'bold', 8, pct < 33 ? RED : INK);
+      doc.text(`${num(s.pct)}%`, cx, yOf(pct) - 1.6, { align: 'center' });
+    }
+    font(doc, 'bold', 7.3, INK_2);
+    doc.text(fit(doc, s.subject, slot - 2), cx, bottom + 4.3, { align: 'center' });
+    font(doc, 'normal', 6.6, MUTED);
+    doc.text(s.allAbsent ? 'AB' : `${num(s.obtained)}/${s.max}`, cx, bottom + 7.6, { align: 'center' });
+  });
+  // Legend
+  let lx = x0;
+  const ly = bottom + 13.5;
+  font(doc, 'normal', 7, MUTED);
+  [['80% and above', BANDS[0]], ['60-79%', BANDS[1]], ['33-59%', BANDS[2]], ['Below 33%', BANDS[3]]].forEach(([label, color]) => {
+    doc.setFillColor(...color);
+    doc.roundedRect(lx, ly - 2.4, 3, 2.8, 0.6, 0.6, 'F');
+    doc.text(label, lx + 4.2, ly);
+    lx += 9 + doc.getTextWidth(label);
+  });
+  passKey(doc, lx, ly);
+  return ly + 4;
+}
+
+const LINE_CHART_H = 64;
+
+// The student's result in each test, in date order.
+function progressChart(doc, report, y) {
+  const points = groupRows(report.rows).filter(g => g.pct !== null).map(g => ({ label: dateRange(g.rows.map(r => r.date), false) || g.name, pct: g.pct }));
+  sectionTitle(doc, 'PROGRESS ACROSS TESTS', y);
+  const top = y + 8;
+  const bottom = top + 36;
+  const x0 = LEFT + 11;
+  const x1 = RIGHT;
+  const yOf = chartFrame(doc, x0, x1, top, bottom);
+  const step = (x1 - x0 - 20) / Math.max(1, points.length - 1);
+  const xOf = i => x0 + 10 + i * step;
+
+  withOpacity(doc, 0.12, () => {
+    doc.setFillColor(...BLUE);
     for (let i = 0; i < points.length - 1; i += 1) {
       const xa = xOf(i);
       const xb = xOf(i + 1);
@@ -571,39 +468,21 @@ function progressChart(doc, report, y) {
       doc.triangle(xb, yOf(points[i + 1].pct), xb, bottom, xa, bottom, 'F');
     }
   });
-
-  const series = (key, color, dashed) => {
-    doc.setDrawColor(...color);
-    doc.setLineWidth(dashed ? 0.6 : 0.9);
-    if (dashed) doc.setLineDashPattern([1.2, 0.9], 0);
-    for (let i = 0; i < points.length - 1; i += 1) {
-      if (points[i][key] === null || points[i + 1][key] === null) continue;
-      doc.line(xOf(i), yOf(points[i][key]), xOf(i + 1), yOf(points[i + 1][key]));
-    }
-    doc.setLineDashPattern([], 0);
-    points.forEach((pt, i) => {
-      if (pt[key] === null) return;
-      doc.setFillColor(...WHITE);
-      doc.setDrawColor(...color);
-      doc.setLineWidth(0.6);
-      doc.circle(xOf(i), yOf(pt[key]), 1.2, 'FD');
-    });
-  };
-  series('classPct', SERIES_CLASS, true);
-  series('pct', SERIES_STUDENT, false);
-
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(0.9);
+  for (let i = 0; i < points.length - 1; i += 1) doc.line(xOf(i), yOf(points[i].pct), xOf(i + 1), yOf(points[i + 1].pct));
   points.forEach((pt, i) => {
-    const studentAbove = pt.classPct === null || pt.pct >= pt.classPct;
-    font(doc, 'bold', 7.2, SERIES_STUDENT);
-    doc.text(`${num(pt.pct)}%`, xOf(i), yOf(pt.pct) + (studentAbove ? -2.4 : 4.4), { align: 'center' });
-    if (pt.classPct !== null) {
-      font(doc, 'normal', 6.4, SERIES_CLASS);
-      doc.text(`${num(pt.classPct)}%`, xOf(i), yOf(pt.classPct) + (studentAbove ? 4 : -2.2), { align: 'center' });
-    }
-    font(doc, 'normal', 6.6, INK_2);
-    doc.text(fit(doc, pt.label, Math.max(18, step - 2)), xOf(i), bottom + 4.5, { align: 'center' });
+    doc.setFillColor(...WHITE);
+    doc.setDrawColor(...bandColor(pt.pct));
+    doc.setLineWidth(0.8);
+    doc.circle(xOf(i), yOf(pt.pct), 1.4, 'FD');
+    font(doc, 'bold', 7.6, NAVY);
+    doc.text(`${num(pt.pct)}%`, xOf(i), yOf(pt.pct) - 2.8, { align: 'center' });
+    font(doc, 'normal', 6.8, INK_2);
+    doc.text(fit(doc, pt.label, Math.max(20, step - 2)), xOf(i), bottom + 4.5, { align: 'center' });
   });
-  return bottom + 8;
+  passKey(doc, x0, bottom + 10);
+  return bottom + 13;
 }
 
 function remarksAndHighlights(doc, report, y, measureOnly = false) {
@@ -615,33 +494,33 @@ function remarksAndHighlights(doc, report, y, measureOnly = false) {
   const lines = doc.splitTextToSize(safe(report.remarks), leftW - 10);
   const strong = report.strong || [];
   const weak = report.weak || [];
-  doc.setFontSize(8.3);
   const none = !report.rows.length;
+  doc.setFontSize(8.3);
   const strongLines = doc.splitTextToSize(safe(strong.length ? strong.join(', ') : none ? 'Shown once marks are entered.' : 'Keep working steadily in every subject.'), rightW - 8);
   const weakLines = doc.splitTextToSize(safe(weak.length ? weak.join(', ') : none ? '-' : 'No subject below 40%.'), rightW - 8);
   const leftH = 11 + lines.length * 4.3;
   const rightH = 15 + (strongLines.length + weakLines.length) * 3.8;
-  const h = Math.max(24, leftH, rightH);
+  const h = Math.max(21, leftH, rightH);
   if (measureOnly) return h;
 
-  doc.setFillColor(255, 251, 235);
-  doc.roundedRect(LEFT, y, leftW, h, 3, 3, 'F');
-  doc.setFillColor(...GOLD);
+  doc.setFillColor(...SUN_SOFT);
+  doc.roundedRect(LEFT, y, leftW, h, 2.5, 2.5, 'F');
+  doc.setFillColor(...SUN);
   doc.roundedRect(LEFT, y, 1.6, h, 0.8, 0.8, 'F');
-  font(doc, 'bold', 7, AMBER_TEXT);
-  doc.text("TEACHER'S REMARKS", LEFT + 5, y + 6, { charSpace: 0.3 });
+  font(doc, 'bold', 6.8, SUN_DARK);
+  spaced(doc, "TEACHER'S REMARKS", LEFT + 5, y + 6);
   font(doc, 'normal', 9, INK);
   doc.text(lines, LEFT + 5, y + 11.5);
 
-  doc.setFillColor(...LAVENDER);
-  doc.roundedRect(rightX, y, rightW, h, 3, 3, 'F');
-  font(doc, 'bold', 7, [4, 120, 87]);
-  doc.text('STRENGTHS', rightX + 4, y + 6, { charSpace: 0.3 });
+  doc.setFillColor(...BLUE_SOFT);
+  doc.roundedRect(rightX, y, rightW, h, 2.5, 2.5, 'F');
+  font(doc, 'bold', 6.8, GREEN_DARK);
+  spaced(doc, 'STRENGTHS', rightX + 4, y + 6);
   font(doc, 'normal', 8.3, INK);
   doc.text(strongLines, rightX + 4, y + 10.5);
   const wy = y + 10.5 + strongLines.length * 3.8 + 2.5;
-  font(doc, 'bold', 7, [190, 18, 60]);
-  doc.text('NEEDS ATTENTION', rightX + 4, wy, { charSpace: 0.3 });
+  font(doc, 'bold', 6.8, [190, 18, 60]);
+  spaced(doc, 'NEEDS ATTENTION', rightX + 4, wy);
   font(doc, 'normal', 8.3, INK);
   doc.text(weakLines, rightX + 4, wy + 4.5);
   return y + h;
@@ -663,7 +542,7 @@ function gradeScale(doc, y) {
     x += widths[i] + gap;
   });
   font(doc, 'normal', 6.8, MUTED);
-  doc.text('Rank is within the class section. Pass mark is 33% in each subject. Class avg and highest are the marks in that paper.', LEFT, y + 8.5);
+  doc.text('Rank is within the class section. Pass mark is 33% in each subject.', LEFT, y + 8.5);
   return y + 11;
 }
 
@@ -681,9 +560,10 @@ function footer(doc, school, report, page, pages) {
   doc.setDrawColor(...LINE);
   doc.setLineWidth(0.3);
   doc.line(LEFT, 286, RIGHT, 286);
+  logo(doc, LEFT, 287.2, 5);
   font(doc, 'normal', 6.8, MUTED);
-  doc.text(fit(doc, `${safe(school.name || 'School')}  ·  Progress report of ${safe(report.student.name)}  ·  Computer-generated report card`, 150), LEFT, 290);
-  doc.text(`Page ${page} of ${pages}`, RIGHT, 290, { align: 'right' });
+  doc.text(fit(doc, `${safe(school.name || 'School')}  ·  Progress report of ${safe(report.student.name)}`, 145), LEFT + 6.5, 290.6);
+  doc.text(`Page ${page} of ${pages}`, RIGHT, 290.6, { align: 'right' });
 }
 
 function drawReport(doc, report, school) {
@@ -695,26 +575,25 @@ function drawReport(doc, report, school) {
   const ensure = (y, need) => (y + need > LIMIT ? newPage() : y);
 
   let y = bigHeader(doc, school, report);
-  y = studentCard(doc, report, y);
-  y = tiles(doc, report, y);
-  y = marksTable(doc, report, y, newPage);
-  y += 8;
+  y = studentPanel(doc, report, y);
+  y = summary(doc, report, y);
+  y = marksTable(doc, report, y, newPage) + 7;
 
   if (report.subjects.length) {
-    y = ensure(y, subjectSectionHeight(report));
-    y = subjectSection(doc, report, y + 2);
+    y = ensure(y, BAR_CHART_H);
+    y = subjectChart(doc, report, y + 2);
   }
-  if (testTimeline(report).length >= 2) {
-    y = ensure(y + 4, CHART_H);
+  if (groupRows(report.rows).filter(g => g.pct !== null).length >= 2) {
+    y = ensure(y + 3, LINE_CHART_H);
     y = progressChart(doc, report, y + 2);
   }
-  y += 2;
+  y += 3;
   y = ensure(y, remarksAndHighlights(doc, report, y, true));
-  y = remarksAndHighlights(doc, report, y) + 5;
+  y = remarksAndHighlights(doc, report, y) + 4;
   y = ensure(y, 11);
   y = gradeScale(doc, y);
   y = ensure(y, 15);
-  signatures(doc, Math.max(y + 11, 270));
+  signatures(doc, Math.max(y + 11, 268));
 
   const lastPage = doc.getNumberOfPages();
   for (let p = firstPage; p <= lastPage; p += 1) {

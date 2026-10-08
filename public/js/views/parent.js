@@ -43,7 +43,7 @@ export default {
     const pdf = testId => `/api/parent/${encodeURIComponent(key)}/report.pdf${testId ? `?test=${encodeURIComponent(testId)}` : ''}`;
     mount(main, html`
       <header class="topbar">
-        <span class="logo" aria-hidden="true">${icon('school')}</span>
+        <span class="logo" aria-hidden="true"><img src="/img/logo.png" alt=""></span>
         <div class="brand"><strong>${data.school.name}</strong><span>Parent view</span></div>
         <button class="btn ghost small" data-act="leave">Sign out</button>
       </header>

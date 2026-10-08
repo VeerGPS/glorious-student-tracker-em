@@ -83,7 +83,7 @@ function renderShell() {
   const link = it => html`<a href="${it.href}" data-module="${it.module}" ${it.href === active || (it.href === '#/overview' && active === '#/home') ? html`aria-current="page"` : ''}>${icon(it.icon)}<span>${it.label}</span></a>`;
   mount(app, html`
     <header class="topbar">
-      <span class="logo" aria-hidden="true">${icon('school')}</span>
+      <span class="logo" aria-hidden="true"><img src="/img/logo.png" alt=""></span>
       <div class="brand">
         <strong>${state.data.school.name}</strong>
         <span>${state.me.name}${isAdmin() ? '' : ' · Teacher'}</span>

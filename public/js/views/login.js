@@ -6,7 +6,7 @@ const CLASSES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 function screen(main, inner) {
   mount(main, html`<div class="login">
     <div class="logo">
-      <div class="logo-badge">${icon('school')}</div>
+      <div class="logo-badge"><img src="/img/logo.png" alt=""></div>
       <h1>Glorious Public School</h1>
       <p class="muted">Student Tracker</p>
     </div>
