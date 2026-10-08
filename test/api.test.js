@@ -278,3 +278,84 @@ test('data survives a restart', async t => {
   assert.equal(boot.students.length, 1);
   assert.equal(boot.students[0].name, 'Persisted Kid');
 });
+
+test('report cards reach parents: a PDF link when WhatsApp is not linked, the PDF itself when it is', async t => {
+  const srv = await startServer();
+  t.after(() => srv.close());
+  const office = await adminToken(srv);
+  await srv.call('PUT', '/api/settings/school', { name: 'Glorious Public School', address: 'Himatnagar', publicUrl: 'https://school.example' }, office);
+  const s = (await srv.call('POST', '/api/students', { std: '5', roll: 1, name: 'Nia Shah', mobile: '9876543210' }, office)).data.student;
+  const testRec = (await srv.call('POST', '/api/tests', { std: '5', name: 'UT1', date: '2026-09-01', papers: [{ subject: 'English', max: 20 }] }, office)).data.test;
+  await srv.call('PATCH', `/api/tests/${testRec.id}/marks`, { changes: [{ studentId: s.id, paperId: testRec.papers[0].id, value: 17 }] }, office);
+  const body = { studentIds: [s.id], text: 'Report card of {name}: {percent}', testIds: [testRec.id], attachReport: true };
+
+  // Not linked: the message carries a link that opens the PDF without signing in.
+  const preview = (await srv.call('POST', '/api/messages/preview', body, office)).data.items[0];
+  assert.match(preview.text, /^Report card of Nia Shah: 85%\n\nReport card \(PDF\): https:\/\/school\.example\/api\/parent\/[\w-]+\/report\.pdf\?test=/);
+  const viaLink = await srv.call('GET', preview.pdfPath);
+  assert.equal(viaLink.status, 200);
+  assert.equal(viaLink.data.subarray(0, 4).toString(), '%PDF');
+
+  // Linked: the PDF is attached and the caption has no link.
+  const sent = [];
+  let failDocuments = false;
+  srv.whatsapp.useTestSocket({
+    onWhatsApp: async jid => [{ exists: true, jid }],
+    sendMessage: async (jid, content) => {
+      if (content.document && failDocuments) throw new Error('Media upload failed');
+      sent.push(content);
+    }
+  });
+  const linkedPreview = (await srv.call('POST', '/api/messages/preview', body, office)).data.items[0];
+  assert.equal(linkedPreview.text, 'Report card of Nia Shah: 85%');
+  const waitJob = async id => {
+    for (let i = 0; i < 100; i += 1) {
+      const job = (await srv.call('GET', `/api/messages/jobs/${id}`, undefined, office)).data.job;
+      if (job.finished) return job;
+      await new Promise(r => setTimeout(r, 20));
+    }
+    throw new Error('job did not finish');
+  };
+  let job = await waitJob((await srv.call('POST', '/api/messages/send', body, office)).data.job.id);
+  assert.equal(job.sent, 1);
+  assert.equal(sent[0].mimetype, 'application/pdf');
+  assert.equal(sent[0].document.subarray(0, 4).toString(), '%PDF');
+  assert.equal(sent[0].caption, 'Report card of Nia Shah: 85%');
+
+  // If WhatsApp refuses the file, the parent still gets the report card as a link.
+  failDocuments = true;
+  job = await waitJob((await srv.call('POST', '/api/messages/send', body, office)).data.job.id);
+  assert.equal(job.sent, 1);
+  assert.match(job.items[0].note, /download link/);
+  assert.match(sent[1].text, /Report card \(PDF\): https:\/\/school\.example\/api\/parent\//);
+
+  // Office test message.
+  failDocuments = false;
+  const testSend = await srv.call('POST', '/api/whatsapp/test', { mobile: '9000000009' }, office);
+  assert.equal(testSend.status, 200);
+  assert.equal(sent[sent.length - 1].fileName, 'Sample_Report_Card.pdf');
+});
+
+test('AI insights for a student', async t => {
+  const srv = await startServer();
+  t.after(() => srv.close());
+  const office = await adminToken(srv);
+  const kid = (await srv.call('POST', '/api/students', { std: '6', roll: 1, name: 'Ravi Kumar' }, office)).data.student;
+  const peer = (await srv.call('POST', '/api/students', { std: '6', roll: 2, name: 'Peer' }, office)).data.student;
+  const t1 = (await srv.call('POST', '/api/tests', { std: '6', name: 'UT1', date: '2026-07-01', papers: [{ subject: 'Maths', max: 50 }, { subject: 'English', max: 50 }] }, office)).data.test;
+  const t2 = (await srv.call('POST', '/api/tests', { std: '6', name: 'UT2', date: '2026-08-01', papers: [{ subject: 'Maths', max: 50 }, { subject: 'English', max: 50 }] }, office)).data.test;
+  const marks = (tt, a, b, c, d) => srv.call('PATCH', `/api/tests/${tt.id}/marks`, { changes: [
+    { studentId: kid.id, paperId: tt.papers[0].id, value: a }, { studentId: kid.id, paperId: tt.papers[1].id, value: b },
+    { studentId: peer.id, paperId: tt.papers[0].id, value: c }, { studentId: peer.id, paperId: tt.papers[1].id, value: d }
+  ] }, office);
+  await marks(t1, 20, 30, 40, 40);
+  await marks(t2, 45, 40, 30, 30);
+  const res = await srv.call('GET', `/api/students/${kid.id}/insights`, undefined, office);
+  assert.equal(res.status, 200);
+  const ins = res.data;
+  assert.equal(ins.tier, 'steady');
+  assert.deepEqual(ins.timeline.map(x => [x.name, x.pct, x.classAvg]), [['UT1', 50, 65], ['UT2', 85, 72.5]]);
+  assert.equal(ins.notes[0].kind, 'up');
+  assert.equal(ins.topSubject.subject, 'English');
+  assert.equal(ins.focusSubject.subject, 'Mathematics');
+});

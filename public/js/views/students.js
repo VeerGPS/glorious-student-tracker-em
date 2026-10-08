@@ -2,6 +2,7 @@ import { html, mount, busy, toast, icon, plural, openDialog, setDialogBody, clos
 import { state, api, refresh, students, sections, fetchFile, classesForUser } from '../data.js';
 import { classPicker, currentSelection, pickerHandlers, empty } from './common.js';
 import { readSheetRows, parseStudentSheet, downloadStudentList } from '../excel.js';
+import { openInsights } from './insights.js';
 
 let search = '';
 
@@ -25,6 +26,7 @@ function listHtml(kids) {
       <div class="sub">Class ${s.std}-${s.section}${s.grNo ? ` · GR ${s.grNo}` : ''} · ${s.mobile || 'No mobile number'}</div>
     </div>
     <div class="row">
+      <button class="btn small" data-act="insights" data-id="${s.id}" aria-label="AI Insights for ${s.name}">${icon('chart')} Insights</button>
       <button class="btn small" data-act="report" data-id="${s.id}" title="Report card PDF">${icon('file')}<span class="sr-only">Report card for ${s.name}</span></button>
       <button class="btn small" data-act="link" data-id="${s.id}" title="Parent link">${icon('link')}<span class="sr-only">Parent link for ${s.name}</span></button>
       <button class="btn small" data-act="edit" data-id="${s.id}">Edit</button>
@@ -231,6 +233,7 @@ export default {
       upload: openUpload,
       link: el => openLink(byId(el.dataset.id)),
       download: el => busy(el, () => downloadStudentList(sel.std, students(sel.std, sel.section))),
+      insights: el => openInsights(el.dataset.id),
       report: el => busy(el, async () => {
         const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${el.dataset.id}&tests=all`);
         downloadBlob(blob, fileName);

@@ -128,6 +128,10 @@ function createApp({ store, whatsapp, config }) {
   app.use('/api', createApi({ store, whatsapp, config }));
 
   // Only the browser files in public/ are served — never data or settings files.
+  app.get('/vendor/chart.umd.min.js', (req, res) => {
+    res.set('Cache-Control', 'public, max-age=604800');
+    res.sendFile(path.join(path.dirname(require.resolve('chart.js')), 'chart.umd.min.js'));
+  });
   app.get('/vendor/xlsx.full.min.js', (req, res) => {
     res.set('Cache-Control', 'public, max-age=604800');
     res.sendFile(require.resolve('xlsx/dist/xlsx.full.min.js'));

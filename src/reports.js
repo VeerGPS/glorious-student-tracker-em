@@ -142,10 +142,92 @@ function buildReport(store, student, testIds, options = {}) {
   };
 }
 
+// "AI Insights": a plain-language reading of a student's results across tests.
+function insightsFor(store, student) {
+  const tests = selectTests(store, student.std, null);
+  const peers = store.filter('students', s => s.std === student.std && s.section === student.section);
+  const report = buildReport(store, student, null, { tests, peers });
+  const timeline = [];
+  tests.forEach(t => {
+    const one = buildReport(store, student, [t.id], { tests: [t], peers, skipAttendance: true });
+    if (!one.rows.length) return;
+    let obt = 0;
+    let max = 0;
+    peers.forEach(p => t.papers.forEach(paper => {
+      const v = markOf(t, p.id, paper.id);
+      if (v === null) return;
+      obt += v === 'AB' ? 0 : v;
+      max += paper.max;
+    }));
+    timeline.push({ id: t.id, name: t.name, date: t.date, pct: one.total.pct, classAvg: max ? round1((obt / max) * 100) : null });
+  });
+
+  const pct = report.total.pct;
+  const first = (student.name || 'The student').split(' ')[0];
+  const sorted = report.subjects.filter(s => !s.allAbsent).slice().sort((a, b) => b.pct - a.pct);
+  const top = sorted[0] || null;
+  const focus = sorted.length > 1 ? sorted[sorted.length - 1] : null;
+  let tier = 'none';
+  let headline = 'Not enough marks yet';
+  let message = 'Insights appear once marks are entered for this student.';
+  if (pct !== null) {
+    if (pct >= 85) {
+      tier = 'exceptional';
+      headline = 'Exceptional performance';
+      message = `${first} is performing at an outstanding level (${pct}%). Suggested: olympiad preparation, advanced problem-solving worksheets, and helping classmates as a peer tutor.`;
+    } else if (pct >= 60) {
+      tier = 'steady';
+      headline = 'Steady foundations';
+      message = `${first} shows consistent understanding (${pct}%). Focused revision${focus ? ` in ${focus.subject}` : ''} can lift results into the top band.`;
+    } else if (pct >= 40) {
+      tier = 'intervention';
+      headline = 'Needs targeted support';
+      message = `${first} (${pct}%) needs structured daily practice and a weekly check of concepts${focus ? `, starting with ${focus.subject}` : ''}.`;
+    } else {
+      tier = 'critical';
+      headline = 'High-priority support';
+      message = `Overall performance is low (${pct}%). A parent-teacher meeting and a personal remedial plan are recommended.`;
+    }
+  }
+
+  const notes = [];
+  if (timeline.length >= 2) {
+    const last = timeline[timeline.length - 1];
+    const before = timeline.slice(0, -1);
+    const prevAvg = before.reduce((a, t) => a + t.pct, 0) / before.length;
+    const diff = round1(last.pct - prevAvg);
+    if (diff >= 5) notes.push({ kind: 'up', text: `Improving: ${diff} points better in ${last.name} than in earlier tests.` });
+    else if (diff <= -5) notes.push({ kind: 'down', text: `Dropped ${Math.abs(diff)} points in ${last.name} compared with earlier tests.` });
+    else notes.push({ kind: 'flat', text: `Results are steady across ${timeline.length} tests.` });
+  }
+  if (report.attendance && report.attendance.pct < 75) {
+    notes.push({ kind: 'down', text: `Attendance is low (${report.attendance.pct}%). Regular attendance will help.` });
+  }
+  const absentTests = report.rows.filter(r => r.marks === 'AB').length;
+  if (absentTests >= 2) notes.push({ kind: 'down', text: `Absent for ${absentTests} test papers.` });
+
+  const strengths = sorted.filter(s => s.pct >= 75).map(s => ({ subject: s.subject, pct: s.pct }));
+  const weaknesses = sorted.filter(s => s.pct < 50).map(s => ({ subject: s.subject, pct: s.pct })).reverse();
+
+  return {
+    student: report.student,
+    report,
+    timeline,
+    tier,
+    headline,
+    message,
+    notes,
+    strengths,
+    weaknesses,
+    topSubject: top ? { subject: top.subject, pct: top.pct } : null,
+    focusSubject: focus && focus.pct < (top ? top.pct : 101) ? { subject: focus.subject, pct: focus.pct } : null
+  };
+}
+
 function describeTests(report) {
   if (!report.tests.length) return '';
   if (report.tests.length === 1) return `${report.tests[0].name} (${formatDate(report.tests[0].date)})`;
   return report.title;
 }
 
-module.exports = { buildReport, selectTests, markOf, attendanceFor, describeTests, sortTests };
+module.exports = { buildReport, insightsFor, selectTests, markOf, attendanceFor, describeTests, sortTests };

@@ -10,7 +10,11 @@ function waCard(wa) {
   }
   if (wa.connected) {
     return html`<p><span class="status-dot good"></span><strong>Linked</strong>${wa.phone ? ` to +${wa.phone}` : ''}${wa.name ? ` (${wa.name})` : ''}.</p>
-      <p class="muted small">Teachers can now send report cards and messages in one click from the Send page. Messages go out one by one with a short pause, so a large class takes a few minutes.</p>
+      <p class="muted small">Teachers can now send report cards (as PDF files) and messages in one click from the Send page. Messages go out one by one with a short pause, so a large class takes a few minutes.</p>
+      <form class="test-send" data-submit="wa-test">
+        <label class="field"><span>Check it works: send a sample report card PDF to</span><input name="mobile" inputmode="numeric" autocomplete="tel" placeholder="10-digit mobile number" required></label>
+        <button class="btn wa" type="submit">${icon('send')} Send test PDF</button>
+      </form>
       <button class="btn danger" data-act="wa-unlink">Unlink WhatsApp</button>`;
   }
   if (wa.state === 'qr' && wa.qr) {
@@ -116,6 +120,10 @@ export default {
           await refresh();
         });
       },
+      'wa-test': form => busy(form.querySelector('[type=submit]'), async () => {
+        await api('POST', '/whatsapp/test', { mobile: form.elements.mobile.value });
+        toast('Sample report card sent. Check WhatsApp on that phone.', 'good');
+      }, 'Sending...'),
       backup: el => busy(el, async () => {
         const { blob, fileName } = await fetchFile('/export');
         downloadBlob(blob, fileName);

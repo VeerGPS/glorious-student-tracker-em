@@ -6,7 +6,7 @@ const {
   newId, newKey, nowIso, todayIso, cleanText, cleanMultiline, normStd, normSection, normRoll, isIsoDate,
   parseMobiles, formatMobiles, canonicalSubject, normName, formatDate
 } = require('./util');
-const { buildReport, sortTests } = require('./reports');
+const { buildReport, insightsFor, sortTests } = require('./reports');
 const { renderReportCards, reportFileName } = require('./pdf');
 const { importLegacy } = require('./legacy');
 
@@ -423,6 +423,10 @@ function createApi({ store, whatsapp, config = {} }) {
     res.json({ student: s, revision: store.revision });
   });
 
+  api.get('/students/:id/insights', (req, res) => {
+    res.json(insightsFor(store, scopedStudent(req, req.params.id)));
+  });
+
   // Upload of a student list. Rows: { roll, name, grNo, section, mobile, std? }
   api.post('/students/import', async (req, res) => {
     const body = req.body || {};
@@ -791,7 +795,8 @@ function createApi({ store, whatsapp, config = {} }) {
 
   // ------------------------------------------------------------ messages
 
-  function buildMessages(req, body) {
+  // attached: the PDF goes as a WhatsApp document, so no download link is needed.
+  function buildMessages(req, body, { attached = false } = {}) {
     const text = cleanMultiline(body.text, 1500);
     if (!text) bad('Write the message first.');
     const ids = arr(body.studentIds).slice(0, 2000);
@@ -802,9 +807,14 @@ function createApi({ store, whatsapp, config = {} }) {
     const base = publicUrl(req);
     const needsReport = Boolean(body.attachReport) || /\{(percent|grade|test|rank)\}/.test(text);
     const school = settings().school || {};
+    const attach = Boolean(body.attachReport);
     return students.map(s => {
       const report = needsReport ? buildReport(store, s, testIds.length ? testIds : null) : null;
+      const pdfPath = `/api/parent/${s.parentKey}/report.pdf${testIds.length === 1 ? `?test=${encodeURIComponent(testIds[0])}` : ''}`;
+      const pdfUrl = base ? `${base}${pdfPath}` : '';
+      const pdfLine = attach && !attached && pdfUrl ? `Report card (PDF): ${pdfUrl}` : '';
       const ctx = {
+        pdf: pdfLine,
         name: s.name,
         first: s.name.split(' ')[0],
         class: `${s.std}-${s.section}`,
@@ -817,17 +827,28 @@ function createApi({ store, whatsapp, config = {} }) {
         grade: report ? report.total.grade : '',
         rank: report && report.rank ? `${report.rank.rank} of ${report.rank.of}` : ''
       };
-      return { student: s, numbers: parseMobiles(s.mobile), text: renderTemplate(text, ctx).replace(/\n{3,}/g, '\n\n').trim(), report };
+      let body = renderTemplate(text, ctx);
+      if (pdfLine && !text.includes('{pdf}')) body += `\n\n${pdfLine}`;
+      return {
+        student: s,
+        numbers: parseMobiles(s.mobile),
+        text: body.replace(/\n{3,}/g, '\n\n').trim(),
+        report,
+        pdfPath: attach ? pdfPath : null,
+        pdfUrl: attach ? pdfUrl : null
+      };
     });
   }
 
   api.post('/messages/preview', (req, res) => {
-    const items = buildMessages(req, req.body || {});
+    const body = req.body || {};
+    const items = buildMessages(req, body, { attached: Boolean(body.attachReport) && whatsapp.isConnected() });
     res.json({
       whatsapp: whatsapp.status(false),
-      items: items.map(({ student, numbers, text, report }) => ({
+      items: items.map(({ student, numbers, text, report, pdfPath }) => ({
         studentId: student.id, name: student.name, std: student.std, section: student.section, roll: student.roll,
-        numbers, text, percent: report ? report.total.pct : null, hasMarks: report ? report.rows.length > 0 : null
+        numbers, text, percent: report ? report.total.pct : null, hasMarks: report ? report.rows.length > 0 : null,
+        pdfPath, fileName: report && pdfPath ? reportFileName(report) : null
       }))
     });
   });
@@ -837,7 +858,7 @@ function createApi({ store, whatsapp, config = {} }) {
     if (!whatsapp.isConnected()) {
       throw new HttpError(409, 'The school WhatsApp is not linked. Use the "Open WhatsApp" buttons instead, or ask the office to link WhatsApp.', { code: 'WA_NOT_LINKED' });
     }
-    const items = buildMessages(req, body);
+    const items = buildMessages(req, body, { attached: true });
     const attach = Boolean(body.attachReport);
     const job = {
       id: newId('job'),
@@ -882,17 +903,32 @@ function createApi({ store, whatsapp, config = {} }) {
         let ok = 0;
         let pdf = null;
         if (attach) pdf = renderReportCards([item.report], settings().school);
+        let linkInstead = 0;
         for (const number of item.numbers) {
           try {
             if (pdf) await whatsapp.sendDocument(number, pdf, reportFileName(item.report), item.text);
             else await whatsapp.sendText(number, item.text);
             ok += 1;
           } catch (err) {
+            // If the PDF cannot be attached, still get the report card to the parent as a link.
+            if (pdf && item.pdfUrl && !/not on WhatsApp|not linked|disconnected/i.test(err.message)) {
+              try {
+                await whatsapp.sendText(number, `${item.text}\n\nReport card (PDF): ${item.pdfUrl}`);
+                ok += 1;
+                linkInstead += 1;
+                continue;
+              } catch (err2) {
+                errors.push(err2.message);
+                continue;
+              }
+            }
             errors.push(err.message);
           }
         }
         state.status = ok ? 'sent' : 'failed';
-        state.note = ok ? `Sent to ${ok} number${ok > 1 ? 's' : ''}${errors.length ? ` (${errors.join('; ')})` : ''}` : errors.join('; ');
+        state.note = ok
+          ? `Sent to ${ok} number${ok > 1 ? 's' : ''}${linkInstead ? ' (PDF could not be attached, so a download link was sent)' : ''}${errors.length ? ` (${errors.join('; ')})` : ''}`
+          : errors.join('; ');
         if (ok) job.sent += 1;
         else job.failed += 1;
         job.done += 1;
@@ -927,6 +963,34 @@ function createApi({ store, whatsapp, config = {} }) {
 
   api.post('/whatsapp/link', adminOnly, async (req, res) => {
     res.json(await whatsapp.link(Boolean(req.body && req.body.fresh)));
+  });
+
+  // Sends a sample report card PDF so the office can check that PDFs arrive.
+  api.post('/whatsapp/test', adminOnly, async (req, res) => {
+    const number = parseMobiles(req.body && req.body.mobile)[0];
+    if (!number) bad('Enter a 10-digit mobile number.');
+    if (!whatsapp.isConnected()) throw new HttpError(409, 'The school WhatsApp is not linked.', { code: 'WA_NOT_LINKED' });
+    const sample = {
+      student: { name: 'Sample Student', std: '8', section: 'A', roll: 1, grNo: '' },
+      title: 'Sample Test',
+      tests: [],
+      rows: [
+        { subject: 'English', test: 'Sample Test', topic: '', date: todayIso(), max: 50, marks: 42, pct: 84, grade: 'A2', rank: 2, of: 30 },
+        { subject: 'Mathematics', test: 'Sample Test', topic: '', date: todayIso(), max: 50, marks: 38, pct: 76, grade: 'B1', rank: 5, of: 30 }
+      ],
+      total: { obtained: 80, max: 100, pct: 80, grade: 'A2' },
+      rank: { rank: 3, of: 30 },
+      subjects: [{ subject: 'English', obtained: 42, max: 50, pct: 84, allAbsent: false }, { subject: 'Mathematics', obtained: 38, max: 50, pct: 76, allAbsent: false }],
+      attendance: null,
+      remarks: 'This is a test message from the school student tracker.'
+    };
+    try {
+      await whatsapp.sendDocument(number, renderReportCards([sample], settings().school), 'Sample_Report_Card.pdf',
+        'Test message: if you can see this PDF, report cards will reach parents.');
+    } catch (err) {
+      throw new HttpError(502, `WhatsApp could not send the PDF: ${err.message}`);
+    }
+    res.json({ ok: true });
   });
 
   api.post('/whatsapp/unlink', adminOnly, async (req, res) => {

@@ -15,7 +15,7 @@ The app has five pages (the bar at the bottom on a phone):
 | **Home** | See each of your classes: is today's attendance done, how many marks are entered. |
 | **Attendance** | Everyone starts as **present**. Tap a name to mark **absent**, then **Save**. One more tap sends a WhatsApp message to the parents of absent children. |
 | **Marks** | **New test** → pick the subjects and maximum marks → type the marks (on a phone, one subject at a time; press Enter to go to the next child). Or **Upload marks from Excel**. |
-| **Students** | Upload your class list from Excel or add children one by one. Download a report card, or copy a child's private parent link. |
+| **Students** | Upload your class list from Excel or add children one by one. Open a child's **Insights** (strengths, weak subjects, test-by-test progress against the class), download a report card, or copy a child's private parent link. |
 | **Send** | Choose: **Report cards**, **Absent students**, **Low marks alert** or **Notice** → check the list → send. |
 
 Type **AB** for a student who was absent in a test.
@@ -34,8 +34,8 @@ Tip: on a test's page, **Excel → Download sheet to fill in** gives you a sheet
 
 ### Messages to parents
 
-- If the office has linked the **school WhatsApp**, one tap sends every message (report card PDFs included), with live progress.
-- If not, each parent has an **Open WhatsApp** button with the message already written — tap it, then tap send.
+- If the office has linked the **school WhatsApp**, one tap sends every message with the **report card PDF file attached**, with live progress. If a file cannot be attached, the parent gets a download link instead and the list says so.
+- If not, on a phone tap **Share PDF**, choose WhatsApp and pick the parent: the PDF file goes with the message. Each parent also has an **Open WhatsApp** button with the message already written; for report cards it includes a link where the parent downloads the PDF (when the app runs on a website address).
 
 ---
 
@@ -43,11 +43,18 @@ Tip: on a test's page, **Excel → Download sheet to fill in** gives you a sheet
 
 1. **First sign-in:** choose **Principal / Office**. On the very first sign-in, use the old passcode, and the app asks you to choose a new password straight away. (Or set `ADMIN_PASSWORD` on the server before the first start.)
 2. **Teachers** (top menu → Teachers): add each teacher with their mobile number, a password and their classes. The app shows the sign-in details ready to send on WhatsApp. Teachers can also ask for an account from the sign-in page; you approve it here. A forgotten password is reset here too.
-3. **Settings → School WhatsApp:** link the school's WhatsApp number once by scanning the code with the school phone (*WhatsApp → Linked devices → Link a device*).
+3. **Settings → School WhatsApp:** link the school's WhatsApp number once by scanning the code with the school phone (*WhatsApp → Linked devices → Link a device*). Then use **Send test PDF** with your own number to check that report cards arrive.
 4. **Settings → School details:** the name and address printed on report cards, and (optionally) the website address used in parent links.
 5. **Settings → Download full backup** any time.
 
-The **School overview** shows students, teachers, today's attendance, average marks, every class, and what each teacher has done. It updates by itself.
+The **School overview** updates by itself and shows:
+
+- filters for classroom, subject and dates;
+- tiles for students, average score, today's attendance, pass rate, tests held and the top subject;
+- charts: class benchmark (coloured by result band), performance over time, subject-wise averages and the grade distribution;
+- every classroom with its teachers, average, pass rate, attendance and a status badge;
+- an honour roll (top students of each class), the faculty, and a searchable student directory;
+- **AI Insights** for any student: a plain-language reading of their results with suggested next steps.
 
 ### Parents
 

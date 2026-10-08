@@ -36,6 +36,15 @@ const KINDS = {
 let form = null;
 let pollTimer = null;
 
+// Phones can hand a real PDF file to WhatsApp through the share sheet.
+const canShareFiles = (() => {
+  try {
+    return Boolean(navigator.canShare && navigator.canShare({ files: [new File(['%PDF'], 'test.pdf', { type: 'application/pdf' })] }));
+  } catch {
+    return false;
+  }
+})();
+
 function freshForm(params) {
   const kind = KINDS[params.kind] ? params.kind : null;
   if (params.std) select(params.std, params.section || 'all');
@@ -49,7 +58,9 @@ function freshForm(params) {
     absent: null,
     review: null,
     job: null,
-    opened: new Set()
+    opened: new Set(),
+    files: new Map(),
+    onlyStudent: params.student || null
   };
 }
 
@@ -175,7 +186,12 @@ function reviewHtml() {
     <p class="muted small">This is exactly what each parent will receive.</p>
     ${wa.connected
       ? html`<div class="banner good"><span class="grow">${whatsappLine()}</span><button class="btn wa" data-act="send-all">${icon('send')} Send ${plural(r.items.filter(i => i.numbers.length).length, 'message')} now</button></div>`
-      : html`<div class="banner warn"><span class="grow">The school WhatsApp is not linked, so send each message from your own WhatsApp: tap <strong>Open WhatsApp</strong>, then tap send in WhatsApp${isReport ? ' and attach the downloaded PDF' : ''}. ${state.me.role === 'admin' ? html`<a href="#/settings">Link the school WhatsApp</a> to send all at once.` : 'Ask the office to link the school WhatsApp to send all at once.'}</span></div>`}
+      : html`<div class="banner warn"><span class="grow">${isReport && canShareFiles
+        ? html`The school WhatsApp is not linked. Tap <strong>Share PDF</strong>, choose <strong>WhatsApp</strong> and pick the parent: the report card file goes with the message.`
+        : isReport
+          ? html`The school WhatsApp is not linked, so send from your own WhatsApp: tap <strong>Open WhatsApp</strong>, then send. ${state.data.publicUrl ? 'The message has a link where the parent downloads the report card PDF.' : 'Attach the downloaded PDF in WhatsApp.'}`
+          : html`The school WhatsApp is not linked, so send each message from your own WhatsApp: tap <strong>Open WhatsApp</strong>, then tap send in WhatsApp.`}
+        ${state.me.role === 'admin' ? html`<a href="#/settings">Link the school WhatsApp</a> to send everything at once.` : 'Ask the office to link the school WhatsApp to send everything at once.'}</span></div>`}
     ${isReport ? html`<button class="btn" data-act="all-pdf">${icon('download')} Download all these report cards (one PDF to print)</button>` : ''}
     <ul class="list" style="margin-top:8px">${r.items.map(i => html`<li>
       <span class="roll">${i.roll}</span>
@@ -184,11 +200,39 @@ function reviewHtml() {
         <div class="sub" style="white-space:pre-line">${i.text}</div>
       </div>
       <div class="row">
+        ${isReport && !wa.connected && canShareFiles && i.pdfPath ? html`<button class="btn small wa" data-act="share-pdf" data-id="${i.studentId}">${icon('send')} Share PDF</button>` : ''}
         ${isReport ? html`<button class="btn small" data-act="one-pdf" data-id="${i.studentId}">${icon('download')} PDF</button>` : ''}
         ${!wa.connected ? (i.numbers.length ? i.numbers.map(n => html`<a class="btn small wa" href="${waLink(n, i.text)}" target="_blank" rel="noopener" data-act="opened" data-id="${i.studentId}" data-href="${waLink(n, i.text)}">${icon('chat')} ${i.numbers.length > 1 ? n.slice(-4) : 'Open WhatsApp'}</a>`) : html`<span class="badge warn">No mobile</span>`) : ''}
       </div>
     </li>`)}</ul>
   </div>`;
+}
+
+function testParam() {
+  return form.testId && form.testId !== 'all' ? form.testId : 'all';
+}
+
+async function pdfFile(item) {
+  const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${item.studentId}&tests=${testParam()}`);
+  return new File([blob], item.fileName || fileName, { type: 'application/pdf' });
+}
+
+// The file is attached, so the download link is left out of the shared text.
+function shareText(item) {
+  return item.text.replace(/\n*Report card \(PDF\): \S+/, '').trim();
+}
+
+// Prepares the PDFs in the background, two at a time, so "Share PDF" opens at once.
+async function prefetchPdfs(f) {
+  const queue = f.review.items.filter(i => i.pdfPath);
+  const worker = async () => {
+    while (queue.length && form === f && f.review) {
+      const item = queue.shift();
+      if (f.files.has(item.studentId)) continue;
+      try { f.files.set(item.studentId, await pdfFile(item)); } catch { /* fetched again on tap */ }
+    }
+  };
+  await Promise.all([worker(), worker()]);
 }
 
 export default {
@@ -207,7 +251,10 @@ export default {
       try { await loadAbsent(sel); } catch (err) { toast(err.message, 'bad'); form.absent = new Set(); }
     }
     const list = sel.std ? candidates(sel) : [];
-    if (!form.selected) form.selected = new Set(list.filter(s => s.mobile).map(s => s.id));
+    if (!form.selected) {
+      const only = form.onlyStudent && list.find(s => s.id === form.onlyStudent);
+      form.selected = new Set(only ? [only.id] : list.filter(s => s.mobile).map(s => s.id));
+    }
     const k = KINDS[form.kind];
 
     const draw = () => {
@@ -259,7 +306,7 @@ export default {
     const resetList = () => { form.selected = null; form.review = null; };
 
     return {
-      ...Object.fromEntries(Object.entries(pickerHandlers(ctx)).map(([n, fn]) => [n, el => { resetList(); form.absent = null; fn(el); }])),
+      ...Object.fromEntries(Object.entries(pickerHandlers(ctx)).map(([n, fn]) => [n, el => { resetList(); form.absent = null; form.onlyStudent = null; fn(el); }])),
       restart: () => { form = freshForm({}); clearInterval(pollTimer); ctx.rerender(); },
       'opt-test': el => { form.testId = el.value; resetList(); ctx.rerender(); },
       'opt-threshold': el => { form.threshold = Number(el.value); resetList(); ctx.rerender(); },
@@ -279,8 +326,10 @@ export default {
         form.review = await api('POST', '/messages/preview', body());
         state.data.whatsapp = form.review.whatsapp;
         form.opened = new Set();
+        form.files = new Map();
         draw();
         window.scrollTo(0, 0);
+        if (form.kind === 'report' && !form.review.whatsapp.connected && canShareFiles) prefetchPdfs(form);
       }, 'Preparing...'),
       'edit-again': () => { form.review = null; draw(); },
       opened: el => {
@@ -306,9 +355,28 @@ export default {
         form.job = (await api('POST', `/messages/jobs/${form.job.id}/cancel`)).job;
         draw();
       }),
+      'share-pdf': async el => {
+        const item = form.review.items.find(i => i.studentId === el.dataset.id);
+        if (!item) return;
+        let file = form.files.get(item.studentId);
+        if (!file) {
+          // Not ready yet: fetch it now; the second tap shares instantly.
+          await busy(el, async () => { file = await pdfFile(item); form.files.set(item.studentId, file); }, '...');
+          if (!file) return;
+        }
+        try {
+          await navigator.share({ files: [file], text: shareText(item) });
+          form.opened.add(item.studentId);
+          const title = el.closest('li') && el.closest('li').querySelector('.title');
+          if (title && !title.querySelector('.badge.good')) title.insertAdjacentHTML('beforeend', ' <span class="badge good">Shared</span>');
+        } catch (err) {
+          if (err && err.name === 'AbortError') return;
+          if (err && err.name === 'NotAllowedError') { toast('The PDF is ready. Tap Share PDF again.'); return; }
+          toast('Sharing did not work on this phone. Use the PDF and Open WhatsApp buttons instead.', 'bad');
+        }
+      },
       'one-pdf': el => busy(el, async () => {
-        const t = form.testId && form.testId !== 'all' ? form.testId : 'all';
-        const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${el.dataset.id}&tests=${t}`);
+        const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${el.dataset.id}&tests=${testParam()}`);
         downloadBlob(blob, fileName);
       }, '...'),
       'all-pdf': el => busy(el, async () => {

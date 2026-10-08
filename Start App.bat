@@ -16,7 +16,11 @@ if %errorlevel% neq 0 (
 )
 
 :: Install or update the app's parts the first time (or after an update)
-if not exist "node_modules\jspdf" (
+set NEED_INSTALL=0
+if not exist "node_modules\jspdf" set NEED_INSTALL=1
+if not exist "node_modules\@fontsource\plus-jakarta-sans" set NEED_INSTALL=1
+if not exist "node_modules\chart.js" set NEED_INSTALL=1
+if "%NEED_INSTALL%"=="1" (
     echo [*] Installing the app for the first time. This needs internet and takes a minute...
     call npm install --no-audit --no-fund
     if errorlevel 1 (
