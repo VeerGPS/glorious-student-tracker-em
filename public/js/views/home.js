@@ -7,7 +7,8 @@ function classCard(std, section, index) {
   const kids = students(std, section);
   const today = state.data.today;
   const rec = attendanceFor(std, section, today);
-  const absent = rec ? Object.values(rec.status).filter(s => s === 'A').length : 0;
+  const count = v => (rec ? Object.values(rec.status).filter(s => s === v).length : 0);
+  const [present, absent, leave] = [count('P'), count('A'), count('L')];
   const latest = tests(std)[0];
   const prog = latest ? testProgress(latest, section) : null;
   return html`<div class="card class-card c${index % 6}">
@@ -19,7 +20,7 @@ function classCard(std, section, index) {
       <li>
         <div class="main">
           <div class="title">Attendance today</div>
-          <div class="sub">${!kids.length ? 'Add students first' : rec ? `Done · ${kids.length - absent} present, ${absent} absent` : 'Not taken yet'}</div>
+          <div class="sub">${!kids.length ? 'Add students first' : rec ? `Done · ${present} present, ${absent} absent${leave ? `, ${leave} on leave` : ''}` : 'Not taken yet'}</div>
         </div>
         ${kids.length ? html`<button class="btn small ${rec ? '' : 'primary'}" data-act="open" data-href="#/attendance" data-std="${std}" data-section="${section}">${rec ? 'View' : 'Take now'}</button>` : ''}
       </li>
