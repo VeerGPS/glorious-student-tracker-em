@@ -1,6 +1,7 @@
 import { html, mount, busy, toast, fmtDate, plural, icon, $, $$ } from '../ui.js';
 import { state, api, students } from '../data.js';
 import { classPicker, currentSelection, pickerHandlers, empty } from './common.js';
+import { openAttendanceExport } from './attendance-export.js';
 
 let marks = {};
 let dirty = false;
@@ -48,10 +49,12 @@ export default {
     marks = {};
     dirty = false;
 
-    const head = html`<div class="page-head"><div><h1>Attendance</h1><p>Everyone starts as present. Tap a name to mark absent.</p></div></div>`;
+    const head = html`<div class="page-head"><div><h1>Attendance</h1><p>Everyone starts as present. Tap a name to mark absent.</p></div>
+      ${sel.std ? html`<div class="row"><button class="btn" data-act="att-export">${icon('download')} Download Excel</button></div>` : ''}</div>`;
+    const exportHandler = { 'att-export': () => openAttendanceExport({ std: sel.std, section: sel.section }) };
     if (!sel.std || !kids.length) {
       mount(main, html`${head}${classPicker({ sectionMode: 'one' })}${empty('No students in this class yet', 'Add students first, then take attendance here.', html`<a class="btn primary" href="#/students">${icon('users')} Add students</a>`)}`);
-      return pickerHandlers(ctx);
+      return { ...pickerHandlers(ctx), ...exportHandler };
     }
 
     mount(main, html`${head}${classPicker({ sectionMode: 'one' })}<div class="card"><p>Loading...</p></div>`);
@@ -105,6 +108,7 @@ export default {
     const picker = pickerHandlers(ctx);
 
     return {
+      ...exportHandler,
       'pick-class': leaveGuard(picker['pick-class']),
       'pick-section': leaveGuard(picker['pick-section']),
       'att-date': el => {

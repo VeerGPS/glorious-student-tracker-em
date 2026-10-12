@@ -757,6 +757,24 @@ function createApi({ store, whatsapp, config = {} }) {
     res.json({ record: store.get('attendance', `${date}_${std}_${section}`) });
   });
 
+  // Attendance over a range of dates (read only), for the Excel register.
+  api.get('/attendance/range', (req, res) => {
+    let from = String(req.query.from || '');
+    let to = String(req.query.to || '');
+    if (!isIsoDate(from) || !isIsoDate(to)) bad('Choose the dates.');
+    if (from > to) [from, to] = [to, from];
+    if ((Date.parse(to) - Date.parse(from)) / 86400000 > 731) bad('Choose at most two years at a time.');
+    const allClasses = !req.query.std || req.query.std === 'all';
+    const std = allClasses ? null : normStd(req.query.std);
+    if (!allClasses) assertStd(req.user, std);
+    const section = std && req.query.section && req.query.section !== 'all' ? normSection(req.query.section) : null;
+    const records = store.list('attendance')
+      .filter(r => canStd(req.user, r.std) && (!std || r.std === std) && (!section || r.section === section) && r.date >= from && r.date <= to)
+      .map(r => ({ date: r.date, std: r.std, section: r.section, status: r.status || {}, takenByName: r.takenByName || '' }))
+      .sort((a, b) => byNumber(a.std, b.std) || a.section.localeCompare(b.section) || a.date.localeCompare(b.date));
+    res.json({ from, to, records });
+  });
+
   api.put('/attendance', async (req, res) => {
     const body = req.body || {};
     const std = normStd(body.std);

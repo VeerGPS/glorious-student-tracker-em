@@ -120,6 +120,33 @@ test('a heading like "Science (Ch 2)" is not read as "out of 2"', async () => {
   assert.equal(r.papers[0].maxGuessed, true);
 });
 
+test('attendance register: one sheet per class with days across and totals', async () => {
+  const { attendanceRegister } = await load();
+  const students = [
+    { id: 'a', std: '8', section: 'A', roll: 1, name: 'Asha Kumar' },
+    { id: 'b', std: '8', section: 'A', roll: 2, name: 'Bina Shah' },
+    { id: 'c', std: '9', section: 'A', roll: 1, name: 'Chirag Dave' }
+  ];
+  const records = [
+    { date: '2026-10-01', std: '8', section: 'A', status: { a: 'P', b: 'A' }, takenByName: 'Meera' },
+    { date: '2026-10-02', std: '8', section: 'A', status: { a: 'P', b: 'L' }, takenByName: 'Meera' },
+    { date: '2026-10-01', std: '9', section: 'A', status: { c: 'P' }, takenByName: 'Office' }
+  ];
+  const r = attendanceRegister({ records, students, from: '2026-10-01', to: '2026-10-02', schoolName: 'GPS' });
+  assert.equal(r.sections, 2);
+  assert.equal(r.days, 2);
+  assert.deepEqual(r.sheets.map(s => s.name), ['Summary', 'Class 8-A', 'Class 9-A']);
+  const eight = r.sheets[1].rows;
+  assert.deepEqual(eight[4], ['Roll No', 'Student Name', 'Thu 1 Oct', 'Fri 2 Oct', 'Present', 'Absent', 'Leave', 'Days marked', 'Attendance %']);
+  assert.deepEqual(eight[5], [1, 'Asha Kumar', 'P', 'P', 2, 0, 0, 2, 100]);
+  assert.deepEqual(eight[6], [2, 'Bina Shah', 'A', 'L', 0, 1, 1, 2, 0]);
+  assert.deepEqual(eight.find(row => row[1] === 'Present that day'), ['', 'Present that day', 1, 1]);
+  assert.deepEqual(r.sheets[0].rows[5], ['8', 'A', 2, 2, 2, 1, 1, 50]);
+
+  const single = attendanceRegister({ records: records.slice(2), students, from: '2026-10-01', to: '2026-10-01' });
+  assert.deepEqual(single.sheets.map(s => s.name), ['Class 9-A'], 'no summary sheet for a single class');
+});
+
 test('student list: joins father and mother mobile, keeps sections', async () => {
   const { parseStudentSheet } = await load();
   const rows = [

@@ -1,6 +1,7 @@
 import { html, mount, icon, fmtDate, greeting, plural } from '../ui.js';
 import { state, students, sections, tests, testProgress, attendanceFor, select, classesForUser } from '../data.js';
 import { legacyBanner } from './common.js';
+import { openAttendanceExport } from './attendance-export.js';
 
 function classCard(std, section, index) {
   const kids = students(std, section);
@@ -48,6 +49,7 @@ export default {
           <h1>${greeting()}, ${me.name.split(' ')[0]}</h1>
           <p>${new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
+        ${classes.length ? html`<div class="row"><button class="btn" data-act="att-export">${icon('download')} Attendance Excel</button></div>` : ''}
       </div>
       ${noStudents ? html`<div class="banner">
         <span class="grow"><strong>Start here:</strong> add your students. Upload your class list from Excel, or add them one by one.</span>
@@ -66,6 +68,7 @@ export default {
     `);
 
     return {
+      'att-export': () => openAttendanceExport(),
       open: el => {
         select(el.dataset.std, el.dataset.section);
         ctx.navigate(el.dataset.href);

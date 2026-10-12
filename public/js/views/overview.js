@@ -3,6 +3,7 @@ import { state, students, sections, attendanceFor, select, classesForUser, stude
 import { legacyBanner } from './common.js';
 import { ensureCharts, makeChart, palette, percentAxis, valueLabels, BANDS, bandIndex } from '../charts.js';
 import { openInsights } from './insights.js';
+import { openAttendanceExport } from './attendance-export.js';
 
 // Filters stay while the office moves around the app.
 const filters = { cls: 'all', subject: 'all', from: '', to: '' };
@@ -166,6 +167,7 @@ export default {
           <p>Whole school: ${plural(d.students.length, 'student')} · ${plural(active.length, 'teacher')} · updates by itself</p>
         </div>
         <div class="row">
+          <button class="btn" data-act="ov-att-export">${icon('download')} Attendance Excel</button>
           <a class="btn" href="#/teachers">${icon('teacher')} Teachers</a>
           <a class="btn" href="#/settings">${icon('settings')} Settings</a>
         </div>
@@ -409,6 +411,7 @@ export default {
       'ov-search': el => { dirSearch = el.value; dirLimit = DIR_PAGE; this.refreshDirectory(ctx, perStudent, totals); },
       'ov-more': () => { dirLimit += 50; this.refreshDirectory(ctx, perStudent, totals); },
       'ov-insights': el => openInsights(el.dataset.id),
+      'ov-att-export': () => openAttendanceExport({ std: filters.cls }),
       'ov-report': el => busy(el, async () => {
         const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${el.dataset.id}&tests=all`);
         downloadBlob(blob, fileName);

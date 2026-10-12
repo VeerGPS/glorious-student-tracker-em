@@ -191,6 +191,35 @@ test('Excel marks follow the roll number; a different name is pointed out', asyn
   assert.deepEqual([1, 2, 3, 4].map(mark), [16, 14, 9, 20]);
 });
 
+test('attendance for many days can be read for the Excel register, only for the teacher\'s classes', async t => {
+  const srv = await startServer();
+  t.after(() => srv.close());
+  const office = await adminToken(srv);
+  await srv.call('POST', '/api/teachers', { name: 'Asha', mobile: '9000000001', password: 'teach123', classes: ['8'] }, office);
+  const asha = (await srv.call('POST', '/api/login', { role: 'teacher', mobile: '9000000001', password: 'teach123' })).data.token;
+  const s8 = (await srv.call('POST', '/api/students', { std: '8', section: 'A', roll: 1, name: 'Riya Patel' }, office)).data.student;
+  const s9 = (await srv.call('POST', '/api/students', { std: '9', section: 'A', roll: 1, name: 'Om Shah' }, office)).data.student;
+  for (const [date, st] of [['2026-10-01', 'P'], ['2026-10-02', 'A'], ['2026-10-05', 'L'], ['2026-09-30', 'P']]) {
+    await srv.call('PUT', '/api/attendance', { std: '8', section: 'A', date, status: { [s8.id]: st } }, asha);
+  }
+  await srv.call('PUT', '/api/attendance', { std: '9', section: 'A', date: '2026-10-01', status: { [s9.id]: 'A' } }, office);
+  const before = JSON.stringify(srv.store.list('attendance'));
+
+  const mine = await srv.call('GET', '/api/attendance/range?from=2026-10-01&to=2026-10-31&std=all', undefined, asha);
+  assert.equal(mine.status, 200);
+  assert.deepEqual(mine.data.records.map(r => [r.std, r.date, r.status[s8.id]]), [['8', '2026-10-01', 'P'], ['8', '2026-10-02', 'A'], ['8', '2026-10-05', 'L']]);
+  const other = await srv.call('GET', '/api/attendance/range?from=2026-10-01&to=2026-10-31&std=9', undefined, asha);
+  assert.equal(other.status, 403, 'a teacher cannot download another class');
+
+  const all = await srv.call('GET', '/api/attendance/range?from=2026-10-31&to=2026-09-01', undefined, office);
+  assert.equal(all.data.from, '2026-09-01', 'dates given the wrong way round are swapped');
+  assert.deepEqual(all.data.records.map(r => `${r.std}:${r.date}`), ['8:2026-09-30', '8:2026-10-01', '8:2026-10-02', '8:2026-10-05', '9:2026-10-01']);
+  const oneDay = await srv.call('GET', '/api/attendance/range?from=2026-10-01&to=2026-10-01', undefined, office);
+  assert.equal(oneDay.data.records.length, 2);
+  assert.equal((await srv.call('GET', '/api/attendance/range?from=2026-10-01', undefined, office)).status, 400);
+  assert.equal(JSON.stringify(srv.store.list('attendance')), before, 'downloading never changes attendance');
+});
+
 test('student list upload adds, updates and reports problems', async t => {
   const srv = await startServer();
   t.after(() => srv.close());

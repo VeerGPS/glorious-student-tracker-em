@@ -503,3 +503,127 @@ export async function downloadResultsSheet(test, studentList) {
   XLSX.utils.book_append_sheet(wb, ws, 'Results');
   XLSX.writeFile(wb, `Class_${test.std}_${test.name.replace(/[^A-Za-z0-9]+/g, '_')}_results.xlsx`);
 }
+
+// ---------------------------------------------------------------- attendance register
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function dayLabel(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d} ${MON[m - 1]}`;
+}
+
+function longDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${d} ${MON[m - 1]} ${y}`;
+}
+
+function percent(part, whole) {
+  return whole ? Math.round((part / whole) * 1000) / 10 : '';
+}
+
+/**
+ * Builds the attendance register: one sheet per class section with students
+ * down the side and the days across (P / A / L), plus totals. A summary sheet
+ * comes first when there is more than one section. Returns plain rows so it
+ * can be checked without Excel.
+ */
+export function attendanceRegister({ records, students: list, from, to, schoolName = '' }) {
+  const byId = new Map(list.map(s => [s.id, s]));
+  const groups = new Map();
+  records.forEach(r => {
+    const k = `${r.std}|${r.section}`;
+    if (!groups.has(k)) groups.set(k, { std: r.std, section: r.section, records: [] });
+    groups.get(k).records.push(r);
+  });
+  const ordered = [...groups.values()].sort((a, b) => (parseInt(a.std, 10) - parseInt(b.std, 10)) || a.section.localeCompare(b.section));
+  const period = from === to ? longDate(from) : `${longDate(from)} to ${longDate(to)}`;
+  const sheets = [];
+  const summary = [];
+  const allDays = new Set();
+
+  ordered.forEach(g => {
+    const dates = [...new Set(g.records.map(r => r.date))].sort();
+    dates.forEach(d => allDays.add(d));
+    const recByDate = new Map(g.records.map(r => [r.date, r]));
+    // Students now in this section, plus any who were marked here and have since moved.
+    const ids = new Set(list.filter(s => s.std === g.std && s.section === g.section).map(s => s.id));
+    g.records.forEach(r => Object.keys(r.status || {}).forEach(id => { if (byId.has(id)) ids.add(id); }));
+    const here = s => s.std === g.std && s.section === g.section;
+    const kids = [...ids].map(id => byId.get(id)).sort((a, b) => (here(a) ? 0 : 1) - (here(b) ? 0 : 1) || a.roll - b.roll || a.name.localeCompare(b.name));
+
+    const rows = [
+      [schoolName || 'School'],
+      [`Attendance register · Class ${g.std}-${g.section}`],
+      [`${period} · attendance taken on ${dates.length} ${dates.length === 1 ? 'day' : 'days'} · P = Present, A = Absent, L = Leave`],
+      [],
+      ['Roll No', 'Student Name', ...dates.map(dayLabel), 'Present', 'Absent', 'Leave', 'Days marked', 'Attendance %']
+    ];
+    const perDay = dates.map(() => ({ P: 0, A: 0, L: 0 }));
+    let present = 0;
+    let marked = 0;
+    let absent = 0;
+    let leave = 0;
+    kids.forEach(s => {
+      const c = { P: 0, A: 0, L: 0 };
+      const cells = dates.map((d, i) => {
+        const v = ((recByDate.get(d) || {}).status || {})[s.id] || '';
+        if (v) { c[v] += 1; perDay[i][v] += 1; }
+        return v;
+      });
+      const days = c.P + c.A + c.L;
+      present += c.P;
+      absent += c.A;
+      leave += c.L;
+      marked += days;
+      rows.push([s.roll, here(s) ? s.name : `${s.name} (now in ${s.std}-${s.section})`, ...cells, c.P, c.A, c.L, days, percent(c.P, days)]);
+    });
+    rows.push([]);
+    rows.push(['', 'Present that day', ...perDay.map(x => x.P)]);
+    rows.push(['', 'Absent that day', ...perDay.map(x => x.A)]);
+    if (perDay.some(x => x.L)) rows.push(['', 'On leave that day', ...perDay.map(x => x.L)]);
+    rows.push(['', 'Marked by', ...dates.map(d => (recByDate.get(d) || {}).takenByName || '')]);
+
+    sheets.push({
+      name: `Class ${g.std}-${g.section}`.replace(/[[\]:*?/\\]/g, '').slice(0, 31),
+      rows,
+      cols: [8, 34, ...dates.map(() => 11), 9, 9, 8, 12, 13]
+    });
+    summary.push([g.std, g.section, kids.filter(here).length, dates.length, present, absent, leave, percent(present, marked)]);
+  });
+
+  if (ordered.length > 1) {
+    const totalP = summary.reduce((a, r) => a + r[4], 0);
+    const totalMarked = summary.reduce((a, r) => a + r[4] + r[5] + r[6], 0);
+    sheets.unshift({
+      name: 'Summary',
+      rows: [
+        [schoolName || 'School'],
+        ['Attendance summary'],
+        [period],
+        [],
+        ['Class', 'Section', 'Students', 'Days taken', 'Present', 'Absent', 'Leave', 'Attendance %'],
+        ...summary,
+        [],
+        ['All classes', '', summary.reduce((a, r) => a + r[2], 0), allDays.size, totalP, summary.reduce((a, r) => a + r[5], 0), summary.reduce((a, r) => a + r[6], 0), percent(totalP, totalMarked)]
+      ],
+      cols: [12, 10, 10, 12, 10, 10, 10, 14]
+    });
+  }
+  return { sheets, sections: ordered.length, days: allDays.size };
+}
+
+export async function downloadAttendanceRegister({ records, students: list, from, to, schoolName, scopeName }) {
+  const XLSX = await ensureXlsx();
+  const result = attendanceRegister({ records, students: list, from, to, schoolName });
+  const wb = XLSX.utils.book_new();
+  result.sheets.forEach(sheet => {
+    const ws = XLSX.utils.aoa_to_sheet(sheet.rows);
+    ws['!cols'] = sheet.cols.map(wch => ({ wch }));
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+  });
+  const scope = String(scopeName || 'Attendance').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  XLSX.writeFile(wb, `Attendance_${scope}_${from}${from !== to ? `_to_${to}` : ''}.xlsx`);
+  return result;
+}
