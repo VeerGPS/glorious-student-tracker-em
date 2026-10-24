@@ -15,11 +15,38 @@ function parentUrl(s) {
   return `${base}/?p=${s.parentKey}`;
 }
 
+function resizePhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\/(?:jpeg|png|webp)$/i.test(file.type)) {
+      reject(new Error('Choose a JPG, PNG or WebP image.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that photo.'));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error('Could not read that photo.'));
+      image.onload = () => {
+        const max = 600;
+        const scale = Math.min(1, max / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.82));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function listHtml(kids) {
   const q = search.trim().toLowerCase();
   const shown = q ? kids.filter(s => s.name.toLowerCase().includes(q) || String(s.roll) === q || (s.grNo || '').toLowerCase().includes(q) || (s.mobile || '').includes(q)) : kids;
   if (!shown.length) return html`<p class="muted" style="padding:12px">No student matches "${search}".</p>`;
   return html`<ul class="list">${shown.map(s => html`<li>
+    ${s.photo ? html`<img class="student-thumb" src="${s.photo}" alt="${s.name} photo">` : html`<span class="student-thumb placeholder" aria-hidden="true">${icon('users')}</span>`}
     <span class="roll">${s.roll}</span>
     <div class="main">
       <div class="title">${s.name}</div>
@@ -48,6 +75,18 @@ function studentForm(s, defaults) {
       <label class="field"><span>GR number (optional)</span><input name="grNo" value="${v.grNo || ''}"></label>
       <label class="field"><span>Parent's mobile number(s)</span><input name="mobile" type="tel" value="${v.mobile || ''}" placeholder="9876543210, 9876543211"><small>Used for WhatsApp messages. Separate two numbers with a comma.</small></label>
     </div>
+    <div class="student-photo-editor">
+      <span class="field-label">Student photo (optional)</span>
+      <div class="student-photo-controls">
+        <img data-photo-preview src="${v.photo || ''}" alt="Student photo preview" ${v.photo ? '' : 'hidden'}>
+        <span class="student-photo-empty" data-photo-empty ${v.photo ? 'hidden' : ''}>No photo selected</span>
+        <label class="btn small">Choose photo<input type="file" accept="image/jpeg,image/png,image/webp" class="sr-only" data-change="photo-file"></label>
+        <button type="button" class="btn small" data-act="clear-photo">Remove</button>
+      </div>
+      <input type="hidden" name="photo" value="${v.photo || ''}">
+      <small>Photos are resized before saving and will appear on the Result Card template.</small>
+    </div>
+    <label class="field"><span>Date of birth (optional)</span><input name="dateOfBirth" type="date" value="${v.dateOfBirth || ''}"></label>
     <div class="form-actions">
       ${s ? html`<button type="button" class="btn danger" data-act="delete-student">Delete student</button><span class="spacer"></span>` : ''}
       <button type="button" class="btn" data-act="dialog-close">Cancel</button>
@@ -84,9 +123,10 @@ export default {
       const secs = sections(sel.std);
       const sec = sel.section !== 'all' ? sel.section : secs[0];
       const nextRoll = Math.max(0, ...students(sel.std, sec).map(x => x.roll)) + 1;
+      let photoData = s ? (s.photo || '') : '';
       openDialog({
         title: s ? `Edit ${s.name}` : `Add a student`,
-        body: studentForm(s, { std: sel.std, section: sec, roll: nextRoll }),
+        body: studentForm(s, { std: sel.std, section: sec, roll: nextRoll, photo: photoData }),
         handlers: {
           'save-student': form => busy(form.querySelector('[type=submit]'), async () => {
             const body = Object.fromEntries(new FormData(form).entries());
@@ -106,6 +146,32 @@ export default {
             }
             ctx.rerender();
           }, 'Saving...'),
+          'photo-file': async el => {
+            const file = el.files && el.files[0];
+            if (!file) return;
+            try {
+              photoData = await resizePhoto(file);
+              const form = el.closest('form');
+              const hidden = form && form.querySelector('[name=photo]');
+              const preview = form && form.querySelector('[data-photo-preview]');
+              const empty = form && form.querySelector('[data-photo-empty]');
+              if (hidden) hidden.value = photoData;
+              if (preview) { preview.src = photoData; preview.hidden = false; }
+              if (empty) empty.hidden = true;
+            } catch (err) {
+              toast(err.message, 'bad');
+            }
+          },
+          'clear-photo': el => {
+            photoData = '';
+            const form = el.closest('form');
+            const hidden = form && form.querySelector('[name=photo]');
+            const preview = form && form.querySelector('[data-photo-preview]');
+            const empty = form && form.querySelector('[data-photo-empty]');
+            if (hidden) hidden.value = '';
+            if (preview) { preview.removeAttribute('src'); preview.hidden = true; }
+            if (empty) empty.hidden = false;
+          },
           'delete-student': async () => {
             const ok = await confirmDialog(`Delete ${s.name}?`, 'The student and all their marks will be removed. This cannot be undone.', { ok: 'Delete', danger: true });
             if (!ok) return;

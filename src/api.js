@@ -282,11 +282,22 @@ function createApi({ store, whatsapp, config = {} }) {
     const student = studentByKey(req);
     const testId = typeof req.query.test === 'string' && req.query.test !== 'all' ? req.query.test : null;
     const report = buildReport(store, student, testId ? [testId] : null);
-    sendPdf(res, [report]);
+    sendPdf(res, [report], undefined, readReportOptions(req.query));
   });
 
-  function sendPdf(res, reports, fileName) {
-    const pdf = renderReportCards(reports, settings().school);
+  function readReportOptions(source, { requireHeading = false } = {}) {
+    const template = String(source.reportTemplate || source.template || '').toLowerCase() === 'result-card'
+      ? 'result-card'
+      : 'modern';
+    const heading = cleanText(source.reportHeading || source.heading || '', 100);
+    if (template === 'result-card' && requireHeading && !heading) {
+      bad('Enter the text to show above Academic Session.');
+    }
+    return { template, heading: heading || 'PROGRESS REPORT / RESULT CARD' };
+  }
+
+  function sendPdf(res, reports, fileName, options) {
+    const pdf = renderReportCards(reports, settings().school, options);
     res.set('Content-Type', 'application/pdf');
     res.set('Content-Disposition', `attachment; filename="${fileName || reportFileName(reports[0])}"`);
     res.send(pdf);
@@ -367,7 +378,22 @@ function createApi({ store, whatsapp, config = {} }) {
     const mobileRaw = pick('mobile') || '';
     const mobiles = parseMobiles(mobileRaw);
     if (String(mobileRaw).replace(/\D/g, '') && !mobiles.length) bad('Mobile number should have 10 digits.');
-    return { std, section: normSection(pick('section')), roll, name, grNo: cleanText(pick('grNo') || '', 30), mobile: formatMobiles(mobiles) };
+    const dateOfBirth = pick('dateOfBirth') || '';
+    if (dateOfBirth && !isIsoDate(String(dateOfBirth))) bad('Check the date of birth.');
+    const photo = String(pick('photo') || '').trim();
+    if (photo && (photo.length > 800000 || !/^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(photo))) {
+      bad('Student photo must be a JPEG or PNG image smaller than 600 KB.');
+    }
+    return {
+      std,
+      section: normSection(pick('section')),
+      roll,
+      name,
+      grNo: cleanText(pick('grNo') || '', 30),
+      mobile: formatMobiles(mobiles),
+      dateOfBirth: dateOfBirth ? String(dateOfBirth) : '',
+      photo
+    };
   }
 
   function studentConflict(data, selfId, list) {
@@ -818,13 +844,14 @@ function createApi({ store, whatsapp, config = {} }) {
   api.get('/report-cards.pdf', (req, res) => {
     const students = pickStudents(req, req.query);
     const testIds = pickTestIds(req.query.tests);
+    const options = readReportOptions(req.query, { requireHeading: req.query.template === 'result-card' });
     const reports = students.map(s => buildReport(store, s, testIds));
     let fileName;
     if (reports.length > 1) {
       const first = reports[0].student;
       fileName = `Report_Cards_Class${first.std}${req.query.section ? normSection(req.query.section) : ''}.pdf`;
     }
-    sendPdf(res, reports, fileName);
+    sendPdf(res, reports, fileName, options);
   });
 
   // ------------------------------------------------------------ messages
@@ -842,9 +869,16 @@ function createApi({ store, whatsapp, config = {} }) {
     const needsReport = Boolean(body.attachReport) || /\{(percent|grade|test|rank)\}/.test(text);
     const school = settings().school || {};
     const attach = Boolean(body.attachReport);
+    const reportOptions = attach ? readReportOptions(body, { requireHeading: true }) : { template: 'modern', heading: '' };
     return students.map(s => {
       const report = needsReport ? buildReport(store, s, testIds.length ? testIds : null) : null;
-      const pdfPath = `/api/parent/${s.parentKey}/report.pdf${testIds.length === 1 ? `?test=${encodeURIComponent(testIds[0])}` : ''}`;
+      const params = new URLSearchParams();
+      if (testIds.length === 1) params.set('test', testIds[0]);
+      if (attach) {
+        params.set('template', reportOptions.template);
+        if (reportOptions.template === 'result-card') params.set('heading', reportOptions.heading);
+      }
+      const pdfPath = `/api/parent/${s.parentKey}/report.pdf${params.toString() ? `?${params.toString()}` : ''}`;
       const pdfUrl = base ? `${base}${pdfPath}` : '';
       const pdfLine = attach && !attached && pdfUrl ? `Report card (PDF): ${pdfUrl}` : '';
       const ctx = {
@@ -868,6 +902,7 @@ function createApi({ store, whatsapp, config = {} }) {
         numbers: parseMobiles(s.mobile),
         text: body.replace(/\n{3,}/g, '\n\n').trim(),
         report,
+        reportOptions,
         pdfPath: attach ? pdfPath : null,
         pdfUrl: attach ? pdfUrl : null
       };
@@ -936,7 +971,7 @@ function createApi({ store, whatsapp, config = {} }) {
         const errors = [];
         let ok = 0;
         let pdf = null;
-        if (attach) pdf = renderReportCards([item.report], settings().school);
+        if (attach) pdf = renderReportCards([item.report], settings().school, item.reportOptions);
         let linkInstead = 0;
         for (const number of item.numbers) {
           try {

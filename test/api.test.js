@@ -396,6 +396,34 @@ test('report cards reach parents: a PDF link when WhatsApp is not linked, the PD
   assert.equal(sent[sent.length - 1].fileName, 'Sample_Report_Card.pdf');
 });
 
+test('result-card template keeps the custom heading and student profile photo', async t => {
+  const srv = await startServer();
+  t.after(() => srv.close());
+  const office = await adminToken(srv);
+  const photo = `data:image/png;base64,${fs.readFileSync(path.join(__dirname, '../src/assets/report-logo.png')).toString('base64')}`;
+  const created = await srv.call('POST', '/api/students', {
+    std: '8', roll: 1, name: 'Asha Patel', grNo: 'GPS-8012', dateOfBirth: '2013-08-14', photo
+  }, office);
+  assert.equal(created.status, 201);
+  assert.equal(created.data.student.photo, photo);
+  assert.equal(created.data.student.dateOfBirth, '2013-08-14');
+
+  const missingHeading = await srv.call('GET', `/api/report-cards.pdf?students=${created.data.student.id}&template=result-card`, undefined, office);
+  assert.equal(missingHeading.status, 400);
+
+  const heading = 'PROGRESS REPORT / RESULT CARD';
+  const preview = await srv.call('POST', '/api/messages/preview', {
+    studentIds: [created.data.student.id], text: 'Report card for {name}', attachReport: true,
+    reportTemplate: 'result-card', reportHeading: heading
+  }, office);
+  assert.equal(preview.status, 200);
+  assert.match(preview.data.items[0].pdfPath, /template=result-card&heading=PROGRESS/);
+
+  const pdf = await srv.call('GET', `/api/report-cards.pdf?students=${created.data.student.id}&template=result-card&heading=${encodeURIComponent(heading)}`, undefined, office);
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.data.subarray(0, 4).toString(), '%PDF');
+});
+
 test('AI insights for a student', async t => {
   const srv = await startServer();
   t.after(() => srv.close());

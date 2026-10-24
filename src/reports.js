@@ -128,7 +128,16 @@ function buildReport(store, student, testIds, options = {}) {
   else if (Array.isArray(testIds) && testIds.length > 1) title = tests.map(t => t.name).join(', ');
 
   return {
-    student: { id: student.id, name: student.name, std: student.std, section: student.section, roll: student.roll, grNo: student.grNo || '' },
+    student: {
+      id: student.id,
+      name: student.name,
+      std: student.std,
+      section: student.section,
+      roll: student.roll,
+      grNo: student.grNo || '',
+      dateOfBirth: student.dateOfBirth || '',
+      photo: student.photo || ''
+    },
     title,
     tests: tests.map(t => ({ id: t.id, name: t.name, date: t.date })),
     rows,

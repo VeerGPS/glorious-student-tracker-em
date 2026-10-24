@@ -53,6 +53,8 @@ function freshForm(params) {
     testId: params.test || (kind === 'report' ? 'all' : ''),
     date: params.date || state.data.today,
     threshold: 33,
+    reportTemplate: 'modern',
+    reportHeading: 'PROGRESS REPORT / RESULT CARD',
     text: kind ? KINDS[kind].text : '',
     selected: null,
     absent: null,
@@ -120,11 +122,24 @@ function chooser() {
 function optionsHtml(sel) {
   const list = sel.std ? tests(sel.std) : [];
   if (form.kind === 'report') {
-    return html`<label class="field"><span>Which marks?</span>
-      <select data-change="opt-test">
-        <option value="all" ${form.testId === 'all' ? 'selected' : ''}>All tests so far</option>
-        ${list.map(t => html`<option value="${t.id}" ${form.testId === t.id ? 'selected' : ''}>${t.name} (${fmtDate(t.date)})</option>`)}
-      </select></label>`;
+    return html`<div class="inline-fields">
+      <label class="field"><span>Which marks?</span>
+        <select data-change="opt-test">
+          <option value="all" ${form.testId === 'all' ? 'selected' : ''}>All tests so far</option>
+          ${list.map(t => html`<option value="${t.id}" ${form.testId === t.id ? 'selected' : ''}>${t.name} (${fmtDate(t.date)})</option>`)}
+        </select>
+      </label>
+      <label class="field"><span>Report card template</span>
+        <select data-change="opt-template">
+          <option value="modern" ${form.reportTemplate === 'modern' ? 'selected' : ''}>Current template</option>
+          <option value="result-card" ${form.reportTemplate === 'result-card' ? 'selected' : ''}>Progress Report / Result Card</option>
+        </select>
+      </label>
+    </div>
+    ${form.reportTemplate === 'result-card' ? html`<label class="field"><span>Text above Academic Session</span>
+      <input name="reportHeading" value="${form.reportHeading}" maxlength="100" data-input="opt-heading" required>
+      <small>This heading is printed above the Academic Session on the new template.</small>
+    </label>` : ''}`;
   }
   if (form.kind === 'low') {
     return html`<div class="inline-fields">
@@ -212,8 +227,15 @@ function testParam() {
   return form.testId && form.testId !== 'all' ? form.testId : 'all';
 }
 
+function reportPdfQuery(studentIds) {
+  const params = new URLSearchParams({ students: studentIds, tests: testParam() });
+  params.set('template', form.reportTemplate || 'modern');
+  if (form.reportTemplate === 'result-card') params.set('heading', form.reportHeading.trim());
+  return params.toString();
+}
+
 async function pdfFile(item) {
-  const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${item.studentId}&tests=${testParam()}`);
+  const { blob, fileName } = await fetchFile(`/report-cards.pdf?${reportPdfQuery(item.studentId)}`);
   return new File([blob], item.fileName || fileName, { type: 'application/pdf' });
 }
 
@@ -300,7 +322,9 @@ export default {
       text: form.text,
       testIds: form.testId && form.testId !== 'all' ? [form.testId] : [],
       date: form.date,
-      attachReport: form.kind === 'report'
+      attachReport: form.kind === 'report',
+      reportTemplate: form.reportTemplate,
+      reportHeading: form.reportHeading.trim()
     });
 
     const resetList = () => { form.selected = null; form.review = null; };
@@ -309,6 +333,8 @@ export default {
       ...Object.fromEntries(Object.entries(pickerHandlers(ctx)).map(([n, fn]) => [n, el => { resetList(); form.absent = null; form.onlyStudent = null; fn(el); }])),
       restart: () => { form = freshForm({}); clearInterval(pollTimer); ctx.rerender(); },
       'opt-test': el => { form.testId = el.value; resetList(); ctx.rerender(); },
+      'opt-template': el => { form.reportTemplate = el.value; resetList(); ctx.rerender(); },
+      'opt-heading': el => { form.reportHeading = el.value; },
       'opt-threshold': el => { form.threshold = Number(el.value); resetList(); ctx.rerender(); },
       'opt-date': el => { form.date = el.value || state.data.today; form.absent = null; resetList(); ctx.rerender(); },
       'opt-text': el => { form.text = el.value; },
@@ -376,13 +402,12 @@ export default {
         }
       },
       'one-pdf': el => busy(el, async () => {
-        const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${el.dataset.id}&tests=${testParam()}`);
+        const { blob, fileName } = await fetchFile(`/report-cards.pdf?${reportPdfQuery(el.dataset.id)}`);
         downloadBlob(blob, fileName);
       }, '...'),
       'all-pdf': el => busy(el, async () => {
         const ids = form.review.items.map(i => i.studentId).join(',');
-        const t = form.testId && form.testId !== 'all' ? form.testId : 'all';
-        const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${ids}&tests=${t}`);
+        const { blob, fileName } = await fetchFile(`/report-cards.pdf?${reportPdfQuery(ids)}`);
         downloadBlob(blob, fileName);
       }, 'Preparing PDF...')
     };
