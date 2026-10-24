@@ -1,4 +1,5 @@
-import { html, mount, fmtDate, pct, barList, applyBarWidths, icon } from '../ui.js';
+import { html, mount, fmtDate, pct, barList, applyBarWidths, icon, busy } from '../ui.js';
+import { downloadReportCards } from './common.js';
 
 function marksCell(r) {
   if (r.marks === 'AB') return html`<span class="badge bad">Absent</span>`;
@@ -40,7 +41,7 @@ export default {
 
     const st = data.student;
     const o = data.overall;
-    const pdf = testId => `/api/parent/${encodeURIComponent(key)}/report.pdf${testId ? `?test=${encodeURIComponent(testId)}` : ''}`;
+    const pdfEndpoint = `/parent/${encodeURIComponent(key)}/report.pdf`;
     mount(main, html`
       <header class="topbar">
         <span class="logo" aria-hidden="true"><img src="/img/logo.png" alt=""></span>
@@ -54,7 +55,7 @@ export default {
             <h1>${st.name}</h1>
             <p>Class ${st.std}-${st.section} · Roll ${st.roll}${st.grNo ? ` · GR ${st.grNo}` : ''}</p>
           </div>
-          <a class="btn primary" href="${pdf(null)}">${icon('download')} Full report card (PDF)</a>
+          <button class="btn primary" data-act="parent-pdf">${icon('download')} Full report card (PDF)</button>
         </div>
         <div class="grid-tiles">
           <div class="tile"><div class="label">Overall</div><div class="value">${pct(o.total.pct)}</div><div class="note">Grade ${o.total.grade}</div></div>
@@ -78,7 +79,7 @@ export default {
           ${data.tests.length ? data.tests.map(t => html`<div class="card">
             <div class="row between">
               <div><h3>${t.name}</h3><div class="muted small">${fmtDate(t.date)}</div></div>
-              <a class="btn small" href="${pdf(t.id)}">${icon('download')} Report card</a>
+              <button class="btn small" data-act="parent-test-pdf" data-test="${t.id}">${icon('download')} Report card</button>
             </div>
             <div style="margin-top:10px">${testTable(t.report)}</div>
           </div>`) : html`<div class="card empty"><p>No marks have been entered yet.</p></div>`}
@@ -86,6 +87,10 @@ export default {
       </main>
     `);
     applyBarWidths(main);
-    return { leave: ctx.onLeave };
+    return {
+      leave: ctx.onLeave,
+      'parent-pdf': el => busy(el, () => downloadReportCards({}, pdfEndpoint), 'Preparing PDF...'),
+      'parent-test-pdf': el => busy(el, () => downloadReportCards({ test: el.dataset.test }, pdfEndpoint), 'Preparing PDF...')
+    };
   }
 };

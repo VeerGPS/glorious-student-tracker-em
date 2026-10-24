@@ -1,5 +1,6 @@
-import { html, openDialog, closeDialog, busy, toast, icon, fmtDate, downloadBlob } from '../ui.js';
-import { api, fetchFile } from '../data.js';
+import { html, openDialog, closeDialog, busy, toast, icon, fmtDate } from '../ui.js';
+import { api } from '../data.js';
+import { downloadReportCards } from './common.js';
 import { ensureCharts, makeChart, palette, percentAxis } from '../charts.js';
 
 const TIERS = {
@@ -125,8 +126,7 @@ export async function openInsights(studentId) {
     wide: true,
     handlers: {
       'ins-pdf': el => busy(el, async () => {
-        const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${ins.student.id}&tests=all`);
-        downloadBlob(blob, fileName);
+        await downloadReportCards({ students: ins.student.id, tests: 'all' });
       }, 'Preparing...'),
       'ins-send': el => { closeDialog(); location.hash = el.getAttribute('href'); }
     }

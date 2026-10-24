@@ -1,6 +1,6 @@
-import { html, mount, busy, toast, icon, plural, openDialog, setDialogBody, closeDialog, confirmDialog, downloadBlob, copyText, waLink, $ } from '../ui.js';
-import { state, api, refresh, students, sections, fetchFile, classesForUser } from '../data.js';
-import { classPicker, currentSelection, pickerHandlers, empty } from './common.js';
+import { html, mount, busy, toast, icon, plural, openDialog, setDialogBody, closeDialog, confirmDialog, copyText, waLink, $ } from '../ui.js';
+import { state, api, refresh, students, sections, classesForUser } from '../data.js';
+import { classPicker, currentSelection, pickerHandlers, empty, downloadReportCards } from './common.js';
 import { readSheetRows, parseStudentSheet, downloadStudentList } from '../excel.js';
 import { openInsights } from './insights.js';
 
@@ -301,12 +301,10 @@ export default {
       download: el => busy(el, () => downloadStudentList(sel.std, students(sel.std, sel.section))),
       insights: el => openInsights(el.dataset.id),
       report: el => busy(el, async () => {
-        const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${el.dataset.id}&tests=all`);
-        downloadBlob(blob, fileName);
+        await downloadReportCards({ students: el.dataset.id, tests: 'all' });
       }, '...'),
       'class-pdf': el => busy(el, async () => {
-        const { blob, fileName } = await fetchFile(`/report-cards.pdf?std=${sel.std}${sel.section !== 'all' ? `&section=${sel.section}` : ''}&tests=all`);
-        downloadBlob(blob, fileName);
+        await downloadReportCards({ std: sel.std, ...(sel.section !== 'all' ? { section: sel.section } : {}), tests: 'all' });
       }, 'Preparing PDF...')
     };
   }

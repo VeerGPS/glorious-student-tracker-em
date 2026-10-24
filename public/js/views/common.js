@@ -1,5 +1,5 @@
-import { html, chips, icon } from '../ui.js';
-import { state, selection, select, sections, classesForUser } from '../data.js';
+import { html, chips, icon, openDialog, closeDialog, downloadBlob, toast } from '../ui.js';
+import { state, selection, select, sections, classesForUser, fetchFile } from '../data.js';
 import { shouldOfferLegacy, legacySummary } from '../legacy.js';
 
 // Class chips (and section chips when a class has more than one section).
@@ -58,6 +58,63 @@ export function whatsappLine() {
   const wa = state.data.whatsapp;
   if (wa.connected) return html`<span><span class="status-dot good"></span>School WhatsApp is linked${wa.phone ? ` (+${wa.phone})` : ''}. Messages go out automatically.</span>`;
   return html`<span><span class="status-dot warn"></span>School WhatsApp is not linked. You can still send each message from your own WhatsApp.</span>`;
+}
+
+export function downloadReportCards(params, endpoint = '/report-cards.pdf') {
+  return new Promise(resolve => {
+    let settled = false;
+    let accepted = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    openDialog({
+      title: 'Download report cards',
+      body: html`<form data-submit="report-pdf-options">
+        <label class="field"><span>Report card template</span>
+          <select name="template">
+            <option value="modern">Current template</option>
+            <option value="result-card">Progress Report / Result Card</option>
+          </select>
+        </label>
+        <label class="field"><span>Text above Academic Session</span>
+          <input name="heading" placeholder="e.g. FIRST PRELIMS RESULT" maxlength="100">
+          <small>Enter a custom heading when you choose the Progress Report / Result Card template.</small>
+        </label>
+        <div class="form-actions">
+          <button type="button" class="btn" data-act="dialog-close">Cancel</button>
+          <button type="submit" class="btn primary">Download PDF</button>
+        </div>
+      </form>`,
+      handlers: {
+        'report-pdf-options': async form => {
+          const fields = new FormData(form);
+          const template = fields.get('template');
+          const heading = String(fields.get('heading') || '').trim();
+          if (template === 'result-card' && !heading) {
+            toast('Enter the text to show above Academic Session.', 'bad');
+            return;
+          }
+          accepted = true;
+          closeDialog();
+          try {
+            const query = new URLSearchParams(params);
+            query.set('template', template);
+            if (template === 'result-card') query.set('heading', heading);
+            const { blob, fileName } = await fetchFile(`${endpoint}?${query}`);
+            downloadBlob(blob, fileName);
+            finish(true);
+          } catch (error) {
+            toast(error.message || 'Could not prepare that report card.', 'bad');
+            finish(false);
+          }
+        }
+      },
+      onClose: () => { if (!accepted) finish(false); }
+    });
+  });
 }
 
 export function backLink(href, label) {

@@ -1,6 +1,6 @@
-import { html, mount, icon, fmtWhen, fmtDate, pct, plural, chips, busy, downloadBlob, $ } from '../ui.js';
-import { state, students, sections, attendanceFor, select, classesForUser, student as findStudent, fetchFile } from '../data.js';
-import { legacyBanner } from './common.js';
+import { html, mount, icon, fmtWhen, fmtDate, pct, plural, chips, busy, $ } from '../ui.js';
+import { state, students, sections, attendanceFor, select, classesForUser, student as findStudent } from '../data.js';
+import { legacyBanner, downloadReportCards } from './common.js';
 import { ensureCharts, makeChart, palette, percentAxis, valueLabels, BANDS, bandIndex } from '../charts.js';
 import { openInsights } from './insights.js';
 import { openAttendanceExport } from './attendance-export.js';
@@ -413,8 +413,7 @@ export default {
       'ov-insights': el => openInsights(el.dataset.id),
       'ov-att-export': () => openAttendanceExport({ std: filters.cls }),
       'ov-report': el => busy(el, async () => {
-        const { blob, fileName } = await fetchFile(`/report-cards.pdf?students=${el.dataset.id}&tests=all`);
-        downloadBlob(blob, fileName);
+        await downloadReportCards({ students: el.dataset.id, tests: 'all' });
       }, '...')
     };
   },

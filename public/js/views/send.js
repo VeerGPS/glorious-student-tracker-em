@@ -54,7 +54,7 @@ function freshForm(params) {
     date: params.date || state.data.today,
     threshold: 33,
     reportTemplate: 'modern',
-    reportHeading: 'PROGRESS REPORT / RESULT CARD',
+    reportHeading: '',
     text: kind ? KINDS[kind].text : '',
     selected: null,
     absent: null,
@@ -137,8 +137,8 @@ function optionsHtml(sel) {
       </label>
     </div>
     ${form.reportTemplate === 'result-card' ? html`<label class="field"><span>Text above Academic Session</span>
-      <input name="reportHeading" value="${form.reportHeading}" maxlength="100" data-input="opt-heading" required>
-      <small>This heading is printed above the Academic Session on the new template.</small>
+      <input name="reportHeading" value="${form.reportHeading}" maxlength="100" data-input="opt-heading" placeholder="e.g. FIRST PRELIMS RESULT" required>
+      <small>Enter the custom heading to print above the Academic Session.</small>
     </label>` : ''}`;
   }
   if (form.kind === 'low') {
@@ -347,6 +347,10 @@ export default {
       'sel-none': () => { form.selected.clear(); draw(); },
       review: el => busy(el, async () => {
         if (form.kind === 'low' && !form.testId) { toast('Choose a test.', 'bad'); return; }
+        if (form.kind === 'report' && form.reportTemplate === 'result-card' && !form.reportHeading.trim()) {
+          toast('Enter the text to show above Academic Session.', 'bad');
+          return;
+        }
         const ta = $('textarea', main);
         if (ta) form.text = ta.value;
         form.review = await api('POST', '/messages/preview', body());

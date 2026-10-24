@@ -1,6 +1,6 @@
-import { html, mount, busy, toast, icon, fmtDate, fmtDateSlash, plural, confirmDialog, downloadBlob, chips, $, $$ } from '../ui.js';
-import { state, api, refresh, students, sections, test as findTest, replaceTest, fetchFile, selection, select } from '../data.js';
-import { backLink } from './common.js';
+import { html, mount, busy, toast, icon, fmtDate, fmtDateSlash, plural, confirmDialog, chips, $, $$ } from '../ui.js';
+import { state, api, refresh, students, sections, test as findTest, replaceTest, selection, select } from '../data.js';
+import { backLink, downloadReportCards } from './common.js';
 import { openTestForm } from './test-form.js';
 import { openMarksUpload } from './marks-upload.js';
 import { downloadMarksTemplate, downloadResultsSheet } from '../excel.js';
@@ -207,9 +207,7 @@ export default {
       results: el => busy(el, () => downloadResultsSheet(t, students(t.std, sectionFilter))),
       upload: guard(() => openMarksUpload({ std: t.std, test: t, onSaved: () => ctx.rerender() })),
       pdf: el => busy(el, async () => {
-        const q = `std=${t.std}${sectionFilter !== 'all' ? `&section=${sectionFilter}` : ''}&tests=${t.id}`;
-        const { blob, fileName } = await fetchFile(`/report-cards.pdf?${q}`);
-        downloadBlob(blob, fileName);
+        await downloadReportCards({ std: t.std, ...(sectionFilter !== 'all' ? { section: sectionFilter } : {}), tests: t.id });
       }, 'Preparing PDF...')
     };
   }
