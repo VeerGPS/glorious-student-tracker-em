@@ -688,47 +688,160 @@ function resultCardStudent(doc, report) {
   resultCardText(doc, st.grNo || '-', 104, 126.1, 63, 10.2, color);
 }
 
-function resultCardMarks(doc, report) {
-  const left = [9.9, 26.9, 74.6, 93.5, 118.1, 137.5, 168.2, 200.4];
-  const centers = left.slice(0, -1).map((x, i) => (x + left[i + 1]) / 2);
-  const firstY = 152.2;
-  const rowHeight = 9.2;
-  const rows = report.subjects.slice(0, 8);
-  rows.forEach((subject, index) => {
-    const y = firstY + index * rowHeight;
-    const absent = subject.allAbsent;
+function resultCardIconBox(doc, x, y, color, kind) {
+  doc.setFillColor(...color);
+  doc.roundedRect(x, y, 11.5, 11.5, 2, 2, 'F');
+  doc.setDrawColor(...WHITE);
+  doc.setLineWidth(0.8);
+  if (kind === 'sum') {
+    doc.line(x + 8.8, y + 2.4, x + 3.0, y + 2.4);
+    doc.line(x + 3.0, y + 2.4, x + 8.6, y + 9.1);
+    doc.line(x + 8.6, y + 9.1, x + 3.0, y + 9.1);
+  } else if (kind === 'percent') {
+    doc.circle(x + 3.6, y + 3.5, 1.2, 'S');
+    doc.circle(x + 7.9, y + 8.0, 1.2, 'S');
+    doc.line(x + 8.8, y + 2.2, x + 2.8, y + 9.4);
+  } else {
+    const points = [[5.75, 1.8], [6.9, 4.1], [9.5, 4.4], [7.6, 6.2], [8.2, 8.9], [5.75, 7.5], [3.3, 8.9], [3.9, 6.2], [2.0, 4.4], [4.6, 4.1]];
+    for (let i = 0; i < points.length; i += 1) {
+      const a = points[i];
+      const b = points[(i + 1) % points.length];
+      doc.line(x + a[0], y + a[1], x + b[0], y + b[1]);
+    }
+  }
+}
+
+function resultCardSummaryBox(doc, x, y, width, title, titleColor) {
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(115, 211, 250);
+  doc.setLineWidth(0.45);
+  doc.roundedRect(x, y, width, 43.5, 4, 4, 'FD');
+  doc.setFillColor(...titleColor);
+  doc.roundedRect(x, y, width, 9, 4, 4, 'F');
+  doc.rect(x, y + 4.5, width, 4.5, 'F');
+  resultCardText(doc, title, x + 7, y + 6.5, width - 14, 10.2, WHITE);
+}
+
+function resultCardLowerHalf(doc, report) {
+  const navy = [7, 34, 104];
+  const brightBlue = [0, 128, 219];
+  const pale = [239, 250, 254];
+  const tableX = 9.9;
+  const tableY = 133;
+  const tableW = 190.5;
+  const headerH = 13;
+  const columns = [9.9, 26.9, 74.6, 93.5, 118.1, 137.5, 168.2, 200.4];
+  const centers = columns.slice(0, -1).map((x, i) => (x + columns[i + 1]) / 2);
+  const sourceSubjects = report.subjects;
+  const subjects = sourceSubjects.length ? sourceSubjects : [{ subject: 'No marks entered', max: 0, obtained: 0, pct: null, allAbsent: false }];
+  const rowHeight = Math.max(6.3, Math.min(9.2, 73 / subjects.length));
+  const tableBottom = tableY + headerH + rowHeight * subjects.length;
+
+  // Hide the fixed eight-row artwork table and summary so the visible layout
+  // can follow the actual number of subjects.
+  doc.setFillColor(...pale);
+  doc.rect(7.5, 130.5, 195, 156, 'F');
+
+  doc.setFillColor(248, 253, 255);
+  doc.setDrawColor(...navy);
+  doc.setLineWidth(0.45);
+  doc.roundedRect(tableX, tableY, tableW, tableBottom - tableY, 3, 3, 'FD');
+  doc.setFillColor(193, 232, 249);
+  doc.roundedRect(tableX, tableY, tableW, headerH, 3, 3, 'F');
+  doc.rect(tableX, tableY + headerH - 3, tableW, 3, 'F');
+
+  const labels = [['S. NO.'], ['SUBJECT NAME'], ['TOTAL', 'MARKS'], ['MARKS', 'OBTAINED'], ['GRADE'], ['PERCENTAGE'], ['REMARKS']];
+  labels.forEach((label, i) => {
+    label.forEach((line, j) => resultCardText(doc, line, centers[i], tableY + 5.4 + j * 4.6, columns[i + 1] - columns[i] - 2, 7.1, navy, 'center'));
+  });
+
+  // Use the same school mark as a watermark, but keep it inside the dynamic table.
+  withOpacity(doc, 0.15, () => logo(doc, 65, Math.min(tableY + headerH + 2, tableBottom - 54), 79));
+
+  const verticals = columns.slice(1, -1);
+  verticals.forEach(x => {
+    doc.setDrawColor(...navy);
+    doc.setLineWidth(0.25);
+    doc.line(x, tableY, x, tableBottom);
+  });
+  doc.line(tableX, tableY + headerH, tableX + tableW, tableY + headerH);
+
+  subjects.forEach((subject, index) => {
+    const rowTop = tableY + headerH + index * rowHeight;
+    const baseline = rowTop + rowHeight * 0.67;
+    if (index % 2 === 1) {
+      doc.setFillColor(235, 247, 253);
+      doc.rect(tableX + 0.4, rowTop, tableW - 0.8, rowHeight, 'F');
+    }
+    const absent = Boolean(subject.allAbsent);
     const values = [
+      `${index + 1}.`,
       subject.subject,
       subject.max ? String(subject.max) : '-',
       absent ? 'AB' : num(subject.obtained),
       absent ? 'AB' : grade(subject.pct),
       absent ? '-' : `${num(subject.pct)}%`,
-      absent ? 'Absent' : subject.pct < 33 ? 'Needs improvement' : ''
+      absent ? 'Absent' : subject.pct !== null && subject.pct < 33 ? 'Needs improvement' : ''
     ];
-    resultCardText(doc, values[0], left[1] + 2, y, left[2] - left[1] - 4, 9.1, NAVY);
-    resultCardText(doc, values[1], centers[2], y, left[3] - left[2] - 3, 9.1, NAVY, 'center');
-    resultCardText(doc, values[2], centers[3], y, left[4] - left[3] - 3, 9.1, NAVY, 'center');
-    resultCardText(doc, values[3], centers[4], y, left[5] - left[4] - 3, 9.1, NAVY, 'center');
-    resultCardText(doc, values[4], centers[5], y, left[6] - left[5] - 3, 9.1, NAVY, 'center');
-    resultCardText(doc, values[5], left[6] + 2, y, left[7] - left[6] - 4, 8.2, absent || subject.pct < 33 ? RED : NAVY);
+    resultCardText(doc, values[0], centers[0], baseline, columns[1] - columns[0] - 2, 8.9, navy, 'center');
+    resultCardText(doc, values[1], columns[1] + 2, baseline, columns[2] - columns[1] - 4, rowHeight < 7 ? 7.1 : 8.7, navy);
+    resultCardText(doc, values[2], centers[2], baseline, columns[3] - columns[2] - 2, 8.7, navy, 'center');
+    resultCardText(doc, values[3], centers[3], baseline, columns[4] - columns[3] - 2, 8.7, navy, 'center');
+    resultCardText(doc, values[4], centers[4], baseline, columns[5] - columns[4] - 2, 8.7, navy, 'center');
+    resultCardText(doc, values[5], centers[5], baseline, columns[6] - columns[5] - 2, 8.7, navy, 'center');
+    resultCardText(doc, values[6], columns[6] + 2, baseline, columns[7] - columns[6] - 4, rowHeight < 7 ? 6.7 : 7.8, absent || subject.pct < 33 ? RED : navy);
+    doc.setDrawColor(135, 184, 210);
+    doc.setLineWidth(0.2);
+    doc.line(tableX, rowTop + rowHeight, tableX + tableW, rowTop + rowHeight);
   });
-}
+  doc.setDrawColor(...navy);
+  doc.setLineWidth(0.45);
+  doc.roundedRect(tableX, tableY, tableW, tableBottom - tableY, 3, 3, 'S');
 
-function resultCardSummary(doc, report) {
-  const color = [8, 24, 101];
+  const summaryY = Math.min(tableBottom + 3.5, 224);
+  const leftX = 9.9;
+  const gap = 4;
+  const boxW = (tableW - gap) / 2;
+  const rightX = leftX + boxW + gap;
+  resultCardSummaryBox(doc, leftX, summaryY, boxW, 'RESULTS SUMMARY', brightBlue);
+  resultCardSummaryBox(doc, rightX, summaryY, boxW, 'REMARKS', brightBlue);
+
   const t = report.total;
-  resultCardText(doc, t.max ? `${num(t.obtained)} / ${t.max}` : '-', 84.5, 239.9, 29, 10.3, color, 'center');
-  resultCardText(doc, t.pct === null ? '-' : `${num(t.pct)}%`, 84.5, 251.2, 29, 10.3, color, 'center');
-  resultCardText(doc, t.grade || '-', 84.5, 262.2, 29, 10.3, color, 'center');
+  const summaryRows = [
+    ['Grand Total', t.max ? `${num(t.obtained)} / ${t.max}` : '-', [9, 139, 76], 'sum'],
+    ['Total Percentage', t.pct === null ? '-' : `${num(t.pct)}%`, [10, 125, 214], 'percent'],
+    ['Overall Grade', t.grade || '-', [245, 166, 16], 'star']
+  ];
+  summaryRows.forEach(([label, value, iconColor, glyph], index) => {
+    const yy = summaryY + 13.5 + index * 9.5;
+    resultCardIconBox(doc, leftX + 5, yy - 2.5, iconColor, glyph);
+    resultCardText(doc, label, leftX + 23, yy + 4, 44, 8.4, navy);
+    doc.setFillColor(253, 254, 255);
+    doc.setDrawColor(0, 142, 225);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(leftX + 61, yy - 2.5, 35, 11.5, 2, 2, 'FD');
+    resultCardText(doc, value, leftX + 78.5, yy + 4.5, 31, 8.7, navy, 'center');
+  });
 
   const remarks = safe(report.remarks || '').trim();
   if (remarks) {
     doc.setFont('times', 'normal');
     doc.setFontSize(8.1);
-    doc.setTextColor(...color);
-    const lines = doc.splitTextToSize(remarks, 82).slice(0, 5);
-    lines.forEach((line, index) => doc.text(line, 111, 239.6 + index * 6.4));
+    doc.setTextColor(...navy);
+    const lines = doc.splitTextToSize(remarks, boxW - 13).slice(0, 5);
+    lines.forEach((line, index) => doc.text(line, rightX + 7, summaryY + 17 + index * 5.8));
   }
+  doc.setDrawColor(73, 125, 175);
+  doc.setLineWidth(0.22);
+  for (let i = 0; i < 5; i += 1) doc.line(rightX + 7, summaryY + 20 + i * 5.8, rightX + boxW - 7, summaryY + 20 + i * 5.8);
+
+  const signatureY = Math.min(278, Math.max(244, summaryY + 50));
+  doc.setDrawColor(...navy);
+  doc.setLineWidth(0.35);
+  [['Class Teacher', 40], ['Principal', 105], ['Parent/Guardian', 170]].forEach(([label, x]) => {
+    doc.line(x - 24, signatureY, x + 24, signatureY);
+    resultCardText(doc, label, x, signatureY + 6, 48, 8.6, navy, 'center');
+  });
 }
 
 function drawResultCard(doc, report, school, options) {
@@ -736,8 +849,7 @@ function drawResultCard(doc, report, school, options) {
   doc.addImage(RESULT_CARD_TEMPLATE, 'PNG', 0, 0, 210, 315, 'result-card-template', 'FAST');
   resultCardBanner(doc, report, options);
   resultCardStudent(doc, report);
-  resultCardMarks(doc, report);
-  resultCardSummary(doc, report);
+  resultCardLowerHalf(doc, report);
 }
 
 /** Renders one or more report cards into a single PDF and returns it as a Buffer. */
