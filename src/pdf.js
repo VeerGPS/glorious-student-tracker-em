@@ -721,12 +721,12 @@ function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
       absent || pct === null ? '-' : `${num(pct)}%`,
       absent ? 'Absent' : pct !== null && pct < 33 ? 'Needs improvement' : ''
     ];
-    resultCardText(doc, values[0], columns[1] + 2.1, y, columns[2] - columns[1] - 4.2, 8.8, [8, 24, 101]);
-    resultCardText(doc, values[1], centers[2], y, columns[3] - columns[2] - 2.5, 8.5, [8, 24, 101], 'center');
-    resultCardText(doc, values[2], centers[3], y, columns[4] - columns[3] - 2.5, 8.5, [8, 24, 101], 'center');
-    resultCardText(doc, values[3], centers[4], y, columns[5] - columns[4] - 2.5, 8.5, [8, 24, 101], 'center');
-    resultCardText(doc, values[4], centers[5], y, columns[6] - columns[5] - 2.5, 8.5, [8, 24, 101], 'center');
-    resultCardText(doc, values[5], columns[6] + 2, y, columns[7] - columns[6] - 4, 7.2, absent || (pct !== null && pct < 33) ? RED : [8, 24, 101]);
+    resultCardText(doc, values[0], columns[1] + 2.1, y, columns[2] - columns[1] - 4.2, 10.5, [8, 24, 101]);
+    resultCardText(doc, values[1], centers[2], y, columns[3] - columns[2] - 2.5, 10, [8, 24, 101], 'center');
+    resultCardText(doc, values[2], centers[3], y, columns[4] - columns[3] - 2.5, 10, [8, 24, 101], 'center');
+    resultCardText(doc, values[3], centers[4], y, columns[5] - columns[4] - 2.5, 10, [8, 24, 101], 'center');
+    resultCardText(doc, values[4], centers[5], y, columns[6] - columns[5] - 2.5, 10, [8, 24, 101], 'center');
+    resultCardText(doc, values[5], columns[6] + 2, y, columns[7] - columns[6] - 4, 8.5, absent || (pct !== null && pct < 33) ? RED : [8, 24, 101]);
   });
 
   const total = report.total;
