@@ -763,13 +763,13 @@ function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
       absent || pct === null ? '-' : `${num(pct)}%`,
       resultCardSubjectRemark(subject)
     ];
-    resultCardText(doc, `${index + 1}.`, centers[0], y, columns[1] - columns[0] - 2, 11.3, [8, 24, 101], 'center');
-    resultCardText(doc, values[0], columns[1] + 2.1, y, columns[2] - columns[1] - 4.2, 11.5, [8, 24, 101]);
-    resultCardText(doc, values[1], centers[2], y, columns[3] - columns[2] - 2.5, 11, [8, 24, 101], 'center');
-    resultCardText(doc, values[2], centers[3], y, columns[4] - columns[3] - 2.5, 11, [8, 24, 101], 'center');
-    resultCardText(doc, values[3], centers[4], y, columns[5] - columns[4] - 2.5, 11, [8, 24, 101], 'center');
-    resultCardText(doc, values[4], centers[5], y, columns[6] - columns[5] - 2.5, 11, [8, 24, 101], 'center');
-    resultCardText(doc, values[5], columns[6] + 2, y, columns[7] - columns[6] - 4, 9.4, absent || (pct !== null && pct < 40) ? RED : [8, 24, 101]);
+    resultCardText(doc, `${index + 1}.`, centers[0], y, columns[1] - columns[0] - 2, 13.5, [8, 24, 101], 'center');
+    resultCardText(doc, values[0], columns[1] + 2.1, y, columns[2] - columns[1] - 4.2, 13.5, [8, 24, 101]);
+    resultCardText(doc, values[1], centers[2], y, columns[3] - columns[2] - 2.5, 13.5, [8, 24, 101], 'center');
+    resultCardText(doc, values[2], centers[3], y, columns[4] - columns[3] - 2.5, 13.5, [8, 24, 101], 'center');
+    resultCardText(doc, values[3], centers[4], y, columns[5] - columns[4] - 2.5, 13.5, [8, 24, 101], 'center');
+    resultCardText(doc, values[4], centers[5], y, columns[6] - columns[5] - 2.5, 13.5, [8, 24, 101], 'center');
+    resultCardText(doc, values[5], columns[6] + 2, y, columns[7] - columns[6] - 4, 11.2, absent || (pct !== null && pct < 40) ? RED : [8, 24, 101]);
   });
 
   // Draw only the row dividers that belong to the subjects on this page.
