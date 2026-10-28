@@ -423,12 +423,12 @@ test('result-card template keeps the custom heading and student profile photo', 
   assert.equal(pdf.status, 200);
   assert.equal(pdf.data.subarray(0, 4).toString(), '%PDF');
   const pdfObjects = pdf.data.toString('latin1');
-  assert.match(pdfObjects, /\/Width 1024\s*\/Height 1536/, 'result card embeds the supplied full-page template artwork');
+  assert.match(pdfObjects, /\/Width 1022\s*\/Height 1536/, 'result card embeds the edited full-page template artwork');
   assert.match(pdfObjects, /\/MediaBox \[0 0 595\.275[\d.]+ 892\.913[\d.]+\]/, 'result card uses the template 2:3 page ratio');
 
   const parentPdf = await srv.call('GET', `/api/parent/${created.data.student.parentKey}/report.pdf?template=result-card&heading=${encodeURIComponent(heading)}`);
   assert.equal(parentPdf.status, 200);
-  assert.match(parentPdf.data.toString('latin1'), /\/Width 1024\s*\/Height 1536/, 'parent downloads also use the selected artwork');
+  assert.match(parentPdf.data.toString('latin1'), /\/Width 1022\s*\/Height 1536/, 'parent downloads also use the edited artwork');
 });
 
 test('AI insights for a student', async t => {

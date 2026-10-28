@@ -47,7 +47,7 @@ const LOGO = (() => {
 const LOGO_RATIO = 360 / 420; // height / width of the logo image
 
 // The supplied artwork is the fixed page background for the result-card
-// template. Its 1024x1536 ratio is 2:3, so that template uses a matching
+// template. Its 1022x1536 image is nearly 2:3, so the template uses a matching
 // 210x315mm custom page instead of A4.
 const RESULT_CARD_TEMPLATE = (() => {
   try {
@@ -707,11 +707,24 @@ function resultCardStudent(doc, report) {
   const st = report.student;
   const color = [8, 24, 101];
   resultCardPhoto(doc, st.photo, st.id);
-  resultCardText(doc, st.name || '-', 94.5, 94, 108, 13, color);
-  resultCardText(doc, `${st.std || '-'}-${st.section || '-'}`, 94.5, 107.1, 37, 12.3, color);
-  resultCardText(doc, String(st.roll || '-'), 164.2, 107.1, 38, 12.3, color);
-  resultCardText(doc, st.dateOfBirth ? niceDate(st.dateOfBirth) : '-', 94.5, 120.3, 108, 12.3, color);
-  resultCardText(doc, st.grNo || '-', 94.5, 133.4, 108, 12.3, color);
+  resultCardText(doc, st.name || '-', 94.5, 93.7, 108, 13, color);
+  resultCardText(doc, `${st.std || '-'}-${st.section || '-'}`, 94.5, 106.25, 37, 12.3, color);
+  resultCardText(doc, String(st.roll || '-'), 166.2, 106.25, 36, 12.3, color);
+  resultCardText(doc, st.dateOfBirth ? niceDate(st.dateOfBirth) : '-', 94.5, 118.9, 108, 12.3, color);
+  resultCardText(doc, st.grNo || '-', 94.5, 131.65, 108, 12.3, color);
+}
+
+function resultCardSubjectRemark(subject) {
+  const custom = safe(subject.remarks || subject.remark || '').trim();
+  if (custom) return custom;
+  if (subject.allAbsent) return 'Absent';
+  if (!subject.max || subject.pct === null || subject.pct === undefined || !Number.isFinite(Number(subject.pct))) return 'No marks';
+  const pct = Number(subject.pct);
+  if (pct >= 90) return 'Excellent';
+  if (pct >= 75) return 'Very good';
+  if (pct >= 60) return 'Good';
+  if (pct >= 40) return 'Needs practice';
+  return 'Needs support';
 }
 
 function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
@@ -745,15 +758,15 @@ function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
       absent ? 'AB' : num(subject.obtained),
       absent ? 'AB' : grade(pct),
       absent || pct === null ? '-' : `${num(pct)}%`,
-      absent ? 'Absent' : pct !== null && pct < 33 ? 'Needs improvement' : ''
+      resultCardSubjectRemark(subject)
     ];
-    resultCardText(doc, String(index + 1), centers[0], y, columns[1] - columns[0] - 2, 11.3, [8, 24, 101], 'center');
+    resultCardText(doc, `${index + 1}.`, centers[0], y, columns[1] - columns[0] - 2, 11.3, [8, 24, 101], 'center');
     resultCardText(doc, values[0], columns[1] + 2.1, y, columns[2] - columns[1] - 4.2, 11.5, [8, 24, 101]);
     resultCardText(doc, values[1], centers[2], y, columns[3] - columns[2] - 2.5, 11, [8, 24, 101], 'center');
     resultCardText(doc, values[2], centers[3], y, columns[4] - columns[3] - 2.5, 11, [8, 24, 101], 'center');
     resultCardText(doc, values[3], centers[4], y, columns[5] - columns[4] - 2.5, 11, [8, 24, 101], 'center');
     resultCardText(doc, values[4], centers[5], y, columns[6] - columns[5] - 2.5, 11, [8, 24, 101], 'center');
-    resultCardText(doc, values[5], columns[6] + 2, y, columns[7] - columns[6] - 4, 9.4, absent || (pct !== null && pct < 33) ? RED : [8, 24, 101]);
+    resultCardText(doc, values[5], columns[6] + 2, y, columns[7] - columns[6] - 4, 9.4, absent || (pct !== null && pct < 40) ? RED : [8, 24, 101]);
   });
 
   // Draw only the row dividers that belong to the subjects on this page.
@@ -777,7 +790,7 @@ function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
     doc.setFontSize(9.1);
     doc.setTextColor(8, 24, 101);
     const lines = doc.splitTextToSize(remarks, 87).slice(0, 5);
-    lines.forEach((line, index) => doc.text(line, 112.8, 242.5 + index * 6.8));
+    lines.forEach((line, index) => doc.text(line, 112.8, 244.5 + index * 6.8));
   }
 }
 
