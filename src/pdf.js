@@ -56,7 +56,7 @@ const RESULT_CARD_TEMPLATE = (() => {
     return null;
   }
 })();
-const RESULT_CARD_ROWS = 8;
+const RESULT_CARD_ROWS = 12;
 
 // The built-in PDF fonts only cover Latin characters (plus a few marks like · – •).
 function safe(text) {
@@ -673,16 +673,31 @@ function resultCardPhoto(doc, photo, studentId) {
     const height = 37.2;
     const props = doc.getImageProperties(photo);
     const ratio = props.width / props.height;
-    const boxRatio = width / height;
-    const imageW = ratio > boxRatio ? width - 1.2 : (height - 1.2) * ratio;
-    const imageH = ratio > boxRatio ? (width - 1.2) / ratio : height - 1.2;
-    const imageX = x + (width - imageW) / 2;
-    const imageY = y + (height - imageH) / 2;
+    const inset = 1;
+    const imageBoxX = x + inset;
+    const imageBoxY = y + inset;
+    const imageBoxW = width - inset * 2;
+    const imageBoxH = height - inset * 2;
+    const boxRatio = imageBoxW / imageBoxH;
+    // Cover the photo frame and center-crop the excess so portrait and
+    // landscape uploads both fill the same box without being distorted.
+    const imageW = ratio > boxRatio ? imageBoxH * ratio : imageBoxW;
+    const imageH = ratio > boxRatio ? imageBoxH : imageBoxW / ratio;
+    const imageX = imageBoxX + (imageBoxW - imageW) / 2;
+    const imageY = imageBoxY + (imageBoxH - imageH) / 2;
     doc.setFillColor(245, 247, 249);
     doc.setDrawColor(167, 177, 187);
     doc.setLineWidth(0.3);
     doc.roundedRect(x, y, width, height, 2, 2, 'FD');
+    doc.saveGraphicsState();
+    doc.rect(imageBoxX, imageBoxY, imageBoxW, imageBoxH);
+    doc.clip();
+    doc.discardPath();
     doc.addImage(photo, photo.startsWith('data:image/png') ? 'PNG' : 'JPEG', imageX, imageY, imageW, imageH, `result-card-photo-${studentId || 'student'}`, 'FAST');
+    doc.restoreGraphicsState();
+    doc.setDrawColor(167, 177, 187);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(x, y, width, height, 2, 2, 'S');
   } catch {
     // The fixed placeholder in the supplied background remains visible.
   }
@@ -702,15 +717,28 @@ function resultCardStudent(doc, report) {
 function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
   const columns = [9.9, 26.9, 74.6, 93.5, 118.1, 137.5, 168.2, 200.4];
   const centers = columns.slice(0, -1).map((x, index) => (x + columns[index + 1]) / 2);
-  const rowStartY = 149.5;
-  const rowHeight = 8.95;
   const subjects = pageSubjects.slice(0, RESULT_CARD_ROWS);
+  const bodyX = columns[0] + 0.25;
+  const bodyY = 145.3;
+  const bodyW = columns[columns.length - 1] - columns[0] - 0.5;
+  const bodyBottom = 218.8;
+  const bodyH = bodyBottom - bodyY;
+  const rowHeight = subjects.length ? bodyH / subjects.length : 0;
 
-  // The artwork already contains the exact seven-column grid, row numbers,
-  // watermark, summary cards, ruled remarks lines, signatures and footer.
-  // Only the student's variable values are painted over its blank cells.
+  // Keep the supplied table header and all surrounding template artwork, but
+  // replace its eight preprinted body rows so the grid matches the real
+  // subject count. The school mark is restored as a pale watermark underneath.
+  doc.setFillColor(248, 252, 254);
+  doc.rect(bodyX, bodyY, bodyW, bodyH, 'F');
+  doc.saveGraphicsState();
+  doc.rect(bodyX, bodyY, bodyW, bodyH);
+  doc.clip();
+  doc.discardPath();
+  withOpacity(doc, 0.12, () => logo(doc, 65.5, 151, 79));
+  doc.restoreGraphicsState();
+
   subjects.forEach((subject, index) => {
-    const y = rowStartY + index * rowHeight;
+    const y = bodyY + index * rowHeight + rowHeight / 2 + 0.1;
     const absent = Boolean(subject.allAbsent);
     const pct = subject.pct;
     const values = [
@@ -721,13 +749,24 @@ function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
       absent || pct === null ? '-' : `${num(pct)}%`,
       absent ? 'Absent' : pct !== null && pct < 33 ? 'Needs improvement' : ''
     ];
-    resultCardText(doc, values[0], columns[1] + 2.1, y, columns[2] - columns[1] - 4.2, 10.5, [8, 24, 101]);
-    resultCardText(doc, values[1], centers[2], y, columns[3] - columns[2] - 2.5, 10, [8, 24, 101], 'center');
-    resultCardText(doc, values[2], centers[3], y, columns[4] - columns[3] - 2.5, 10, [8, 24, 101], 'center');
-    resultCardText(doc, values[3], centers[4], y, columns[5] - columns[4] - 2.5, 10, [8, 24, 101], 'center');
-    resultCardText(doc, values[4], centers[5], y, columns[6] - columns[5] - 2.5, 10, [8, 24, 101], 'center');
-    resultCardText(doc, values[5], columns[6] + 2, y, columns[7] - columns[6] - 4, 8.5, absent || (pct !== null && pct < 33) ? RED : [8, 24, 101]);
+    resultCardText(doc, String(index + 1), centers[0], y, columns[1] - columns[0] - 2, 11, [8, 24, 101], 'center');
+    resultCardText(doc, values[0], columns[1] + 2.1, y, columns[2] - columns[1] - 4.2, 11.5, [8, 24, 101]);
+    resultCardText(doc, values[1], centers[2], y, columns[3] - columns[2] - 2.5, 11, [8, 24, 101], 'center');
+    resultCardText(doc, values[2], centers[3], y, columns[4] - columns[3] - 2.5, 11, [8, 24, 101], 'center');
+    resultCardText(doc, values[3], centers[4], y, columns[5] - columns[4] - 2.5, 11, [8, 24, 101], 'center');
+    resultCardText(doc, values[4], centers[5], y, columns[6] - columns[5] - 2.5, 11, [8, 24, 101], 'center');
+    resultCardText(doc, values[5], columns[6] + 2, y, columns[7] - columns[6] - 4, 9.4, absent || (pct !== null && pct < 33) ? RED : [8, 24, 101]);
   });
+
+  // Draw only the row dividers that belong to the subjects on this page.
+  doc.setDrawColor(12, 39, 90);
+  doc.setLineWidth(0.22);
+  columns.slice(1, -1).forEach(x => doc.line(x, bodyY, x, bodyBottom));
+  for (let row = 1; row < subjects.length; row += 1) {
+    const y = bodyY + row * rowHeight;
+    doc.line(columns[0], y, columns[columns.length - 1], y);
+  }
+  doc.line(columns[0], bodyBottom, columns[columns.length - 1], bodyBottom);
 
   const total = report.total;
   resultCardText(doc, total.max ? `${num(total.obtained)} / ${total.max}` : '-', 84.5, 239.9, 29, 10.3, [8, 24, 101], 'center');
@@ -749,8 +788,12 @@ function drawResultCard(doc, report, school, options, subjectPage = 0) {
   doc.addImage(RESULT_CARD_TEMPLATE, 'PNG', 0, 0, 210, 315, 'result-card-template', 'FAST');
   resultCardBanner(doc, report, options);
   resultCardStudent(doc, report);
-  const start = subjectPage * RESULT_CARD_ROWS;
-  resultCardLowerHalf(doc, report, report.subjects.slice(start, start + RESULT_CARD_ROWS));
+  const pageCount = Math.max(1, Math.ceil(report.subjects.length / RESULT_CARD_ROWS));
+  const baseSize = Math.floor(report.subjects.length / pageCount);
+  const extra = report.subjects.length % pageCount;
+  const start = subjectPage * baseSize + Math.min(subjectPage, extra);
+  const pageSize = baseSize + (subjectPage < extra ? 1 : 0);
+  resultCardLowerHalf(doc, report, report.subjects.slice(start, start + pageSize));
 }
 
 /** Renders one or more report cards into a single PDF and returns it as a Buffer. */
