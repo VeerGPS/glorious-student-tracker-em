@@ -57,9 +57,9 @@ const RESULT_CARD_TEMPLATE = (() => {
   }
 })();
 const RESULT_CARD_ROWS = 12;
-// Carlito is OFL licensed and metric-compatible with Calibri, so PDFs can
-// embed it consistently without relying on a machine's installed fonts.
-const RESULT_CARD_FONT_DIR = path.join(__dirname, 'assets', 'fonts', 'carlito');
+// Caladea is an open-licensed Cambria-compatible serif that can be embedded
+// consistently without relying on a machine's installed fonts.
+const RESULT_CARD_FONT_DIR = path.join(__dirname, 'assets', 'fonts', 'caladea');
 
 // The built-in PDF fonts only cover Latin characters (plus a few marks like · – •).
 function safe(text) {
@@ -629,7 +629,7 @@ function drawReport(doc, report, school) {
 // ---------------------------------------------------------------- supplied-artwork result card
 
 function resultCardText(doc, text, x, y, width, size = 10, color = NAVY, align = 'left', style = 'bold') {
-  doc.setFont('Carlito', style);
+  doc.setFont('Caladea', style);
   doc.setFontSize(size);
   doc.setTextColor(...color);
   const value = fit(doc, text, width);
@@ -638,7 +638,7 @@ function resultCardText(doc, text, x, y, width, size = 10, color = NAVY, align =
 
 function resultCardBannerText(doc, text, x, y, width, size) {
   const value = safe(text);
-  doc.setFont('Carlito', 'bold');
+  doc.setFont('Caladea', 'bold');
   doc.setTextColor(...WHITE);
   doc.setFontSize(size);
   const naturalWidth = doc.getTextWidth(value);
@@ -789,7 +789,7 @@ function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
 
   const remarks = safe(report.remarks || '').trim();
   if (remarks) {
-    doc.setFont('Carlito', 'normal');
+    doc.setFont('Caladea', 'normal');
     doc.setFontSize(9.1);
     doc.setTextColor(8, 24, 101);
     const lines = doc.splitTextToSize(remarks, 87).slice(0, 5);
@@ -812,10 +812,10 @@ function drawResultCard(doc, report, school, options, subjectPage = 0) {
 
 function registerResultCardFonts(doc) {
   for (const style of ['Regular', 'Bold']) {
-    const fileName = `Carlito-${style}.ttf`;
+    const fileName = `Caladea-${style}.ttf`;
     const fontData = fs.readFileSync(path.join(RESULT_CARD_FONT_DIR, fileName)).toString('base64');
     doc.addFileToVFS(fileName, fontData);
-    doc.addFont(fileName, 'Carlito', style === 'Regular' ? 'normal' : 'bold');
+    doc.addFont(fileName, 'Caladea', style === 'Regular' ? 'normal' : 'bold');
   }
 }
 
