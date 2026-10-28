@@ -57,6 +57,9 @@ const RESULT_CARD_TEMPLATE = (() => {
   }
 })();
 const RESULT_CARD_ROWS = 12;
+// Carlito is OFL licensed and metric-compatible with Calibri, so PDFs can
+// embed it consistently without relying on a machine's installed fonts.
+const RESULT_CARD_FONT_DIR = path.join(__dirname, 'assets', 'fonts', 'carlito');
 
 // The built-in PDF fonts only cover Latin characters (plus a few marks like · – •).
 function safe(text) {
@@ -626,7 +629,7 @@ function drawReport(doc, report, school) {
 // ---------------------------------------------------------------- supplied-artwork result card
 
 function resultCardText(doc, text, x, y, width, size = 10, color = NAVY, align = 'left', style = 'bold') {
-  doc.setFont('helvetica', style);
+  doc.setFont('Carlito', style);
   doc.setFontSize(size);
   doc.setTextColor(...color);
   const value = fit(doc, text, width);
@@ -635,7 +638,7 @@ function resultCardText(doc, text, x, y, width, size = 10, color = NAVY, align =
 
 function resultCardBannerText(doc, text, x, y, width, size) {
   const value = safe(text);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('Carlito', 'bold');
   doc.setTextColor(...WHITE);
   doc.setFontSize(size);
   const naturalWidth = doc.getTextWidth(value);
@@ -707,11 +710,11 @@ function resultCardStudent(doc, report) {
   const st = report.student;
   const color = [8, 24, 101];
   resultCardPhoto(doc, st.photo, st.id);
-  resultCardText(doc, st.name || '-', 94.5, 93.7, 108, 13, color);
-  resultCardText(doc, `${st.std || '-'}-${st.section || '-'}`, 94.5, 106.25, 37, 12.3, color);
-  resultCardText(doc, String(st.roll || '-'), 166.2, 106.25, 36, 12.3, color);
-  resultCardText(doc, st.dateOfBirth ? niceDate(st.dateOfBirth) : '-', 94.5, 118.9, 108, 12.3, color);
-  resultCardText(doc, st.grNo || '-', 94.5, 131.65, 108, 12.3, color);
+  resultCardText(doc, st.name || '-', 94.5, 93.7, 108, 16, color);
+  resultCardText(doc, `${st.std || '-'}-${st.section || '-'}`, 94.5, 106.25, 37, 15, color);
+  resultCardText(doc, String(st.roll || '-'), 166.2, 106.25, 36, 15, color);
+  resultCardText(doc, st.dateOfBirth ? niceDate(st.dateOfBirth) : '-', 94.5, 118.9, 108, 15, color);
+  resultCardText(doc, st.grNo || '-', 94.5, 131.65, 108, 15, color);
 }
 
 function resultCardSubjectRemark(subject) {
@@ -786,7 +789,7 @@ function resultCardLowerHalf(doc, report, pageSubjects = report.subjects) {
 
   const remarks = safe(report.remarks || '').trim();
   if (remarks) {
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Carlito', 'normal');
     doc.setFontSize(9.1);
     doc.setTextColor(8, 24, 101);
     const lines = doc.splitTextToSize(remarks, 87).slice(0, 5);
@@ -807,10 +810,20 @@ function drawResultCard(doc, report, school, options, subjectPage = 0) {
   resultCardLowerHalf(doc, report, report.subjects.slice(start, start + pageSize));
 }
 
+function registerResultCardFonts(doc) {
+  for (const style of ['Regular', 'Bold']) {
+    const fileName = `Carlito-${style}.ttf`;
+    const fontData = fs.readFileSync(path.join(RESULT_CARD_FONT_DIR, fileName)).toString('base64');
+    doc.addFileToVFS(fileName, fontData);
+    doc.addFont(fileName, 'Carlito', style === 'Regular' ? 'normal' : 'bold');
+  }
+}
+
 /** Renders one or more report cards into a single PDF and returns it as a Buffer. */
 function renderReportCards(reports, school, options = {}) {
   const template = options.template === 'result-card' ? 'result-card' : 'modern';
   const doc = new jsPDF({ unit: 'mm', format: template === 'result-card' ? [210, 315] : 'a4', compress: true });
+  if (template === 'result-card') registerResultCardFonts(doc);
   let pageStarted = false;
   reports.forEach((report, i) => {
     const pageCount = template === 'result-card'
